@@ -1,0 +1,56 @@
+
+========================================================================
+2026-01-12T09:35:07.111599
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 1196, in _open_data_preview
+    self._preview_win = _DataPreviewWindow(
+                        ^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 234, in __init__
+    ttk.Spinbox(top, from_=10, to=2000, width=6, textvariable=self._rows_var, command=self._refresh_table).grid(
+                                                                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: '_DataPreviewWindow' object has no attribute '_refresh_table'
+
+========================================================================
+2026-01-12T09:35:11.344444
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 1196, in _open_data_preview
+    self._preview_win = _DataPreviewWindow(
+                        ^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 234, in __init__
+    ttk.Spinbox(top, from_=10, to=2000, width=6, textvariable=self._rows_var, command=self._refresh_table).grid(
+                                                                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: '_DataPreviewWindow' object has no attribute '_refresh_table'
+
+========================================================================
+2026-01-12T09:35:18.240411
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 1196, in _open_data_preview
+    self._preview_win = _DataPreviewWindow(
+                        ^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 234, in __init__
+    ttk.Spinbox(top, from_=10, to=2000, width=6, textvariable=self._rows_var, command=self._refresh_table).grid(
+                                                                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: '_DataPreviewWindow' object has no attribute '_refresh_table'
+
+========================================================================
+2026-01-14T08:11:23.715186
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 1196, in _open_data_preview
+    self._preview_win = _DataPreviewWindow(
+                        ^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\plate_reader_view.py", line 234, in __init__
+    ttk.Spinbox(top, from_=10, to=2000, width=6, textvariable=self._rows_var, command=self._refresh_table).grid(
+                                                                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: '_DataPreviewWindow' object has no attribute '_refresh_table'
