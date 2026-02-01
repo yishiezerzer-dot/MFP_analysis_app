@@ -209,11 +209,14 @@ def find_best_peak_match(
     target_mz: float,
     tol_da: Optional[float] = None,
     tol_ppm: Optional[float] = None,
+    *,
+    prefer_intensity: bool = False,
 ) -> Optional[PeakMatch]:
     """Return best match in tolerance window.
 
     - considers all peaks within window
     - chooses best by smallest ppm error, then highest intensity
+      (or highest intensity, then smallest ppm error if prefer_intensity=True)
     - handles unsorted arrays (sorts safely)
 
     If both tol_da and tol_ppm are provided, uses the larger window in Da.
@@ -276,18 +279,29 @@ def find_best_peak_match(
     if float(t) != 0.0:
         ppm_err = abs_err / abs(float(t)) * 1e6
 
-    # Choose smallest ppm error, then highest intensity, then smallest abs error.
+    # Choose best peak in window.
     # Use argsort with structured keys.
     try:
-        best_local = int(
-            np.lexsort(
-                (
-                    abs_err,  # tie-break
-                    -int_win,  # intensity desc
-                    ppm_err,  # primary
-                )
-            )[0]
-        )
+        if prefer_intensity:
+            best_local = int(
+                np.lexsort(
+                    (
+                        abs_err,  # tie-break
+                        ppm_err,  # secondary
+                        -int_win,  # primary: intensity desc
+                    )
+                )[0]
+            )
+        else:
+            best_local = int(
+                np.lexsort(
+                    (
+                        abs_err,  # tie-break
+                        -int_win,  # intensity desc
+                        ppm_err,  # primary
+                    )
+                )[0]
+            )
     except Exception:
         best_local = int(np.argmin(ppm_err))
 
@@ -565,7 +579,14 @@ def compute_polymer_best_by_peak_sorted(
                     mz_pred = (float(neutral_var) + float(adduct_mass_val)) / float(z)
                     tol_da, tol_ppm = _tol_to_da(mz_pred=float(mz_pred), tol_value=float(tol_value), tol_unit=str(tol_unit))
 
-                    match = find_best_peak_match(mz_s, int_s, float(mz_pred), tol_da=tol_da, tol_ppm=tol_ppm)
+                    match = find_best_peak_match(
+                        mz_s,
+                        int_s,
+                        float(mz_pred),
+                        tol_da=tol_da,
+                        tol_ppm=tol_ppm,
+                        prefer_intensity=True,
+                    )
                     if match is None:
                         continue
                     # match.index is into the (already-sorted) arrays because we passed mz_s/int_s (sorted).
@@ -608,7 +629,14 @@ def compute_polymer_best_by_peak_sorted(
                 for adduct_lbl, adduct_mass_val in cluster_adducts:
                     mz_pred = (float(neutral_dimer) + float(adduct_mass_val)) / float(z)
                     tol_da, tol_ppm = _tol_to_da(mz_pred=float(mz_pred), tol_value=float(tol_value), tol_unit=str(tol_unit))
-                    match = find_best_peak_match(mz_s, int_s, float(mz_pred), tol_da=tol_da, tol_ppm=tol_ppm)
+                    match = find_best_peak_match(
+                        mz_s,
+                        int_s,
+                        float(mz_pred),
+                        tol_da=tol_da,
+                        tol_ppm=tol_ppm,
+                        prefer_intensity=True,
+                    )
                     if match is None:
                         continue
                     peak_i = int(match.index)
@@ -757,7 +785,14 @@ def explain_best_match_for_peak_sorted(
     ) -> None:
         nonlocal best
         tol_da, tol_ppm = _tol_to_da(mz_pred=float(mz_pred), tol_value=float(tol_value), tol_unit=str(tol_unit))
-        match = find_best_peak_match(mz_s, int_s, float(mz_pred), tol_da=tol_da, tol_ppm=tol_ppm)
+        match = find_best_peak_match(
+            mz_s,
+            int_s,
+            float(mz_pred),
+            tol_da=tol_da,
+            tol_ppm=tol_ppm,
+            prefer_intensity=True,
+        )
         if match is None:
             return
         if int(match.index) != int(peak_i):

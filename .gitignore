@@ -1,0 +1,5 @@
+.venv/
+.venv-work/
+.venv-laptop/
+__pycache__/
+*.pyc

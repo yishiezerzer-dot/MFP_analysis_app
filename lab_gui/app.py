@@ -13,6 +13,8 @@ import traceback
 import uuid
 import datetime
 import warnings
+import subprocess
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union, Literal
@@ -95,6 +97,202 @@ APP_NAME = "MFP lab analysis tool"
 APP_VERSION = "0.0"
 
 WORKSPACE_SCHEMA_VERSION = 1
+
+
+def json_default(obj: Any) -> Any:
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, set):
+        return sorted(list(obj))
+    if dataclasses.is_dataclass(obj):
+        return dataclasses.asdict(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+def atomic_write_json(path: Path, data: Dict[str, Any]) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        text = json.dumps(data, indent=2, ensure_ascii=False, default=json_default)
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+        raise
+
+
+def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
+    try:
+        app._save_active_session_state()
+    except Exception:
+        pass
+
+    def _encode_annotations(
+        custom_labels_by_spectrum: Dict[str, List[CustomLabel]],
+        spec_label_overrides: Dict[str, Dict[Tuple[str, float], Optional[str]]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        for spec_id, items in (custom_labels_by_spectrum or {}).items():
+            rows: List[Dict[str, Any]] = []
+            for it in items or []:
+                try:
+                    rows.append({"mz": float(it.mz), "text": str(it.label), "kind": "custom"})
+                except Exception:
+                    continue
+            if rows:
+                out[str(spec_id)] = rows
+
+        for spec_id, overrides in (spec_label_overrides or {}).items():
+            rows = out.setdefault(str(spec_id), [])
+            for (kind, mz_key), val in (overrides or {}).items():
+                try:
+                    row: Dict[str, Any] = {"mz": float(mz_key), "text": ("" if val is None else str(val)), "kind": str(kind)}
+                    if val is None:
+                        row["suppressed"] = True
+                    rows.append(row)
+                except Exception:
+                    continue
+        return out
+
+    rt_unit = "minutes"
+    try:
+        rt_unit = str(app.rt_unit_var.get() or "minutes")
+    except Exception:
+        rt_unit = "minutes"
+    if rt_unit not in ("minutes", "seconds"):
+        rt_unit = "minutes"
+
+    pol_default = "all"
+    try:
+        pol_default = str(app.polarity_var.get() or "all")
+    except Exception:
+        pol_default = "all"
+    if pol_default not in ("all", "positive", "negative"):
+        pol_default = "all"
+
+    mzml_files: List[Dict[str, Any]] = []
+    annotations_by_mzml: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+
+    for sid in list(getattr(app, "_session_order", []) or []):
+        sess = (getattr(app, "_sessions", {}) or {}).get(str(sid))
+        if sess is None:
+            continue
+        pol = sess.last_polarity_filter or pol_default
+        if pol not in ("all", "positive", "negative"):
+            pol = pol_default
+        mzml_files.append(
+            {
+                "path": str(sess.path),
+                "polarity": str(pol),
+                "rt_unit": str(rt_unit),
+                "display_name": str(getattr(sess, "display_name", "")),
+                "last_scan_index": (None if sess.last_scan_index is None else int(sess.last_scan_index)),
+                "last_selected_rt_min": (None if sess.last_selected_rt_min is None else float(sess.last_selected_rt_min)),
+            }
+        )
+        annotations_by_mzml[str(sess.path)] = _encode_annotations(
+            getattr(sess, "custom_labels_by_spectrum", {}) or {},
+            getattr(sess, "spec_label_overrides", {}) or {},
+        )
+
+    active_index = 0
+    try:
+        if app._active_session_id in (getattr(app, "_session_order", []) or []):
+            active_index = int((getattr(app, "_session_order", []) or []).index(app._active_session_id))
+    except Exception:
+        active_index = 0
+
+    linked_uv: Optional[Dict[str, Any]] = None
+    try:
+        if app._active_session_id and app._active_session_id in app._sessions:
+            sess = app._sessions[app._active_session_id]
+            if getattr(sess, "linked_uv_id", None) and str(sess.linked_uv_id) in app._uv_sessions:
+                uv_sess = app._uv_sessions[str(sess.linked_uv_id)]
+                linked_uv = {
+                    "mzml_path": str(sess.path),
+                    "uv_csv_path": str(uv_sess.path),
+                    "uv_ms_offset": float(getattr(app, "_uv_ms_rt_offset_min", 0.0) or 0.0),
+                }
+    except Exception:
+        linked_uv = None
+
+    monomers_text = ""
+    try:
+        monomers_text = str(app.poly_monomers_text_var.get() or "")
+    except Exception:
+        monomers_text = ""
+    monomers = [ln.strip() for ln in monomers_text.splitlines() if ln.strip()]
+
+    poly_common: Dict[str, Any] = {
+        "bond_delta": float(getattr(app, "poly_bond_delta_var", 0.0).get() if hasattr(app, "poly_bond_delta_var") else -18.010565),
+        "extra_delta": float(getattr(app, "poly_extra_delta_var", 0.0).get() if hasattr(app, "poly_extra_delta_var") else 0.0),
+        "adduct_mass": float(getattr(app, "poly_adduct_mass_var", 1.007276).get() if hasattr(app, "poly_adduct_mass_var") else 1.007276),
+        "cluster_adduct_mass": float(getattr(app, "poly_cluster_adduct_mass_var", -1.007276).get() if hasattr(app, "poly_cluster_adduct_mass_var") else -1.007276),
+        "adduct_na": bool(getattr(app, "poly_adduct_na_var", False).get() if hasattr(app, "poly_adduct_na_var") else False),
+        "adduct_k": bool(getattr(app, "poly_adduct_k_var", False).get() if hasattr(app, "poly_adduct_k_var") else False),
+        "adduct_cl": bool(getattr(app, "poly_adduct_cl_var", False).get() if hasattr(app, "poly_adduct_cl_var") else False),
+        "adduct_formate": bool(getattr(app, "poly_adduct_formate_var", False).get() if hasattr(app, "poly_adduct_formate_var") else False),
+        "adduct_acetate": bool(getattr(app, "poly_adduct_acetate_var", False).get() if hasattr(app, "poly_adduct_acetate_var") else False),
+        "charges": str(getattr(app, "poly_charges_var", "1").get() if hasattr(app, "poly_charges_var") else "1"),
+        "decarb": bool(getattr(app, "poly_decarb_enabled_var", False).get() if hasattr(app, "poly_decarb_enabled_var") else False),
+        "oxid": bool(getattr(app, "poly_oxid_enabled_var", False).get() if hasattr(app, "poly_oxid_enabled_var") else False),
+        "cluster": bool(getattr(app, "poly_cluster_enabled_var", False).get() if hasattr(app, "poly_cluster_enabled_var") else False),
+        "min_rel_int": float(getattr(app, "poly_min_rel_int_var", 0.01).get() if hasattr(app, "poly_min_rel_int_var") else 0.01),
+    }
+
+    try:
+        current_scan_index = None if app._current_scan_index is None else int(app._current_scan_index)
+    except Exception:
+        current_scan_index = None
+
+    tic_settings = {
+        "show_tic": bool(getattr(app, "show_tic_var", True).get() if hasattr(app, "show_tic_var") else True),
+        "x_min": str(getattr(app, "tic_xlim_min_var", "").get() if hasattr(app, "tic_xlim_min_var") else ""),
+        "x_max": str(getattr(app, "tic_xlim_max_var", "").get() if hasattr(app, "tic_xlim_max_var") else ""),
+        "y_min": str(getattr(app, "tic_ylim_min_var", "").get() if hasattr(app, "tic_ylim_min_var") else ""),
+        "y_max": str(getattr(app, "tic_ylim_max_var", "").get() if hasattr(app, "tic_ylim_max_var") else ""),
+        "title": str(getattr(app, "tic_title_var", "").get() if hasattr(app, "tic_title_var") else ""),
+    }
+
+    annotations: Dict[str, List[Dict[str, Any]]] = {}
+    try:
+        if app._active_session_id and app._active_session_id in app._sessions:
+            active_path = str(app._sessions[app._active_session_id].path)
+            annotations = annotations_by_mzml.get(active_path, {})
+    except Exception:
+        annotations = {}
+
+    return {
+        "schema": "LCMS_WORKSPACE",
+        "version": 1,
+        "saved_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "mzml_files": mzml_files,
+        "active_mzml_index": int(active_index),
+        "linked_uv": linked_uv,
+        "annotations": annotations,
+        "annotations_by_mzml": annotations_by_mzml,
+        "current_scan_index": current_scan_index,
+        "tic_settings": tic_settings,
+        "polymer_settings": {
+            "enabled": bool(getattr(app, "poly_enabled_var", False).get() if hasattr(app, "poly_enabled_var") else False),
+            "monomers": list(monomers),
+            "max_dp": int(getattr(app, "poly_max_dp_var", 12).get() if hasattr(app, "poly_max_dp_var") else 12),
+            "tolerance": float(getattr(app, "poly_tol_value_var", 0.02).get() if hasattr(app, "poly_tol_value_var") else 0.02),
+            "tolerance_unit": str(getattr(app, "poly_tol_unit_var", "Da").get() if hasattr(app, "poly_tol_unit_var") else "Da"),
+            "positive_mode": dict(poly_common),
+            "negative_mode": dict(poly_common),
+        },
+    }
 
 # UI colors / lab palette
 LIGHT_TEAL = "#CDF5EC"
@@ -439,6 +637,7 @@ Excel export troubleshooting
     • If Excel export errors mention openpyxl:
             - Install it in your environment and retry.
 
+          "pm_match_region": "Recompute the selected TIC region spectrum and apply polymer matching to it.",
 Label editing
     • If a label keeps reappearing, check whether it is an auto/poly label (controlled by settings), not a custom label.
     • Use right-click/double-click on labels to edit or delete (delete suppresses for that spectrum).
@@ -779,6 +978,7 @@ TOOLTIP_TEXT: Dict[str, str] = {
     "pm_tol_unit": "Tolerance unit: Da or ppm.",
     "pm_minrel": "Minimum peak intensity (fraction of max) used for matching.",
     "pm_apply": "Apply polymer settings and redraw Spectrum.",
+    "pm_match_region": "Recompute the selected TIC region spectrum and apply polymer matching to it.",
     "pm_reset": "Reset polymer settings to defaults.",
     "pm_close": "Close Polymer / Reaction Match.",
 
@@ -9891,6 +10091,10 @@ class App(tk.Tk):
         # Workspace/session root directory (used for microscopy outputs). Defaults to a per-run folder,
         # but if a workspace JSON is saved/loaded, we use its directory as the session root.
         self._last_workspace_json_path: Optional[Path] = None
+        self.lcms_workspace_path: Optional[Path] = None
+        self._last_lcms_workspace_dir: Optional[Path] = None
+        self._recent_lcms_workspaces: List[Dict[str, Any]] = []
+        self._recent_lcms_menu: Optional[tk.Menu] = None
         self._session_root_dir: Path = self._default_session_root_dir()
 
         # Module views (tabs)
@@ -10151,6 +10355,10 @@ class App(tk.Tk):
         self._tic_region_active_rt: Optional[Tuple[float, float]] = None
         self._tic_region_span_artist: Optional[Any] = None
         self._tic_region_clear_btn: Optional[ttk.Button] = None
+        self._region_force_poly_match: bool = False
+
+        # LCMS-only workspace restore context
+        self._lcms_workspace_restore_ctx: Optional[Dict[str, Any]] = None
 
         # Alignment between UV RT axis and MS RT axis (minutes).
         # If UV is earlier than MS by +0.125 min, then: MS_RT ≈ UV_RT + offset.
@@ -10859,8 +11067,13 @@ class App(tk.Tk):
         file_menu.add_command(label="Save Microscopy Workspace…", command=self._save_microscopy_workspace)
         file_menu.add_command(label="Load Microscopy Workspace…", command=self._load_microscopy_workspace)
         file_menu.add_separator()
-        file_menu.add_command(label="Save Workspace…\tCtrl+Shift+S", command=self._save_workspace)
-        file_menu.add_command(label="Load Workspace…\tCtrl+Shift+L", command=self._load_workspace)
+        file_menu.add_command(label="Save LCMS Workspace…\tCtrl+Shift+S", command=self._save_workspace)
+        file_menu.add_command(label="Load LCMS Workspace…\tCtrl+Shift+L", command=self._load_workspace)
+        file_menu.add_command(label="Reveal LCMS Workspace in Explorer", command=self._reveal_lcms_workspace_in_explorer)
+        recent_menu = tk.Menu(file_menu, tearoff=0)
+        file_menu.add_cascade(label="Recent LCMS Workspaces", menu=recent_menu)
+        self._recent_lcms_menu = recent_menu
+        self._refresh_recent_lcms_menu()
         file_menu.add_separator()
         file_menu.add_command(label="Close mzML (remove active)\tCtrl+W", command=lambda: self._dispatch_lcms_only(self._close_active_session))
         file_menu.add_separator()
@@ -10898,8 +11111,8 @@ class App(tk.Tk):
             "Ctrl+Shift+O  Open multiple (LCMS)\n"
             "Ctrl+U  Add UV CSV (LCMS)\n"
             "Ctrl+Shift+U  Add multiple UV CSV (LCMS)\n"
-            "Ctrl+Shift+S  Save workspace\n"
-            "Ctrl+Shift+L  Load workspace\n"
+            "Ctrl+Shift+S  Save LCMS workspace\n"
+            "Ctrl+Shift+L  Load LCMS workspace\n"
             "Ctrl+W  Close mzML (remove active)\n"
             "Ctrl+E  Export primary (LCMS export / FTIR save plot)\n"
             "Ctrl+F  Find m/z\n"
@@ -12529,6 +12742,88 @@ class App(tk.Tk):
         except Exception:
             pass
 
+    def _clear_lcms_for_load(self) -> None:
+        """Clear LCMS (mzML/UV) state without touching FTIR or microscopy."""
+        try:
+            self._save_active_session_state()
+        except Exception:
+            pass
+
+        try:
+            if self._active_reader is not None:
+                self._active_reader.close()
+            elif self._reader is not None:
+                self._reader.close()
+        except Exception:
+            pass
+        self._active_reader = None
+        self._reader = None
+
+        self._sessions.clear()
+        self._session_order.clear()
+        self._active_session_id = None
+        self._session_load_counter = 0
+        self.mzml_path = None
+        self._index = None
+
+        try:
+            self.workspace.lcms_datasets.clear()
+            self.workspace.active_lcms = None
+        except Exception:
+            pass
+
+        self._uv_sessions.clear()
+        self._uv_order.clear()
+        self._active_uv_id = None
+        self._uv_load_counter = 0
+
+        try:
+            self._clear_overlay()
+        except Exception:
+            self._overlay_session = None
+            self._overlay_selected_ms_rt = None
+
+        self._custom_labels_by_spectrum = {}
+        self._spec_label_overrides = {}
+
+        self._filtered_meta = []
+        self._filtered_rts = None
+        self._filtered_tics = None
+        self._current_scan_index = None
+        self._current_spectrum_meta = None
+        self._current_spectrum_mz = None
+        self._current_spectrum_int = None
+        self._selected_rt_min = None
+
+        try:
+            if self._ws_tree is not None:
+                for iid in list(self._ws_tree.get_children("")):
+                    try:
+                        self._ws_tree.delete(iid)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            if self._uv_ws_tree is not None:
+                for iid in list(self._uv_ws_tree.get_children("")):
+                    try:
+                        self._uv_ws_tree.delete(iid)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            self._tic_line = None
+            self._tic_marker = None
+            self._uv_rt_marker = None
+            self._rebuild_plot_axes()
+            self._plot_uv()
+            self._update_status_by_tab()
+        except Exception:
+            pass
+
     def _apply_workspace_dict(self, state: Dict[str, Any]) -> None:
         """Apply a saved workspace dict to the current app (async loads)."""
         if not isinstance(state, dict):
@@ -13136,25 +13431,195 @@ class App(tk.Tk):
         except Exception:
             self._workspace_restore_ctx = None  # type: ignore[attr-defined]
 
+    def _maybe_finalize_lcms_workspace_restore(self) -> None:
+        ctx = getattr(self, "_lcms_workspace_restore_ctx", None)
+        if not isinstance(ctx, dict):
+            return
+        if int(ctx.get("done_uv", 0)) < int(ctx.get("expected_uv", 0)):
+            return
+        if int(ctx.get("done_mzml", 0)) < int(ctx.get("expected_mzml", 0)):
+            return
+
+        pending_mzml: Dict[str, Any] = ctx.get("pending_mzml") or {}
+        uv_path_to_id: Dict[str, str] = {}
+        for uv_id, uv_sess in (self._uv_sessions or {}).items():
+            try:
+                uv_path_to_id[str(uv_sess.path)] = str(uv_id)
+            except Exception:
+                continue
+
+        def _decode_annotations(payload: Any) -> Tuple[Dict[str, List[CustomLabel]], Dict[str, Dict[Tuple[str, float], Optional[str]]]]:
+            custom_out: Dict[str, List[CustomLabel]] = {}
+            overrides_out: Dict[str, Dict[Tuple[str, float], Optional[str]]] = {}
+            if not isinstance(payload, dict):
+                return custom_out, overrides_out
+            for spec_id, items in payload.items():
+                if not isinstance(items, list):
+                    continue
+                custom_rows: List[CustomLabel] = []
+                override_rows: Dict[Tuple[str, float], Optional[str]] = {}
+                for it in items:
+                    if not isinstance(it, dict):
+                        continue
+                    try:
+                        mz_val = float(it.get("mz"))
+                    except Exception:
+                        continue
+                    kind = str(it.get("kind") or "")
+                    text = it.get("text")
+                    suppressed = bool(it.get("suppressed", False))
+                    if kind == "custom":
+                        try:
+                            custom_rows.append(CustomLabel(label=str(text or ""), mz=mz_val, snap_to_nearest_peak=True))
+                        except Exception:
+                            continue
+                    else:
+                        override_rows[(kind, mz_val)] = (None if suppressed else ("" if text is None else str(text)))
+                if custom_rows:
+                    custom_out[str(spec_id)] = custom_rows
+                if override_rows:
+                    overrides_out[str(spec_id)] = override_rows
+            return custom_out, overrides_out
+
+        # Apply per-session saved fields now that UV sessions are loaded
+        for sid, sess in list(self._sessions.items()):
+            path_key = str(sess.path)
+            saved = pending_mzml.get(path_key)
+            if not isinstance(saved, dict):
+                continue
+            pol = saved.get("polarity")
+            if isinstance(pol, str) and pol in ("all", "positive", "negative"):
+                sess.last_polarity_filter = str(pol)
+            try:
+                if saved.get("last_scan_index") is not None:
+                    sess.last_scan_index = int(saved.get("last_scan_index"))
+            except Exception:
+                pass
+            try:
+                if saved.get("last_selected_rt_min") is not None:
+                    sess.last_selected_rt_min = float(saved.get("last_selected_rt_min"))
+            except Exception:
+                pass
+
+            ann_payload = saved.get("annotations")
+            custom_labels, overrides = _decode_annotations(ann_payload)
+            if custom_labels:
+                sess.custom_labels_by_spectrum = custom_labels
+            if overrides:
+                sess.spec_label_overrides = overrides
+
+        # Linked UV
+        linked_uv = ctx.get("linked_uv")
+        if isinstance(linked_uv, dict):
+            mzml_path = linked_uv.get("mzml_path")
+            uv_path = linked_uv.get("uv_csv_path")
+            if isinstance(mzml_path, str) and isinstance(uv_path, str):
+                uv_id = uv_path_to_id.get(str(uv_path))
+                if uv_id:
+                    for sid, sess in list(self._sessions.items()):
+                        if str(sess.path) == str(mzml_path):
+                            sess.linked_uv_id = str(uv_id)
+                            break
+        try:
+            self._refresh_uv_tree_links()
+        except Exception:
+            pass
+
+        # Activate saved active session (by path)
+        active_path = ctx.get("active_mzml_path")
+        active_sid: Optional[str] = None
+        if isinstance(active_path, str):
+            for sid, sess in self._sessions.items():
+                if str(sess.path) == active_path:
+                    active_sid = str(sid)
+                    break
+        if active_sid is None and self._session_order:
+            active_sid = str(self._session_order[0])
+        if active_sid is not None:
+            try:
+                self._set_active_session(active_sid)
+            except Exception:
+                pass
+
+        missing_mzml = list(ctx.get("missing_mzml") or [])
+        missing_uv = list(ctx.get("missing_uv") or [])
+        if missing_mzml or missing_uv:
+            msg = "Some files were missing and skipped:\n\n"
+            if missing_mzml:
+                msg += "Missing mzML:\n" + "\n".join(missing_mzml[:15]) + ("\n…" if len(missing_mzml) > 15 else "") + "\n\n"
+            if missing_uv:
+                msg += "Missing UV CSV:\n" + "\n".join(missing_uv[:15]) + ("\n…" if len(missing_uv) > 15 else "")
+            try:
+                messagebox.showwarning("LCMS Workspace loaded", msg, parent=self)
+            except Exception:
+                pass
+
+        try:
+            if self.lcms_workspace_path is not None:
+                self._set_status(f"Loaded LCMS workspace: {self.lcms_workspace_path.name}")
+            else:
+                self._set_status("Loaded LCMS workspace")
+            self._update_status_by_tab()
+        except Exception:
+            pass
+
+        try:
+            delattr(self, "_lcms_workspace_restore_ctx")
+        except Exception:
+            self._lcms_workspace_restore_ctx = None
+
     def _save_workspace(self) -> None:
+        initial_dir = self._default_lcms_workspace_dir()
         path = filedialog.asksaveasfilename(
             parent=self,
-            title="Save Workspace",
-            defaultextension=".json",
-            filetypes=[("Workspace JSON", "*.json"), ("All files", "*.*")],
-            initialfile="workspace.json",
+            title="Save LCMS Workspace",
+            defaultextension=".lcms_workspace.json",
+            filetypes=[("LCMS Workspace", "*.lcms_workspace.json"), ("JSON", "*.json"), ("All files", "*.*")],
+            initialdir=(str(initial_dir) if initial_dir else None),
+            initialfile="lcms_workspace.lcms_workspace.json",
         )
         if not path:
             return
 
-        # Treat the workspace JSON directory as the session root for microscopy outputs.
+        save_path = self._ensure_lcms_workspace_extension(Path(path))
         try:
-            self._set_session_root_dir_from_workspace_path(Path(path))
+            save_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
 
-        # Note: we do NOT move or rewrite microscopy output folders on save.
-        # Users may choose arbitrary output locations per dataset.
+        try:
+            payload = build_lcms_workspace_dict(self)
+        except Exception as exc:
+            messagebox.showerror("Save LCMS Workspace", f"Failed to capture LCMS state:\n\n{exc}", parent=self)
+            return
+
+        try:
+            json.dumps(payload, default=json_default)
+        except Exception as exc:
+            messagebox.showerror("Save LCMS Workspace", f"Failed to serialize LCMS workspace:\n\n{exc}", parent=self)
+            return
+
+        try:
+            atomic_write_json(save_path, payload)
+        except Exception as exc:
+            messagebox.showerror("Save LCMS Workspace", f"Failed to write file:\n\n{exc}", parent=self)
+            return
+
+        try:
+            if not save_path.exists() or save_path.stat().st_size <= 0:
+                raise IOError("Saved file is empty or missing.")
+        except Exception as exc:
+            messagebox.showerror("Save LCMS Workspace", f"Failed to verify saved file:\n\n{exc}", parent=self)
+            return
+
+        self.lcms_workspace_path = save_path
+        self._last_lcms_workspace_dir = save_path.parent
+        try:
+            size = int(save_path.stat().st_size)
+        except Exception:
+            size = 0
+        self._set_status(f"LCMS workspace saved: {save_path} ({size} bytes)")
+        self._add_recent_lcms_workspace(save_path)
 
     def _get_active_microscopy_workspace(self) -> Optional[MicroscopyWorkspace]:
         try:
@@ -13378,41 +13843,273 @@ class App(tk.Tk):
     def _load_workspace(self) -> None:
         if self._sessions or self._uv_sessions:
             if not messagebox.askyesno(
-                "Load Workspace",
-                "Loading a workspace will replace the current mzML/UV workspace. Continue?",
+                "Load LCMS Workspace",
+                "Loading an LCMS workspace will replace the current LCMS (mzML/UV) workspace. Continue?",
                 parent=self,
             ):
                 return
 
+        initial_dir = self._default_lcms_workspace_dir()
         path = filedialog.askopenfilename(
             parent=self,
-            title="Load Workspace",
-            filetypes=[("Workspace JSON", "*.json"), ("All files", "*.*")],
+            title="Load LCMS Workspace",
+            filetypes=[("LCMS Workspace", "*.lcms_workspace.json"), ("JSON", "*.json"), ("All files", "*.*")],
+            initialdir=(str(initial_dir) if initial_dir else None),
         )
         if not path:
             return
 
-        # Treat the loaded workspace JSON directory as the session root for microscopy outputs.
+        self._load_lcms_workspace_from_path(Path(path))
+
+    def _default_lcms_workspace_dir(self) -> Optional[Path]:
+        if self._last_lcms_workspace_dir is not None:
+            return self._last_lcms_workspace_dir
         try:
-            self._set_session_root_dir_from_workspace_path(Path(path))
+            docs = Path.home() / "Documents"
+            if docs.exists():
+                return docs
         except Exception:
             pass
+        try:
+            return Path.home()
+        except Exception:
+            return None
 
+    def _ensure_lcms_workspace_extension(self, path: Path) -> Path:
+        p = Path(path)
+        low = str(p).lower()
+        if low.endswith(".lcms_workspace.json"):
+            return p
+        if p.suffix.lower() == ".json":
+            return p.with_suffix(".lcms_workspace.json")
+        return p.with_name(p.name + ".lcms_workspace.json")
+
+    def _add_recent_lcms_workspace(self, path: Path) -> None:
+        try:
+            p = Path(path).expanduser().resolve()
+        except Exception:
+            p = Path(path)
+        entry = {"path": str(p), "name": p.name, "saved_at": datetime.datetime.now().isoformat(timespec="seconds")}
+        try:
+            self._recent_lcms_workspaces = [e for e in (self._recent_lcms_workspaces or []) if str(e.get("path")) != str(p)]
+        except Exception:
+            self._recent_lcms_workspaces = []
+        self._recent_lcms_workspaces.insert(0, entry)
+        self._recent_lcms_workspaces = self._recent_lcms_workspaces[:10]
+        self._refresh_recent_lcms_menu()
+
+    def _refresh_recent_lcms_menu(self) -> None:
+        menu = self._recent_lcms_menu
+        if menu is None:
+            return
+        try:
+            menu.delete(0, "end")
+        except Exception:
+            return
+        if not self._recent_lcms_workspaces:
+            menu.add_command(label="(None)", state="disabled")
+            return
+        for entry in list(self._recent_lcms_workspaces):
+            p = str(entry.get("path") or "")
+            name = str(entry.get("name") or p)
+            ts = str(entry.get("saved_at") or "")
+            label = f"{name} ({ts})" if ts else name
+            menu.add_command(label=label, command=lambda path=p: self._load_lcms_workspace_from_path(Path(path)))
+
+    def _reveal_lcms_workspace_in_explorer(self) -> None:
+        if self.lcms_workspace_path is None:
+            self._set_status("No LCMS workspace path available.")
+            return
+        try:
+            subprocess.Popen(["explorer", "/select,", str(self.lcms_workspace_path)])
+        except Exception as exc:
+            messagebox.showerror("Reveal LCMS Workspace", f"Failed to open Explorer:\n\n{exc}", parent=self)
+
+    def _load_lcms_workspace_from_path(self, path: Path) -> None:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as exc:
-            messagebox.showerror("Load Workspace", f"Failed to read JSON:\n\n{exc}", parent=self)
+            messagebox.showerror("Load LCMS Workspace", f"Failed to read file:\n\n{exc}", parent=self)
+            return
+
+        if not isinstance(data, dict):
+            messagebox.showerror("Load LCMS Workspace", "Invalid file format (expected JSON object).", parent=self)
+            return
+        if str(data.get("schema") or "") != "LCMS_WORKSPACE":
+            messagebox.showerror("Load LCMS Workspace", "Invalid file (not an LCMS workspace).", parent=self)
+            return
+        try:
+            ver = int(data.get("version") or 0)
+        except Exception:
+            ver = 0
+        if ver != 1:
+            messagebox.showerror("Load LCMS Workspace", f"Unsupported LCMS workspace version={ver}.", parent=self)
             return
 
         try:
-            self._apply_workspace_dict(data)
-        except Exception as exc:
-            messagebox.showerror("Load Workspace", f"Failed to load workspace:\n\n{exc}", parent=self)
-            return
+            self.lcms_workspace_path = Path(path).expanduser().resolve()
+            self._last_lcms_workspace_dir = self.lcms_workspace_path.parent
+        except Exception:
+            pass
 
-        self._set_status(f"Loaded workspace: {Path(path).name}")
-        self._update_status_by_tab()
+        # Apply LCMS UI settings (best-effort)
+        try:
+            tic_settings = data.get("tic_settings") or {}
+            self.show_tic_var.set(bool(tic_settings.get("show_tic", True)))
+            self.tic_xlim_min_var.set(str(tic_settings.get("x_min", "")))
+            self.tic_xlim_max_var.set(str(tic_settings.get("x_max", "")))
+            self.tic_ylim_min_var.set(str(tic_settings.get("y_min", "")))
+            self.tic_ylim_max_var.set(str(tic_settings.get("y_max", "")))
+            self.tic_title_var.set(str(tic_settings.get("title", "")))
+        except Exception:
+            pass
+
+        try:
+            poly = data.get("polymer_settings") or {}
+            self.poly_enabled_var.set(bool(poly.get("enabled", False)))
+            monomers = poly.get("monomers") or []
+            if isinstance(monomers, list):
+                self.poly_monomers_text_var.set("\n".join(str(m) for m in monomers))
+            self.poly_max_dp_var.set(int(poly.get("max_dp", 12)))
+            self.poly_tol_value_var.set(float(poly.get("tolerance", 0.02)))
+            self.poly_tol_unit_var.set(str(poly.get("tolerance_unit", "Da")))
+            mode = poly.get("positive_mode") or {}
+            if isinstance(mode, dict):
+                self.poly_bond_delta_var.set(float(mode.get("bond_delta", -18.010565)))
+                self.poly_extra_delta_var.set(float(mode.get("extra_delta", 0.0)))
+                self.poly_adduct_mass_var.set(float(mode.get("adduct_mass", 1.007276)))
+                self.poly_cluster_adduct_mass_var.set(float(mode.get("cluster_adduct_mass", -1.007276)))
+                self.poly_adduct_na_var.set(bool(mode.get("adduct_na", False)))
+                self.poly_adduct_k_var.set(bool(mode.get("adduct_k", False)))
+                self.poly_adduct_cl_var.set(bool(mode.get("adduct_cl", False)))
+                self.poly_adduct_formate_var.set(bool(mode.get("adduct_formate", False)))
+                self.poly_adduct_acetate_var.set(bool(mode.get("adduct_acetate", False)))
+                self.poly_charges_var.set(str(mode.get("charges", "1")))
+                self.poly_decarb_enabled_var.set(bool(mode.get("decarb", False)))
+                self.poly_oxid_enabled_var.set(bool(mode.get("oxid", False)))
+                self.poly_cluster_enabled_var.set(bool(mode.get("cluster", False)))
+                self.poly_min_rel_int_var.set(float(mode.get("min_rel_int", 0.01)))
+        except Exception:
+            pass
+
+        base_dir = Path(path).expanduser().resolve().parent
+
+        def _resolve_path(p: str) -> Path:
+            pp = Path(p).expanduser()
+            return pp if pp.is_absolute() else (base_dir / pp)
+
+        mzml_rows = data.get("mzml_files") or []
+        if not isinstance(mzml_rows, list):
+            mzml_rows = []
+
+        active_idx = 0
+        try:
+            active_idx = int(data.get("active_mzml_index") or 0)
+        except Exception:
+            active_idx = 0
+
+        linked_uv = data.get("linked_uv") if isinstance(data.get("linked_uv"), dict) else None
+        annotations_by_mzml = data.get("annotations_by_mzml") if isinstance(data.get("annotations_by_mzml"), dict) else {}
+        annotations_active = data.get("annotations") if isinstance(data.get("annotations"), dict) else None
+
+        self._clear_lcms_for_load()
+
+        ctx: Dict[str, Any] = {
+            "pending_mzml": {},
+            "pending_uv": {},
+            "expected_mzml": 0,
+            "expected_uv": 0,
+            "done_mzml": 0,
+            "done_uv": 0,
+            "missing_mzml": [],
+            "missing_uv": [],
+            "active_mzml_path": None,
+            "linked_uv": None,
+        }
+
+        current_scan_index = None
+        try:
+            if data.get("current_scan_index") is not None:
+                current_scan_index = int(data.get("current_scan_index"))
+        except Exception:
+            current_scan_index = None
+
+        rt_unit = None
+        resolved_mzml_paths: List[str] = []
+        for row in mzml_rows:
+            if not isinstance(row, dict):
+                continue
+            p = str(row.get("path") or "").strip()
+            if not p:
+                continue
+            rp = _resolve_path(p)
+            resolved_mzml_paths.append(str(rp))
+            rt_unit = rt_unit or str(row.get("rt_unit") or "").strip()
+            saved = dict(row)
+            saved["path"] = str(rp)
+            ann = annotations_by_mzml.get(str(p)) if isinstance(annotations_by_mzml, dict) else None
+            if ann is None:
+                ann = annotations_by_mzml.get(str(rp)) if isinstance(annotations_by_mzml, dict) else None
+            if isinstance(ann, dict):
+                saved["annotations"] = ann
+            ctx["pending_mzml"][str(rp)] = saved
+
+        if rt_unit in ("minutes", "seconds"):
+            try:
+                self.rt_unit_var.set(str(rt_unit))
+            except Exception:
+                pass
+
+        if 0 <= int(active_idx) < len(resolved_mzml_paths):
+            ctx["active_mzml_path"] = resolved_mzml_paths[int(active_idx)]
+            if current_scan_index is not None and ctx["active_mzml_path"] in ctx["pending_mzml"]:
+                try:
+                    ctx["pending_mzml"][ctx["active_mzml_path"]]["last_scan_index"] = int(current_scan_index)
+                except Exception:
+                    pass
+            if annotations_active and not annotations_by_mzml:
+                try:
+                    ctx["pending_mzml"][ctx["active_mzml_path"]]["annotations"] = dict(annotations_active)
+                except Exception:
+                    pass
+
+        if isinstance(linked_uv, dict):
+            mzml_p = str(linked_uv.get("mzml_path") or "").strip()
+            uv_p = str(linked_uv.get("uv_csv_path") or "").strip()
+            if mzml_p and uv_p:
+                uv_offset = float(linked_uv.get("uv_ms_offset", getattr(self, "_uv_ms_rt_offset_min", 0.0) or 0.0))
+                ctx["linked_uv"] = {
+                    "mzml_path": str(_resolve_path(mzml_p)),
+                    "uv_csv_path": str(_resolve_path(uv_p)),
+                    "uv_ms_offset": uv_offset,
+                }
+                ctx["pending_uv"][str(_resolve_path(uv_p))] = {"path": str(_resolve_path(uv_p))}
+                try:
+                    self._uv_ms_rt_offset_min = float(uv_offset)
+                    self.uv_ms_rt_offset_var.set(f"{float(self._uv_ms_rt_offset_min):.3f}")
+                except Exception:
+                    pass
+
+        self._lcms_workspace_restore_ctx = ctx
+
+        for p_str in list(ctx["pending_uv"].keys()):
+            p = Path(p_str)
+            if not p.exists():
+                ctx["missing_uv"].append(p_str)
+                continue
+            ctx["expected_uv"] += 1
+            self._add_uv_session_from_path_async(p)
+
+        for p_str in list(ctx["pending_mzml"].keys()):
+            p = Path(p_str)
+            if not p.exists():
+                ctx["missing_mzml"].append(p_str)
+                continue
+            ctx["expected_mzml"] += 1
+            self._add_session_from_path_async(p, make_active=False)
+
+        self._maybe_finalize_lcms_workspace_restore()
 
     def _open_instructions_window(self) -> None:
         if self._instructions_win is not None:
@@ -13638,6 +14335,13 @@ class App(tk.Tk):
                 except Exception:
                     ctx["done_mzml"] = 1
                 self._maybe_finalize_workspace_restore()
+            ctx_lcms = getattr(self, "_lcms_workspace_restore_ctx", None)
+            if isinstance(ctx_lcms, dict):
+                try:
+                    ctx_lcms["done_mzml"] = int(ctx_lcms.get("done_mzml", 0)) + 1
+                except Exception:
+                    ctx_lcms["done_mzml"] = 1
+                self._maybe_finalize_lcms_workspace_restore()
             return
 
         # Index stats/warnings
@@ -13733,6 +14437,13 @@ class App(tk.Tk):
             except Exception:
                 ctx["done_mzml"] = 1
             self._maybe_finalize_workspace_restore()
+        ctx_lcms = getattr(self, "_lcms_workspace_restore_ctx", None)
+        if isinstance(ctx_lcms, dict):
+            try:
+                ctx_lcms["done_mzml"] = int(ctx_lcms.get("done_mzml", 0)) + 1
+            except Exception:
+                ctx_lcms["done_mzml"] = 1
+            self._maybe_finalize_lcms_workspace_restore()
 
     def _save_active_session_state(self) -> None:
         sid = self._active_session_id
@@ -14723,6 +15434,13 @@ class App(tk.Tk):
                 except Exception:
                     ctx["done_uv"] = 1
                 self._maybe_finalize_workspace_restore()
+            ctx_lcms = getattr(self, "_lcms_workspace_restore_ctx", None)
+            if isinstance(ctx_lcms, dict):
+                try:
+                    ctx_lcms["done_uv"] = int(ctx_lcms.get("done_uv", 0)) + 1
+                except Exception:
+                    ctx_lcms["done_uv"] = 1
+                self._maybe_finalize_lcms_workspace_restore()
             return
 
         self._uv_sessions[sess.uv_id] = sess
@@ -14764,6 +15482,13 @@ class App(tk.Tk):
             except Exception:
                 ctx["done_uv"] = 1
             self._maybe_finalize_workspace_restore()
+        ctx_lcms = getattr(self, "_lcms_workspace_restore_ctx", None)
+        if isinstance(ctx_lcms, dict):
+            try:
+                ctx_lcms["done_uv"] = int(ctx_lcms.get("done_uv", 0)) + 1
+            except Exception:
+                ctx_lcms["done_uv"] = 1
+            self._maybe_finalize_lcms_workspace_restore()
 
     def _link_uv_to_active_mzml(self, uv_id: str) -> None:
         sid = self._active_session_id
@@ -17631,14 +18356,34 @@ class App(tk.Tk):
                 return
             self._redraw_spectrum_only()
 
+        def on_match_region() -> None:
+            on_apply()
+            try:
+                if not bool(self.poly_enabled_var.get()):
+                    self.poly_enabled_var.set(True)
+            except Exception:
+                pass
+            self._region_force_poly_match = True
+            if self._tic_region_active_rt is None:
+                messagebox.showinfo("Polymer Match", "Select a TIC region first (drag on the TIC).", parent=dlg)
+                return
+            try:
+                a, b = self._tic_region_active_rt
+            except Exception:
+                messagebox.showinfo("Polymer Match", "Select a TIC region first (drag on the TIC).", parent=dlg)
+                return
+            self._compute_region_summed_spectrum(float(a), float(b))
+
         buttons = ttk.Frame(frm)
         buttons.grid(row=15, column=0, columnspan=4, sticky="e", pady=(12, 0))
         apply_btn = ttk.Button(buttons, text="Apply", command=on_apply)
         apply_btn.grid(row=0, column=0, padx=(0, 8))
+        region_btn = ttk.Button(buttons, text="Match Region", command=on_match_region)
+        region_btn.grid(row=0, column=1, padx=(0, 8))
         reset_btn = ttk.Button(buttons, text="Reset", command=on_reset)
-        reset_btn.grid(row=0, column=1, padx=(0, 8))
+        reset_btn.grid(row=0, column=2, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
-        close_btn.grid(row=0, column=2)
+        close_btn.grid(row=0, column=3)
 
         # Tooltips
         ToolTip.attach(pm_enable, TOOLTIP_TEXT["pm_enable"])
@@ -17660,6 +18405,7 @@ class App(tk.Tk):
         ToolTip.attach(tol_ppm_rb, TOOLTIP_TEXT["pm_tol_unit"])
         ToolTip.attach(minrel_ent, TOOLTIP_TEXT["pm_minrel"])
         ToolTip.attach(apply_btn, TOOLTIP_TEXT["pm_apply"])
+        ToolTip.attach(region_btn, TOOLTIP_TEXT["pm_match_region"])
         ToolTip.attach(reset_btn, TOOLTIP_TEXT["pm_reset"])
         ToolTip.attach(close_btn, TOOLTIP_TEXT["pm_close"])
 
@@ -19058,6 +19804,28 @@ class App(tk.Tk):
         self._current_spectrum_mz = mz
         self._current_spectrum_int = inten
         self._plot_spectrum(meta, mz, inten)
+
+        # If requested, force polymer matching on the region spectrum.
+        try:
+            if bool(self._region_force_poly_match):
+                self._region_force_poly_match = False
+                try:
+                    if not bool(self.poly_enabled_var.get()):
+                        self.poly_enabled_var.set(True)
+                except Exception:
+                    pass
+                spectrum_id = str(meta.spectrum_id)
+                has_poly = any(
+                    (k[0] == "poly" and str(k[1]) == spectrum_id)
+                    for k in (self._spec_ann_key_by_objid.values() if isinstance(self._spec_ann_key_by_objid, dict) else [])
+                    if isinstance(k, tuple) and len(k) >= 2
+                )
+                if not has_poly:
+                    self._apply_polymer_matches(mz, inten)
+                    if self._canvas is not None:
+                        self._canvas.draw_idle()
+        except Exception:
+            pass
 
     def _mz_key(self, mz: float) -> float:
         try:
