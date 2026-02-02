@@ -12,7 +12,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from matplotlib.ticker import ScalarFormatter
 
-from lab_gui.ui_widgets import ToolTip
+from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 
 class ExportEditor(tk.Toplevel):
@@ -88,6 +88,7 @@ class ExportEditor(tk.Toplevel):
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
+        plot.rowconfigure(2, weight=0)
 
         self._fig = Figure(figsize=(14.0, 7.5), dpi=110)
         self._ax = self._fig.add_subplot(1, 1, 1)
@@ -111,6 +112,20 @@ class ExportEditor(tk.Toplevel):
                 pass
         except Exception:
             self._toolbar = None
+
+        self._coord_var = tk.StringVar(value="")
+        self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
+        self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+
+        try:
+            self._mpl_nav = MatplotlibNavigator(
+                canvas=self._canvas,
+                ax=self._ax,
+                status_label=self._coord_var,
+            )
+            self._mpl_nav.attach()
+        except Exception:
+            self._mpl_nav = None
 
         # Editable controls
         self.title_var = tk.StringVar(value="")
@@ -151,6 +166,19 @@ class ExportEditor(tk.Toplevel):
         self.axes_facecolor_var = tk.StringVar(value="#ffffff")
         self.table_facecolor_var = tk.StringVar(value="#ffffff")
         self.table_text_color_var = tk.StringVar(value="#111111")
+
+        # Legend (overlay)
+        self.legend_on_var = tk.BooleanVar(value=True)
+        self.legend_fs_var = tk.IntVar(value=max(6, int(self.app.tick_fontsize_var.get()) - 1))
+        self.legend_text_color_var = tk.StringVar(value="#111111")
+        self.legend_box_color_var = tk.StringVar(value="#ffffff")
+        self.legend_frame_on_var = tk.BooleanVar(value=True)
+        self._legend_artist: Any = None
+        self._legend_handles: List[Any] = []
+        self._legend_labels: List[str] = []
+        self._legend_handle_by_sid: Dict[str, Any] = {}
+        self._legend_entries: List[Tuple[str, str]] = []
+        self._legend_label_override: Dict[str, str] = {}
 
         self._preserve_plot_colors = False
         try:
@@ -475,6 +503,122 @@ class ExportEditor(tk.Toplevel):
         ttk.Separator(inner).grid(row=row, column=0, columnspan=2, sticky="ew", pady=8)
         row += 1
 
+        # Legend (overlay only)
+        leg_group = ttk.Labelframe(inner, text="Legend (overlay)", padding=(8, 6))
+        leg_group.grid(row=row, column=0, columnspan=2, sticky="ew")
+        leg_group.columnconfigure(1, weight=1)
+        row += 1
+
+        def _pick_legend_color(var: tk.StringVar, title: str) -> None:
+            try:
+                c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
+                if c:
+                    var.set(str(c))
+            except Exception:
+                return
+
+        ttk.Checkbutton(leg_group, text="Show legend", variable=self.legend_on_var, command=self._apply_style_and_limits).grid(
+            row=0, column=0, columnspan=3, sticky="w"
+        )
+        ttk.Label(leg_group, text="Legend font size").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        s_leg_fs = _add_slider(leg_group, variable=self.legend_fs_var, from_=6, to=36, step=1)
+
+        ttk.Checkbutton(leg_group, text="Show legend box", variable=self.legend_frame_on_var, command=self._apply_style_and_limits).grid(
+            row=2, column=0, columnspan=3, sticky="w", pady=(6, 0)
+        )
+
+        ttk.Label(leg_group, text="Legend text color").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ent_leg_txt = ttk.Entry(leg_group, textvariable=self.legend_text_color_var)
+        ent_leg_txt.grid(row=3, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
+        btn_leg_txt = ttk.Button(leg_group, text="Pick…", command=lambda: _pick_legend_color(self.legend_text_color_var, "Legend text"))
+        btn_leg_txt.grid(row=3, column=2, sticky="e", padx=(8, 0), pady=(6, 0))
+
+        ttk.Label(leg_group, text="Legend box color").grid(row=4, column=0, sticky="w", pady=(6, 0))
+        ent_leg_bg = ttk.Entry(leg_group, textvariable=self.legend_box_color_var)
+        ent_leg_bg.grid(row=4, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
+        btn_leg_bg = ttk.Button(leg_group, text="Pick…", command=lambda: _pick_legend_color(self.legend_box_color_var, "Legend box"))
+        btn_leg_bg.grid(row=4, column=2, sticky="e", padx=(8, 0), pady=(6, 0))
+
+        ttk.Separator(inner).grid(row=row, column=0, columnspan=2, sticky="ew", pady=8)
+        row += 1
+
+        # Legend labels (overlay only)
+        leg_labels_group = ttk.Labelframe(inner, text="Legend labels (overlay)", padding=(8, 6))
+        leg_labels_group.grid(row=row, column=0, columnspan=2, sticky="nsew")
+        leg_labels_group.columnconfigure(0, weight=1)
+        row += 1
+
+        leg_tree = ttk.Treeview(leg_labels_group, columns=("label",), show="headings", height=5, selectmode="browse")
+        leg_tree.heading("label", text="Label")
+        leg_tree.column("label", width=320, stretch=True)
+        leg_tree.grid(row=0, column=0, sticky="nsew")
+        leg_sb = ttk.Scrollbar(leg_labels_group, orient="vertical", command=leg_tree.yview)
+        leg_sb.grid(row=0, column=1, sticky="ns")
+        leg_tree.configure(yscrollcommand=leg_sb.set)
+        self._legend_tree = leg_tree  # type: ignore[attr-defined]
+
+        def _refresh_legend_tree() -> None:
+            tv = getattr(self, "_legend_tree", None)
+            if tv is None:
+                return
+            try:
+                for it in list(tv.get_children("")):
+                    tv.delete(it)
+            except Exception:
+                pass
+            for sid, label in list(self._legend_entries):
+                try:
+                    tv.insert("", "end", iid=str(sid), values=(str(label),))
+                except Exception:
+                    continue
+
+        def _edit_legend_label(evt=None) -> None:
+            tv = getattr(self, "_legend_tree", None)
+            if tv is None:
+                return
+            try:
+                sel = tv.selection()
+                sid = str(sel[0]) if sel else ""
+            except Exception:
+                sid = ""
+            if not sid:
+                return
+            cur = ""
+            for s, lbl in self._legend_entries:
+                if str(s) == str(sid):
+                    cur = str(lbl)
+                    break
+            new_label = simpledialog.askstring("Legend label", "Label:", initialvalue=cur, parent=win)
+            if new_label is None:
+                return
+            new_label = str(new_label).strip()
+            self._legend_label_override[str(sid)] = new_label
+            try:
+                h = self._legend_handle_by_sid.get(str(sid))
+                if h is not None and hasattr(h, "set_label"):
+                    h.set_label(str(new_label))
+            except Exception:
+                pass
+            # Update cached labels/entries
+            self._legend_entries = [(s, (new_label if str(s) == str(sid) else lbl)) for s, lbl in self._legend_entries]
+            self._legend_labels = [str(getattr(h, "get_label")()) for h in list(self._legend_handles) if h is not None]
+            self._apply_legend()
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+            _refresh_legend_tree()
+
+        try:
+            leg_tree.bind("<Double-1>", _edit_legend_label, add=True)
+        except Exception:
+            pass
+
+        _refresh_legend_tree()
+
+        ttk.Separator(inner).grid(row=row, column=0, columnspan=2, sticky="ew", pady=8)
+        row += 1
+
         # Numbering/table
         num_cb = ttk.Checkbutton(
             inner,
@@ -662,6 +806,9 @@ class ExportEditor(tk.Toplevel):
             ToolTip.attach(s_ann_fs, "Annotation font size (export-only).")
             ToolTip.attach(s_fig_w, "Figure width in inches (export-only).")
             ToolTip.attach(s_fig_h, "Figure height in inches (export-only).")
+            ToolTip.attach(s_leg_fs, "Legend font size (overlay export-only).")
+            ToolTip.attach(ent_leg_txt, "Legend text color (overlay export-only).")
+            ToolTip.attach(ent_leg_bg, "Legend box color (overlay export-only).")
             ToolTip.attach(num_cb, "Replace labels with numbers and show a table (export-only).")
             ToolTip.attach(s_tbl_x, "Table X position (axes coords, export-only).")
             ToolTip.attach(s_tbl_y, "Table Y position (axes coords, export-only).")
@@ -692,6 +839,8 @@ class ExportEditor(tk.Toplevel):
             self.axes_facecolor_var,
             self.table_facecolor_var,
             self.table_text_color_var,
+            self.legend_text_color_var,
+            self.legend_box_color_var,
         ):
             try:
                 var.trace_add("write", _cb)
@@ -778,6 +927,8 @@ class ExportEditor(tk.Toplevel):
         plot_c = (self.plot_color_var.get() or "").strip() or None
         label_c = (self.label_color_var.get() or "").strip() or None
         bg_c = (self.axes_facecolor_var.get() or "").strip() or None
+        leg_txt = (self.legend_text_color_var.get() or "").strip() or None
+        leg_bg = (self.legend_box_color_var.get() or "").strip() or None
 
         try:
             if bg_c:
@@ -815,6 +966,25 @@ class ExportEditor(tk.Toplevel):
 
         # Table (if present)
         self._apply_numbering(redraw_only=True)
+
+        # Legend colors (if present)
+        try:
+            if self._legend_artist is not None:
+                if leg_txt:
+                    for txt in list(self._legend_artist.get_texts()):
+                        try:
+                            txt.set_color(leg_txt)
+                        except Exception:
+                            pass
+                if leg_bg:
+                    try:
+                        frame = self._legend_artist.get_frame()
+                        if frame is not None:
+                            frame.set_facecolor(leg_bg)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         self._canvas.draw_idle()
 
     def _parse_optional_float(self, raw: str) -> Optional[float]:
@@ -863,6 +1033,16 @@ class ExportEditor(tk.Toplevel):
                 pass
         self._table_artist = None
         self._clear_annotations()
+        if self._legend_artist is not None:
+            try:
+                self._legend_artist.remove()
+            except Exception:
+                pass
+        self._legend_artist = None
+        self._legend_handles = []
+        self._legend_labels = []
+        self._legend_handle_by_sid = {}
+        self._legend_entries = []
 
         if self.kind == "tic":
             if hasattr(self.app, "_is_overlay_active") and bool(self.app._is_overlay_active()):
@@ -874,6 +1054,7 @@ class ExportEditor(tk.Toplevel):
                 self.ylabel_var.set(self.app.tic_ylabel_var.get())
 
                 ids = list(self.app._overlay_dataset_ids())
+                name_map = self.app._overlay_display_names(ids)
                 max_global = 0.0
                 per_max: Dict[str, float] = {}
                 for sid in ids:
@@ -903,7 +1084,17 @@ class ExportEditor(tk.Toplevel):
                         elif mode == "Offset":
                             y = y + float(i) * float(offset_step)
                         col = self.app._ensure_overlay_color(str(sid))
-                        self._ax.plot(rts, y, linewidth=1, color=col, alpha=0.85)
+                        default_label = str(name_map.get(str(sid), str(sid)))
+                        label = str(self._legend_label_override.get(str(sid), default_label))
+                        try:
+                            (ln,) = self._ax.plot(rts, y, linewidth=1, color=col, alpha=0.85, label=label)
+                            self._legend_handles.append(ln)
+                            self._legend_labels.append(label)
+                            if str(sid) not in self._legend_handle_by_sid:
+                                self._legend_handle_by_sid[str(sid)] = ln
+                                self._legend_entries.append((str(sid), label))
+                        except Exception:
+                            self._ax.plot(rts, y, linewidth=1, color=col, alpha=0.85)
             else:
                 self.title_var.set((self.app.tic_title_var.get() or "TIC (MS1)").strip())
                 self.xlabel_var.set(self.app.tic_xlabel_var.get())
@@ -923,6 +1114,7 @@ class ExportEditor(tk.Toplevel):
                 self.ylabel_var.set(self.app.uv_ylabel_var.get())
 
                 ids = list(self.app._overlay_dataset_ids())
+                name_map = self.app._overlay_display_names(ids)
                 any_uv = False
                 for sid in ids:
                     sess = self.app._sessions.get(str(sid))
@@ -938,7 +1130,17 @@ class ExportEditor(tk.Toplevel):
                         continue
                     any_uv = True
                     col = self.app._ensure_overlay_color(str(sid))
-                    self._ax.plot(x, y, linewidth=1, color=col, alpha=0.85)
+                    default_label = str(name_map.get(str(sid), str(sid)))
+                    label = str(self._legend_label_override.get(str(sid), default_label))
+                    try:
+                        (ln,) = self._ax.plot(x, y, linewidth=1, color=col, alpha=0.85, label=label)
+                        self._legend_handles.append(ln)
+                        self._legend_labels.append(label)
+                        if str(sid) not in self._legend_handle_by_sid:
+                            self._legend_handle_by_sid[str(sid)] = ln
+                            self._legend_entries.append((str(sid), label))
+                    except Exception:
+                        self._ax.plot(x, y, linewidth=1, color=col, alpha=0.85)
 
                 if not any_uv:
                     self._ax.text(0.5, 0.5, "No UV linked", ha="center", va="center", transform=self._ax.transAxes)
@@ -1021,6 +1223,7 @@ class ExportEditor(tk.Toplevel):
                     self.ylabel_var.set(self.app.spec_ylabel_var.get())
 
                     ids = list(self.app._overlay_dataset_ids())
+                    name_map = self.app._overlay_display_names(ids)
                     mode = str(getattr(self.app, "_overlay_mode_var").get() or "Stacked")
                     stack = bool(getattr(self.app, "_overlay_stack_spectra_var").get())
 
@@ -1055,7 +1258,17 @@ class ExportEditor(tk.Toplevel):
                             if stack:
                                 y = y + float(i) * float(offset_step)
                             base = 0.0 + (float(i) * float(offset_step) if stack else 0.0)
-                            self._ax.vlines(mz_vals, base, y, linewidth=0.7, color=col, alpha=0.8)
+                            default_label = str(name_map.get(str(sid), str(sid)))
+                            label = str(self._legend_label_override.get(str(sid), default_label))
+                            try:
+                                coll = self._ax.vlines(mz_vals, base, y, linewidth=0.7, color=col, alpha=0.8, label=label)
+                                self._legend_handles.append(coll)
+                                self._legend_labels.append(label)
+                                if str(sid) not in self._legend_handle_by_sid:
+                                    self._legend_handle_by_sid[str(sid)] = coll
+                                    self._legend_entries.append((str(sid), label))
+                            except Exception:
+                                self._ax.vlines(mz_vals, base, y, linewidth=0.7, color=col, alpha=0.8)
 
                             if str(sid) == active_sid:
                                 try:
@@ -1228,6 +1441,60 @@ class ExportEditor(tk.Toplevel):
             h = float(self.fig_h_var.get())
             if w > 0 and h > 0:
                 self._fig.set_size_inches(w, h, forward=True)
+        except Exception:
+            pass
+
+        self._apply_legend()
+
+    def _apply_legend(self) -> None:
+        try:
+            if self._legend_artist is not None:
+                try:
+                    self._legend_artist.remove()
+                except Exception:
+                    pass
+            self._legend_artist = None
+        except Exception:
+            self._legend_artist = None
+
+        want = bool(self.legend_on_var.get()) and len(self._legend_handles) > 1
+        if not want:
+            return
+
+        try:
+            fs = int(self.legend_fs_var.get())
+        except Exception:
+            fs = 8
+
+        try:
+            self._legend_artist = self._ax.legend(
+                handles=list(self._legend_handles),
+                labels=list(self._legend_labels),
+                loc="best",
+                fontsize=fs,
+                frameon=bool(self.legend_frame_on_var.get()),
+            )
+        except Exception:
+            self._legend_artist = None
+            return
+
+        leg_txt = (self.legend_text_color_var.get() or "").strip() or None
+        leg_bg = (self.legend_box_color_var.get() or "").strip() or None
+        try:
+            if self._legend_artist is not None:
+                if leg_txt:
+                    for txt in list(self._legend_artist.get_texts()):
+                        try:
+                            txt.set_color(leg_txt)
+                        except Exception:
+                            pass
+                if leg_bg:
+                    frame = self._legend_artist.get_frame()
+                    if frame is not None:
+                        try:
+                            frame.set_facecolor(leg_bg)
+                        except Exception:
+                            pass
         except Exception:
             pass
 

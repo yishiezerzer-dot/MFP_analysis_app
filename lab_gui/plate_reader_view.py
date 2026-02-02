@@ -23,7 +23,7 @@ from lab_gui.plate_reader_model import (
     PlateReaderMICWizardResult,
     _utc_now_iso,
 )
-from lab_gui.ui_widgets import ToolTip
+from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 
 class _DataPreviewWindow(tk.Toplevel):
@@ -743,6 +743,7 @@ class PlateReaderView(ttk.Frame):
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
+        plot.rowconfigure(2, weight=0)
 
         self._fig = Figure(figsize=(9.0, 6.0), dpi=110)
         self._ax = self._fig.add_subplot(1, 1, 1)
@@ -755,6 +756,20 @@ class PlateReaderView(ttk.Frame):
             self._toolbar.grid(row=1, column=0, sticky="ew")
         except Exception:
             self._toolbar = None
+
+        self._coord_var = tk.StringVar(value="")
+        self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
+        self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+
+        try:
+            self._mpl_nav = MatplotlibNavigator(
+                canvas=self._canvas,
+                ax=self._ax,
+                status_label=self._coord_var,
+            )
+            self._mpl_nav.attach()
+        except Exception:
+            self._mpl_nav = None
 
         self._render_empty_plot()
         self._update_buttons()

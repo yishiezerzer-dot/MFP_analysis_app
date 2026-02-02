@@ -65,7 +65,7 @@ from lab_gui.lcms_io import MzMLTICIndex, infer_uv_columns, preview_dataframe_ro
 from lab_gui.ftir_io import _try_parse_float_pair, _parse_ftir_xy_only, _parse_ftir_xy_numpy, _ftir_parse_for_executor
 
 # Refactor step D: shared UI widgets extracted into lab_gui/ui_widgets.py.
-from lab_gui.ui_widgets import ToolTip
+from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 # Refactor step E: ExportEditor extracted into lab_gui/export_editor.py.
 from lab_gui.export_editor import ExportEditor
@@ -1202,6 +1202,7 @@ class FTIRExportEditor(tk.Toplevel):
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
+        plot.rowconfigure(2, weight=0)
 
         self._fig = Figure(figsize=(14.0, 7.5), dpi=110)
         self._ax = self._fig.add_subplot(1, 1, 1)
@@ -1222,6 +1223,20 @@ class FTIRExportEditor(tk.Toplevel):
                 pass
         except Exception:
             self._toolbar = None
+
+        self._coord_var = tk.StringVar(value="")
+        self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
+        self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+
+        try:
+            self._mpl_nav = MatplotlibNavigator(
+                canvas=self._canvas,
+                ax=self._ax,
+                status_label=self._coord_var,
+            )
+            self._mpl_nav.attach()
+        except Exception:
+            self._mpl_nav = None
 
         # Snapshot payload
         self._displayed: List[Dict[str, Any]] = list(self.snapshot.get("displayed") or [])
@@ -1876,6 +1891,11 @@ class FTIRExportEditor(tk.Toplevel):
 
         try:
             self._canvas.draw_idle()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_mpl_nav", None) is not None:
+                self._mpl_nav.update_home_from_artists()
         except Exception:
             pass
 
@@ -4102,7 +4122,7 @@ class LCMSView(ttk.Frame):
         now_lbl = ttk.Label(plot, textvariable=a._now_view_var, padding=(6, 6))
         now_lbl.grid(row=0, column=0, sticky="ew")
 
-        # Overlay legend removed (use workspace list checkboxes instead).
+        # Overlay legend removed (use export window only).
         a._overlay_legend_tree = None
         a._overlay_legend_frame = None
 
@@ -4114,6 +4134,7 @@ class LCMSView(ttk.Frame):
         fig_frame.columnconfigure(0, weight=1)
         fig_frame.rowconfigure(0, weight=1)
         fig_frame.rowconfigure(1, weight=0)
+        fig_frame.rowconfigure(2, weight=0)
 
         diag_frame = ttk.Frame(plot_paned)
         a._build_diagnostics_panel(diag_frame)
@@ -4138,12 +4159,30 @@ class LCMSView(ttk.Frame):
         except Exception:
             toolbar_mpl = None
 
+        coord_var = tk.StringVar(value="")
+        coord_lbl = ttk.Label(fig_frame, textvariable=coord_var, anchor="w")
+        coord_lbl.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+
         a._fig = fig
         a._ax_tic = None
         a._ax_spec = None
         a._ax_uv = None
         a._canvas = canvas
         a._toolbar = toolbar_mpl
+        a._plot_coord_var = coord_var
+        a._plot_coord_label = coord_lbl
+
+        try:
+            a._mpl_nav = MatplotlibNavigator(
+                canvas=canvas,
+                axes_provider=lambda: [ax for ax in (a._ax_tic, a._ax_spec, a._ax_uv) if ax is not None],
+                status_label=coord_var,
+                box_zoom_enabled_cb=lambda: (not bool(a.tic_region_select_var.get())),
+                box_click_callback=a._on_plot_click,
+            )
+            a._mpl_nav.attach()
+        except Exception:
+            a._mpl_nav = None
 
         a._mpl_cid = canvas.mpl_connect("button_press_event", a._on_plot_click)
         canvas.mpl_connect("motion_notify_event", a._on_plot_motion)
@@ -4611,6 +4650,8 @@ class FTIRView(ttk.Frame):
         plot.grid(row=2, column=0, sticky="nsew")
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
+        plot.rowconfigure(1, weight=0)
+        plot.rowconfigure(2, weight=0)
 
         fig = Figure(figsize=(10.5, 8.5), dpi=100)
         ax = fig.add_subplot(111)
@@ -4631,11 +4672,27 @@ class FTIRView(ttk.Frame):
         except Exception:
             toolbar = None
 
+        coord_var = tk.StringVar(value="")
+        coord_lbl = ttk.Label(plot, textvariable=coord_var, anchor="w")
+        coord_lbl.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+
         self._fig = fig
         self._ax = ax
         self._canvas = canvas
         self._toolbar = toolbar
         self._line = line
+        self._coord_var = coord_var
+        self._coord_label = coord_lbl
+
+        try:
+            self._mpl_nav = MatplotlibNavigator(
+                canvas=canvas,
+                ax=ax,
+                status_label=coord_var,
+            )
+            self._mpl_nav.attach()
+        except Exception:
+            self._mpl_nav = None
 
         try:
             canvas.mpl_connect("draw_event", self._on_mpl_draw_event)
@@ -18459,6 +18516,8 @@ class App(tk.Tk):
         if self._ax_uv is None or self._canvas is None:
             return
 
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
+
         if self._is_overlay_active() and bool(self._overlay_show_uv_var.get()):
             self._plot_uv_overlay()
             return
@@ -18506,6 +18565,7 @@ class App(tk.Tk):
             self._draw_uv_ms_peak_labels()
 
         self._apply_plot_style()
+        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
     def _save_axis_image(self, ax, default_stem: str) -> None:
@@ -18534,6 +18594,42 @@ class App(tk.Tk):
             return
 
         messagebox.showinfo("Saved", f"Saved:\n{path}")
+
+    def _capture_axes_limits(self, ax) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        if ax is None:
+            return None
+        try:
+            return (ax.get_xlim(), ax.get_ylim())
+        except Exception:
+            return None
+
+    def _restore_axes_limits(self, ax, lim: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]) -> None:
+        if ax is None or lim is None:
+            return
+        try:
+            ax.set_xlim(lim[0])
+            ax.set_ylim(lim[1])
+        except Exception:
+            pass
+
+    def _capture_axes_limits_map(self, axes: Sequence[Any]) -> Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]]:
+        out: Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]] = {}
+        for ax in list(axes or []):
+            if ax is None:
+                continue
+            try:
+                out[ax] = (ax.get_xlim(), ax.get_ylim())
+            except Exception:
+                continue
+        return out
+
+    def _restore_axes_limits_map(self, lims: Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]]) -> None:
+        for ax, lim in list((lims or {}).items()):
+            try:
+                ax.set_xlim(lim[0])
+                ax.set_ylim(lim[1])
+            except Exception:
+                continue
 
     def _save_tic_plot(self) -> None:
         if self._ax_tic is None:
@@ -18837,6 +18933,8 @@ class App(tk.Tk):
         if self._ax_tic is None or self._canvas is None:
             return
 
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
+
         self._tic_line = None
         try:
             if self._tic_marker is not None:
@@ -18921,6 +19019,7 @@ class App(tk.Tk):
 
         self._apply_plot_style()
         try:
+            self._restore_axes_limits_map(prev_lims)
             self._canvas.draw()
         except Exception:
             pass
@@ -18930,6 +19029,8 @@ class App(tk.Tk):
     def _plot_uv_overlay(self) -> None:
         if self._ax_uv is None or self._canvas is None:
             return
+
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
 
         self._ax_uv.clear()
         self._uv_annotations = []
@@ -18997,6 +19098,7 @@ class App(tk.Tk):
             self._draw_uv_ms_peak_labels()
 
         self._apply_plot_style()
+        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
     def _get_overlay_reader(self, session_id: str) -> Optional[mzml.MzML]:
@@ -19055,6 +19157,7 @@ class App(tk.Tk):
     def _plot_overlay_spectrum_for_rt(self, target_rt: float) -> None:
         if self._ax_spec is None or self._canvas is None:
             return
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
         ids = self._overlay_dataset_ids()
         if len(ids) < 2:
             return
@@ -19084,6 +19187,7 @@ class App(tk.Tk):
         if not spectra:
             self._ax_spec.text(0.5, 0.5, "No spectra near selected RT", ha="center", va="center", transform=self._ax_spec.transAxes)
             self._apply_plot_style()
+            self._restore_axes_limits_map(prev_lims)
             self._canvas.draw()
             return
 
@@ -19137,6 +19241,7 @@ class App(tk.Tk):
             self._current_spectrum_int = None
 
         self._apply_plot_style()
+        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
         self._refresh_overlay_legend()
@@ -19250,6 +19355,8 @@ class App(tk.Tk):
         if self._index is None or self._canvas is None:
             return
 
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
+
         pol = self.polarity_var.get()
         prev_pol = str(getattr(self, "_last_polarity_filter", "all"))
         self._last_polarity_filter = str(pol)
@@ -19324,6 +19431,7 @@ class App(tk.Tk):
 
             self._apply_plot_style()
             try:
+                self._restore_axes_limits_map(prev_lims)
                 self._canvas.draw()
             except Exception:
                 pass
@@ -19350,6 +19458,18 @@ class App(tk.Tk):
         self._plot_spectrum(self._current_spectrum_meta, self._current_spectrum_mz, self._current_spectrum_int)
 
     def _on_plot_click(self, event) -> None:
+        try:
+            if bool(getattr(event, "dblclick", False)):
+                return
+        except Exception:
+            pass
+        try:
+            if event is not None and int(getattr(event, "button", 0) or 0) == 1:
+                nav = getattr(self, "_mpl_nav", None)
+                if nav is not None and bool(getattr(nav, "is_box_pending")()):
+                    return
+        except Exception:
+            pass
         # TIC region selection (click + drag)
         if (
             bool(getattr(self, "tic_region_select_var", None) and self.tic_region_select_var.get())
@@ -20716,6 +20836,8 @@ class App(tk.Tk):
         if self._ax_spec is None or self._canvas is None:
             return
 
+        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
+
         self._ax_spec.clear()
         self._clear_spectrum_annotations()
         base_title = (self.spec_title_var.get() or "Spectrum (MS1)").strip()
@@ -20734,6 +20856,7 @@ class App(tk.Tk):
         self._apply_polymer_matches(mz_vals, int_vals)
 
         self._apply_plot_style()
+        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
     def _annotate_peaks(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
