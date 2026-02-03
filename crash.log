@@ -54,3 +54,21 @@ Traceback (most recent call last):
     ttk.Spinbox(top, from_=10, to=2000, width=6, textvariable=self._rows_var, command=self._refresh_table).grid(
                                                                                       ^^^^^^^^^^^^^^^^^^^
 AttributeError: '_DataPreviewWindow' object has no attribute '_refresh_table'
+
+========================================================================
+2026-02-03T10:26:03.178684
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\data_studio_view.py", line 539, in _plot
+    self._ax.plot(x, y, label=label, color=color, marker=("o" if plot_type == "Line + markers" else None))
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_axes.py", line 1777, in plot
+    lines = [*self._get_lines(self, *args, data=data, **kwargs)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_base.py", line 297, in __call__
+    yield from self._plot_args(
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_base.py", line 494, in _plot_args
+    raise ValueError(f"x and y must have same first dimension, but "
+ValueError: x and y must have same first dimension, but have shapes (6749,) and (1,)
