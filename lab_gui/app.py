@@ -57,6 +57,7 @@ from lab_gui.microscopy_model import MicroscopyDataset, MicroscopyWorkspace
 from lab_gui.microscopy_tab import MicroscopyView
 from lab_gui.plate_reader_model import PlateReaderDataset
 from lab_gui.plate_reader_view import PlateReaderView
+from lab_gui.data_studio_view import DataStudioView
 
 # Refactor step B: IO extracted into lab_gui/lcms_io.py (UI-free).
 from lab_gui.lcms_io import MzMLTICIndex, infer_uv_columns, preview_dataframe_rows, parse_uv_arrays
@@ -1246,6 +1247,7 @@ class FTIRExportEditor(tk.Toplevel):
         # Per-spectrum style state (editor-local)
         self._style_by_key: Dict[Tuple[str, str], Dict[str, Any]] = {}
         self._line_by_key: Dict[Tuple[str, str], Any] = {}
+        self._base_xy_by_key: Dict[Tuple[str, str], Tuple[np.ndarray, np.ndarray]] = {}
         self._peak_markers_by_key: Dict[Tuple[str, str], Any] = {}
         self._ann_by_key: Dict[Tuple[str, str], List[Any]] = {}
         self._ann_to_info: Dict[Any, Tuple[str, str, str]] = {}  # ann -> (ws, ds, peak_id)
@@ -1292,6 +1294,11 @@ class FTIRExportEditor(tk.Toplevel):
         # Overlay styling controls
         self._overlay_tree: Optional[ttk.Treeview] = None
         self._style_prop_var = tk.StringVar(value="Line color")
+        self._overlay_offset_mode_var = tk.StringVar(value=str(self.snapshot.get("overlay_offset_mode") or "Normal"))
+        try:
+            self._overlay_offset_var = tk.DoubleVar(value=float(self.snapshot.get("overlay_offset") or 0.0))
+        except Exception:
+            self._overlay_offset_var = tk.DoubleVar(value=0.0)
 
         # Dragging annotations (editor-local)
         self._drag_ann: Any = None
@@ -1562,8 +1569,27 @@ class FTIRExportEditor(tk.Toplevel):
             ov_group = ttk.Labelframe(inner, text="Overlay Styling (per spectrum)", padding=(8, 6))
             ov_group.grid(row=row, column=0, sticky="nsew", pady=(10, 0))
             ov_group.columnconfigure(0, weight=1)
-            ov_group.rowconfigure(1, weight=1)
+            ov_group.rowconfigure(2, weight=1)
             row += 1
+
+            ov_ctrls = ttk.Frame(ov_group)
+            ov_ctrls.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+            ttk.Label(ov_ctrls, text="Overlay offset").pack(side=tk.LEFT)
+            ov_mode = ttk.Combobox(
+                ov_ctrls,
+                textvariable=self._overlay_offset_mode_var,
+                values=["Normal", "Offset Y", "Offset X"],
+                state="readonly",
+                width=12,
+            )
+            ov_mode.pack(side=tk.LEFT, padx=(8, 0))
+            ov_mode.bind("<<ComboboxSelected>>", lambda _e: self._apply_style(rebuild_peaks=False))
+            ttk.Label(ov_ctrls, text="Value").pack(side=tk.LEFT, padx=(8, 0))
+            ov_val = ttk.Entry(ov_ctrls, textvariable=self._overlay_offset_var, width=10)
+            ov_val.pack(side=tk.LEFT, padx=(4, 0))
+            ov_val.bind("<KeyRelease>", lambda _e: self._apply_style(rebuild_peaks=False))
+
+            ttk.Separator(ov_group).grid(row=1, column=0, sticky="ew", pady=(0, 6))
 
             tv = ttk.Treeview(
                 ov_group,
@@ -1588,7 +1614,7 @@ class FTIRExportEditor(tk.Toplevel):
             tv.column("lcol", width=90, stretch=False)
             tv.column("p", width=60, stretch=False, anchor="center")
             tv.column("l", width=60, stretch=False, anchor="center")
-            tv.grid(row=1, column=0, sticky="nsew")
+            tv.grid(row=2, column=0, sticky="nsew")
             self._overlay_tree = tv
             sb = ttk.Scrollbar(ov_group, orient="vertical", command=tv.yview)
             sb.grid(row=1, column=1, sticky="ns")
@@ -1689,6 +1715,7 @@ class FTIRExportEditor(tk.Toplevel):
 
     def _build_initial_plot(self) -> None:
         self._ax.clear()
+        self._base_xy_by_key = {}
 
         # Initialize per-spectrum style defaults from snapshot (or from displayed line colors in the main view, if provided)
         for item in self._displayed:
@@ -1746,6 +1773,7 @@ class FTIRExportEditor(tk.Toplevel):
             y = np.asarray(([] if y_raw is None else y_raw), dtype=float)
             if int(x.size) < 2 or int(y.size) < 2:
                 continue
+            self._base_xy_by_key[k] = (np.asarray(x, dtype=float), np.asarray(y, dtype=float))
             try:
                 (ln,) = self._ax.plot(x, y, lw=float(st["line_width"]), color=str(st["line_color"]))
                 ln.set_label(str(st.get("name") or ""))
@@ -1789,6 +1817,40 @@ class FTIRExportEditor(tk.Toplevel):
             pass
         try:
             self._ax.grid(bool(self.grid_var.get()))
+        except Exception:
+            pass
+
+        # Overlay offset (export)
+        try:
+            offset_mode = str(self._overlay_offset_mode_var.get() or "Normal")
+        except Exception:
+            offset_mode = "Normal"
+        try:
+            offset_val = float(self._overlay_offset_var.get() or 0.0)
+        except Exception:
+            offset_val = 0.0
+        try:
+            if not self._overlay_on or offset_mode == "Normal" or offset_val == 0.0:
+                for k, ln in (self._line_by_key or {}).items():
+                    base = self._base_xy_by_key.get(k)
+                    if base is None:
+                        continue
+                    ln.set_data(base[0], base[1])
+            else:
+                order = sorted(self._line_by_key.keys())
+                idx_map = {k: i for i, k in enumerate(order)}
+                for k, ln in (self._line_by_key or {}).items():
+                    base = self._base_xy_by_key.get(k)
+                    if base is None:
+                        continue
+                    x = np.asarray(base[0], dtype=float)
+                    y = np.asarray(base[1], dtype=float)
+                    idx = idx_map.get(k, 0)
+                    if offset_mode == "Offset Y":
+                        y = y + (float(idx) * float(offset_val))
+                    elif offset_mode == "Offset X":
+                        x = x + (float(idx) * float(offset_val))
+                    ln.set_data(x, y)
         except Exception:
             pass
 
@@ -1957,6 +2019,20 @@ class FTIRExportEditor(tk.Toplevel):
         self._ann_to_info = {}
 
         # Recreate
+        overlay_on = bool(self._overlay_on and len(self._displayed) > 1)
+        try:
+            order = [tuple(item.get("key") or ()) for item in (self._displayed or []) if isinstance(item, dict)]
+            order = [(str(k[0]), str(k[1])) for k in order if len(k) == 2]
+        except Exception:
+            order = []
+        try:
+            offset_mode = str(self._overlay_offset_mode_var.get() or "Normal")
+        except Exception:
+            offset_mode = "Normal"
+        try:
+            offset_val = float(self._overlay_offset_var.get() or 0.0)
+        except Exception:
+            offset_val = 0.0
         for item in self._displayed:
             key = tuple(item.get("key") or ())
             if len(key) != 2:
@@ -1975,12 +2051,24 @@ class FTIRExportEditor(tk.Toplevel):
             if not peaks:
                 continue
 
+            dx = 0.0
+            dy = 0.0
+            if overlay_on and offset_mode != "Normal" and offset_val != 0.0:
+                try:
+                    idx = order.index(k)
+                except Exception:
+                    idx = 0
+                if offset_mode == "Offset Y":
+                    dy = float(idx) * float(offset_val)
+                elif offset_mode == "Offset X":
+                    dx = float(idx) * float(offset_val)
+
             xs: List[float] = []
             ys: List[float] = []
             for p in peaks:
                 try:
-                    xs.append(float(p.get("wn")))
-                    ys.append(float(p.get("y_display", p.get("y", 0.0))))
+                    xs.append(float(p.get("wn")) + float(dx))
+                    ys.append(float(p.get("y_display", p.get("y", 0.0))) + float(dy))
                 except Exception:
                     continue
 
@@ -2010,8 +2098,8 @@ class FTIRExportEditor(tk.Toplevel):
                 if not pid:
                     continue
                 try:
-                    peak_wn = float(p.get("wn"))
-                    peak_y = float(p.get("y_display", p.get("y", 0.0)))
+                    peak_wn = float(p.get("wn")) + float(dx)
+                    peak_y = float(p.get("y_display", p.get("y", 0.0))) + float(dy)
                     prom0 = float(p.get("prominence", 0.0) or 0.0)
                 except Exception:
                     continue
@@ -2021,7 +2109,7 @@ class FTIRExportEditor(tk.Toplevel):
                 try:
                     pos = (self._label_pos_by_key_pid.get(k) or {}).get(pid)
                     if pos is not None:
-                        pos_x, pos_y = float(pos[0]), float(pos[1])
+                        pos_x, pos_y = float(pos[0]) + float(dx), float(pos[1]) + float(dy)
                 except Exception:
                     pass
 
@@ -2029,11 +2117,11 @@ class FTIRExportEditor(tk.Toplevel):
                 if not label:
                     try:
                         if FTIRPeak is not None:
-                            label = format_peak_label(FTIRPeak(wn=peak_wn, y=peak_y, prominence=prom0), fmt=fmt)
+                            label = format_peak_label(FTIRPeak(wn=peak_wn - float(dx), y=peak_y - float(dy), prominence=prom0), fmt=fmt)
                         else:
-                            label = f"{peak_wn:.1f}"
+                            label = f"{(peak_wn - float(dx)):.1f}"
                     except Exception:
-                        label = f"{peak_wn:.1f}"
+                        label = f"{(peak_wn - float(dx)):.1f}"
 
                 try:
                     ann = self._ax.annotate(
@@ -4122,9 +4210,38 @@ class LCMSView(ttk.Frame):
         now_lbl = ttk.Label(plot, textvariable=a._now_view_var, padding=(6, 6))
         now_lbl.grid(row=0, column=0, sticky="ew")
 
-        # Overlay legend removed (use export window only).
-        a._overlay_legend_tree = None
-        a._overlay_legend_frame = None
+        # Overlay legend (colors + dataset names)
+        ov_leg = ttk.LabelFrame(plot, text="Overlay legend", padding=(6, 4))
+        ov_leg.grid(row=1, column=0, sticky="ew", pady=(0, 6))
+        ov_leg.columnconfigure(0, weight=1)
+
+        ov_tree = ttk.Treeview(
+            ov_leg,
+            columns=("color", "name", "ms1", "pol", "status"),
+            show="headings",
+            height=4,
+            selectmode="browse",
+        )
+        ov_tree.heading("color", text="Color")
+        ov_tree.heading("name", text="mzML")
+        ov_tree.heading("ms1", text="MS1")
+        ov_tree.heading("pol", text="Pol")
+        ov_tree.heading("status", text="Status")
+        ov_tree.column("color", width=60, stretch=False, anchor="center")
+        ov_tree.column("name", width=240, stretch=True)
+        ov_tree.column("ms1", width=70, stretch=False, anchor="e")
+        ov_tree.column("pol", width=70, stretch=False)
+        ov_tree.column("status", width=120, stretch=True)
+        ov_tree.grid(row=0, column=0, sticky="ew")
+        ov_sb = ttk.Scrollbar(ov_leg, orient="vertical", command=ov_tree.yview)
+        ov_sb.grid(row=0, column=1, sticky="ns")
+        ov_tree.configure(yscrollcommand=ov_sb.set)
+        a._overlay_legend_tree = ov_tree
+        a._overlay_legend_frame = ov_leg
+        try:
+            ov_leg.grid_remove()
+        except Exception:
+            pass
 
         # Plot + diagnostics panel (resizable)
         plot_paned = ttk.Panedwindow(plot, orient=tk.VERTICAL)
@@ -4175,7 +4292,7 @@ class LCMSView(ttk.Frame):
         try:
             a._mpl_nav = MatplotlibNavigator(
                 canvas=canvas,
-                axes_provider=lambda: [ax for ax in (a._ax_tic, a._ax_spec, a._ax_uv) if ax is not None],
+                axes_provider=lambda: [ax for ax in (a._ax_tic, a._ax_uv) if ax is not None],
                 status_label=coord_var,
                 box_zoom_enabled_cb=lambda: (not bool(a.tic_region_select_var.get())),
                 box_click_callback=a._on_plot_click,
@@ -4187,6 +4304,13 @@ class LCMSView(ttk.Frame):
         a._mpl_cid = canvas.mpl_connect("button_press_event", a._on_plot_click)
         canvas.mpl_connect("motion_notify_event", a._on_plot_motion)
         canvas.mpl_connect("button_release_event", a._on_plot_release)
+
+        try:
+            w = canvas.get_tk_widget()
+            w.bind("<KeyPress-r>", lambda _e: a._reset_spectrum_view(), add=True)
+            w.bind("<KeyPress-R>", lambda _e: a._reset_spectrum_view(), add=True)
+        except Exception:
+            pass
 
         a._rebuild_plot_axes()
         a._update_now_viewing_header()
@@ -4230,6 +4354,8 @@ class FTIRView(ttk.Frame):
         self._workspace_select_var = tk.StringVar(value="")
         self._overlay_color_scheme_var = tk.StringVar(value="Manual (workspace)")
         self._overlay_single_hue_color: str = "#1f77b4"
+        self._overlay_offset_mode_var = tk.StringVar(value="Normal")
+        self._overlay_offset_var = tk.DoubleVar(value=0.0)
 
         # FTIR-only perf + threading helpers
         self._ftir_event_q: "queue.Queue[Tuple[Any, ...]]" = queue.Queue()
@@ -4553,11 +4679,28 @@ class FTIRView(ttk.Frame):
         except Exception:
             pass
 
-        ttk.Label(groups_blk, text="Members (selected group)").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        offset_row = ttk.Frame(groups_blk)
+        offset_row.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(offset_row, text="Overlay offset").pack(side=tk.LEFT)
+        ov_mode = ttk.Combobox(
+            offset_row,
+            textvariable=self._overlay_offset_mode_var,
+            values=["Normal", "Offset Y", "Offset X"],
+            state="readonly",
+            width=14,
+        )
+        ov_mode.pack(side=tk.LEFT, padx=(8, 0))
+        ov_mode.bind("<<ComboboxSelected>>", lambda _e: self._on_ftir_overlay_offset_changed())
+        ttk.Label(offset_row, text="Value").pack(side=tk.LEFT, padx=(8, 0))
+        ov_val = ttk.Entry(offset_row, textvariable=self._overlay_offset_var, width=10)
+        ov_val.pack(side=tk.LEFT, padx=(4, 0))
+        ov_val.bind("<KeyRelease>", lambda _e: self._on_ftir_overlay_offset_changed())
+
+        ttk.Label(groups_blk, text="Members (selected group)").grid(row=5, column=0, sticky="w", pady=(10, 0))
         mtree = ttk.Treeview(groups_blk, columns=("member",), show="headings", selectmode="browse", height=5)
         mtree.heading("member", text="Workspace :: Dataset")
         mtree.column("member", width=320, stretch=True)
-        mtree.grid(row=5, column=0, sticky="nsew", pady=(4, 8))
+        mtree.grid(row=6, column=0, sticky="nsew", pady=(4, 8))
         self._overlay_members_tree = mtree
 
         try:
@@ -4566,7 +4709,7 @@ class FTIRView(ttk.Frame):
             pass
 
         mbtns = ttk.Frame(groups_blk)
-        mbtns.grid(row=6, column=0, sticky="ew")
+        mbtns.grid(row=7, column=0, sticky="ew")
         b_set_active_member = ttk.Button(
             mbtns,
             text="Set Active = selected member",
@@ -4871,6 +5014,12 @@ class FTIRView(ttk.Frame):
         members = [(str(a), str(b)) for (a, b) in (getattr(g, "members", []) or [])]
         colors = self._overlay_colors_for_scheme(scheme, len(members))
         return {k: str(c) for k, c in zip(members, colors)}
+
+    def _on_ftir_overlay_offset_changed(self) -> None:
+        try:
+            self._schedule_redraw()
+        except Exception:
+            pass
 
     def _edit_active_workspace_graph_color(self) -> None:
         ws = self._active_workspace()
@@ -6620,6 +6769,16 @@ class FTIRView(ttk.Frame):
 
         # Draw/update visible lines.
         visible_keys: List[Tuple[str, str]] = []
+        overlay_order = sorted(display_keys)
+        overlay_idx = {k: i for i, k in enumerate(overlay_order)}
+        try:
+            offset_mode = str(self._overlay_offset_mode_var.get() or "Normal")
+        except Exception:
+            offset_mode = "Normal"
+        try:
+            offset_val = float(self._overlay_offset_var.get() or 0.0)
+        except Exception:
+            offset_val = 0.0
         for key in sorted(display_keys):
             d = self._get_dataset_by_key(key)
             if d is None:
@@ -6636,6 +6795,16 @@ class FTIRView(ttk.Frame):
                 y_plot = np.asarray(y_plot, dtype=float)[mask]
             except Exception:
                 continue
+
+            if overlay_on and offset_mode != "Normal" and offset_val != 0.0:
+                idx = overlay_idx.get(key, 0)
+                try:
+                    if offset_mode == "Offset Y":
+                        y_plot = np.asarray(y_plot, dtype=float) + (float(idx) * float(offset_val))
+                    elif offset_mode == "Offset X":
+                        x_plot = np.asarray(x_plot, dtype=float) + (float(idx) * float(offset_val))
+                except Exception:
+                    pass
 
             ln = self._line_artists.get(key)
             if ln is None:
@@ -6846,6 +7015,7 @@ class FTIRView(ttk.Frame):
                         fontweight="bold",
                         include_peak_ids=ids_active,
                         include_summary=True,
+                        overlay_order=visible_keys if overlay_on else None,
                     )
                     self._render_overlay_peak_markers(ax, visible_keys, active_key)
                 else:
@@ -6856,6 +7026,7 @@ class FTIRView(ttk.Frame):
                         peak_color=self._peak_color_for_key(active_key),
                         pickable=True,
                         fontweight="bold",
+                        overlay_order=visible_keys if overlay_on else None,
                     )
             else:
                 self._clear_peak_artists()
@@ -6949,6 +7120,39 @@ class FTIRView(ttk.Frame):
         except Exception:
             pass
         return np.asarray(x2, dtype=float), np.asarray(y2, dtype=float)
+
+    def _overlay_offset_for_key(
+        self,
+        key: Optional[Tuple[str, str]],
+        *,
+        order: Optional[Sequence[Tuple[str, str]]] = None,
+    ) -> Tuple[float, float]:
+        try:
+            mode = str(self._overlay_offset_mode_var.get() or "Normal")
+        except Exception:
+            mode = "Normal"
+        try:
+            offset_val = float(self._overlay_offset_var.get() or 0.0)
+        except Exception:
+            offset_val = 0.0
+        if mode == "Normal" or offset_val == 0.0 or key is None:
+            return 0.0, 0.0
+
+        if order is None:
+            g = self._get_active_overlay_group()
+            if g is not None:
+                order = [(str(a), str(b)) for (a, b) in (getattr(g, "members", []) or [])]
+        order = list(order or [])
+        try:
+            idx = order.index((str(key[0]), str(key[1])))
+        except Exception:
+            idx = 0
+
+        if mode == "Offset Y":
+            return 0.0, float(idx) * float(offset_val)
+        if mode == "Offset X":
+            return float(idx) * float(offset_val), 0.0
+        return 0.0, 0.0
 
     def _selected_dataset_id(self) -> Optional[str]:
         tree = self._tree
@@ -7308,6 +7512,8 @@ class FTIRView(ttk.Frame):
             "active_key": tuple(active_key),
             "displayed": displayed,
             "show_peaks_all_overlay": bool(show_peaks_all_overlay),
+            "overlay_offset_mode": str(self._overlay_offset_mode_var.get() or "Normal"),
+            "overlay_offset": float(self._overlay_offset_var.get() or 0.0),
             "reverse_x": bool(reverse_x),
             "title": "FTIR" if not overlay_on else "FTIR Overlay",
             "xlabel": "Wavenumber",
@@ -9314,6 +9520,7 @@ class FTIRView(ttk.Frame):
         include_summary: bool = True,
         fontweight: Optional[str] = None,
         include_peak_ids: Optional[Sequence[str]] = None,
+        overlay_order: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> None:
         if clear_first:
             self._clear_peak_artists()
@@ -9348,12 +9555,13 @@ class FTIRView(ttk.Frame):
                 except Exception:
                     pass
                 shown = shown[: int(max_peaks or 0)]
+        dx, dy = self._overlay_offset_for_key(dataset_key, order=overlay_order)
         xs: List[float] = []
         ys: List[float] = []
         for p in shown:
             try:
-                xs.append(float(p.get("wn")))
-                ys.append(float(p.get("y_display", p.get("y", 0.0))))
+                xs.append(float(p.get("wn")) + float(dx))
+                ys.append(float(p.get("y_display", p.get("y", 0.0))) + float(dy))
             except Exception:
                 continue
 
@@ -9380,8 +9588,8 @@ class FTIRView(ttk.Frame):
             if not pid:
                 continue
             try:
-                peak_wn = float(p.get("wn"))
-                peak_y = float(p.get("y_display", p.get("y", 0.0)))
+                peak_wn = float(p.get("wn")) + float(dx)
+                peak_y = float(p.get("y_display", p.get("y", 0.0))) + float(dy)
                 prom0 = float(p.get("prominence", 0.0))
             except Exception:
                 continue
@@ -9394,8 +9602,8 @@ class FTIRView(ttk.Frame):
                 if pid in positions:
                     pos = positions.get(pid)
                     if isinstance(pos, tuple) and len(pos) == 2:
-                        pos_x = float(pos[0])
-                        pos_y = float(pos[1])
+                        pos_x = float(pos[0]) + float(dx)
+                        pos_y = float(pos[1]) + float(dy)
             except Exception:
                 pass
 
@@ -9403,11 +9611,11 @@ class FTIRView(ttk.Frame):
             if not label:
                 try:
                     if FTIRPeak is not None:
-                        label = format_peak_label(FTIRPeak(wn=peak_wn, y=peak_y, prominence=prom0), fmt=fmt)
+                        label = format_peak_label(FTIRPeak(wn=peak_wn - float(dx), y=peak_y - float(dy), prominence=prom0), fmt=fmt)
                     else:
-                        label = f"{peak_wn:.1f}"
+                        label = f"{(peak_wn - float(dx)):.1f}"
                 except Exception:
-                    label = f"{peak_wn:.1f}"
+                    label = f"{(peak_wn - float(dx)):.1f}"
 
             try:
                 txt = ax.annotate(
@@ -9500,6 +9708,7 @@ class FTIRView(ttk.Frame):
                 include_peak_ids=ids,
                 include_summary=False,
                 fontweight=None,
+                overlay_order=dataset_keys,
             )
 
     def _on_peak_drag_press(self, evt) -> None:
@@ -10159,6 +10368,8 @@ class App(tk.Tk):
         self._lcms_view: Optional[LCMSView] = None
         self._ftir_view: Optional[FTIRView] = None
         self._microscopy_view: Optional[MicroscopyView] = None
+        self._plate_reader_view: Optional[PlateReaderView] = None
+        self._data_studio_view: Optional[DataStudioView] = None
 
         # Multi-mzML workspace: keep only ONE open reader (active session)
         self._sessions: Dict[str, MzMLSession] = {}
@@ -10524,6 +10735,15 @@ class App(tk.Tk):
                 except Exception:
                     pass
 
+        if tab_text.strip().lower() == "data studio":
+            dv = getattr(self, "_data_studio_view", None)
+            if dv is not None:
+                try:
+                    self._set_status(str(dv.status_text()))
+                    return
+                except Exception:
+                    pass
+
         # Default: LCMS-style status string (existing behavior)
         self._update_status_current()
 
@@ -10574,10 +10794,12 @@ class App(tk.Tk):
         ftir_tab = ttk.Frame(nb)
         microscopy_tab = ttk.Frame(nb)
         plate_reader_tab = ttk.Frame(nb)
+        data_studio_tab = ttk.Frame(nb)
         nb.add(lcms_tab, text="LCMS")
         nb.add(ftir_tab, text="FTIR")
         nb.add(microscopy_tab, text="Microscopy")
         nb.add(plate_reader_tab, text="Plate Reader")
+        nb.add(data_studio_tab, text="Data Studio")
 
         try:
             nb.bind("<<NotebookTabChanged>>", lambda _e: self._update_status_by_tab(), add=True)
@@ -10596,6 +10818,9 @@ class App(tk.Tk):
 
         self._plate_reader_view = PlateReaderView(plate_reader_tab, self, self.workspace)
         self._plate_reader_view.pack(fill=tk.BOTH, expand=True)
+
+        self._data_studio_view = DataStudioView(data_studio_tab, self, self.workspace)
+        self._data_studio_view.pack(fill=tk.BOTH, expand=True)
 
         status = ttk.Label(
             self,
@@ -18595,6 +18820,16 @@ class App(tk.Tk):
 
         messagebox.showinfo("Saved", f"Saved:\n{path}")
 
+    def _reset_spectrum_view(self) -> None:
+        if self._ax_spec is None or self._canvas is None:
+            return
+        meta = self._current_spectrum_meta
+        mz = self._current_spectrum_mz
+        inten = self._current_spectrum_int
+        if meta is None or mz is None or inten is None:
+            return
+        self._plot_spectrum(meta, mz, inten)
+
     def _capture_axes_limits(self, ax) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
         if ax is None:
             return None
@@ -19157,7 +19392,6 @@ class App(tk.Tk):
     def _plot_overlay_spectrum_for_rt(self, target_rt: float) -> None:
         if self._ax_spec is None or self._canvas is None:
             return
-        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
         ids = self._overlay_dataset_ids()
         if len(ids) < 2:
             return
@@ -19187,7 +19421,6 @@ class App(tk.Tk):
         if not spectra:
             self._ax_spec.text(0.5, 0.5, "No spectra near selected RT", ha="center", va="center", transform=self._ax_spec.transAxes)
             self._apply_plot_style()
-            self._restore_axes_limits_map(prev_lims)
             self._canvas.draw()
             return
 
@@ -19241,7 +19474,6 @@ class App(tk.Tk):
             self._current_spectrum_int = None
 
         self._apply_plot_style()
-        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
         self._refresh_overlay_legend()
@@ -19460,6 +19692,8 @@ class App(tk.Tk):
     def _on_plot_click(self, event) -> None:
         try:
             if bool(getattr(event, "dblclick", False)):
+                if event is not None and event.inaxes == self._ax_spec:
+                    self._reset_spectrum_view()
                 return
         except Exception:
             pass
@@ -20836,8 +21070,6 @@ class App(tk.Tk):
         if self._ax_spec is None or self._canvas is None:
             return
 
-        prev_lims = self._capture_axes_limits_map([self._ax_tic, self._ax_spec, self._ax_uv])
-
         self._ax_spec.clear()
         self._clear_spectrum_annotations()
         base_title = (self.spec_title_var.get() or "Spectrum (MS1)").strip()
@@ -20856,7 +21088,6 @@ class App(tk.Tk):
         self._apply_polymer_matches(mz_vals, int_vals)
 
         self._apply_plot_style()
-        self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
     def _annotate_peaks(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
