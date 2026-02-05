@@ -9,7 +9,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+
+import ttkbootstrap as tb
+import tkinter.ttk as ttk_native
+
+ttk = tb
+ttk.LabelFrame = ttk_native.LabelFrame
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure

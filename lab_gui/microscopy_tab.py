@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, simpledialog
+
+import ttkbootstrap as tb
+import tkinter.ttk as ttk_native
+
+ttk = tb
+ttk.LabelFrame = ttk_native.LabelFrame
+if not hasattr(ttk, "PanedWindow") and hasattr(ttk, "Panedwindow"):
+    ttk.PanedWindow = ttk.Panedwindow  # type: ignore[attr-defined]
 
 import pandas as pd
 
@@ -575,7 +583,7 @@ logLine("TestMacro: done");
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        toolbar = ttk.Frame(self, padding=(6, 6, 6, 0))
+        toolbar = ttk.Frame(self, padding=(6, 6, 6, 6))
         toolbar.grid(row=0, column=0, sticky="ew")
 
         btn_add_ws = ttk.Button(toolbar, text="Add Workspace…", command=self._add_workspace)

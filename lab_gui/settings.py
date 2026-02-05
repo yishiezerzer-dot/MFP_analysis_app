@@ -39,18 +39,31 @@ def load_settings() -> Dict[str, Any]:
     p = settings_path()
     try:
         if not p.exists() or not p.is_file():
-            return {"fiji_exe_path": None, "last_macro_dir": None, "last_microscopy_dir": None, "microscopy_run_headless": True}
+            return {
+                "fiji_exe_path": None,
+                "last_macro_dir": None,
+                "last_microscopy_dir": None,
+                "microscopy_run_headless": True,
+                "theme": "flatly",
+            }
         data = json.loads(p.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError("settings.json must be an object")
     except Exception:
-        return {"fiji_exe_path": None, "last_macro_dir": None, "last_microscopy_dir": None, "microscopy_run_headless": True}
+        return {
+            "fiji_exe_path": None,
+            "last_macro_dir": None,
+            "last_microscopy_dir": None,
+            "microscopy_run_headless": True,
+            "theme": "flatly",
+        }
 
     out: Dict[str, Any] = {
         "fiji_exe_path": None,
         "last_macro_dir": None,
         "last_microscopy_dir": None,
         "microscopy_run_headless": True,
+        "theme": "flatly",
     }
 
     for k in ("fiji_exe_path", "last_macro_dir", "last_microscopy_dir"):
@@ -62,6 +75,15 @@ def load_settings() -> Dict[str, Any]:
         out["microscopy_run_headless"] = bool(v) if isinstance(v, bool) else str(v).strip().lower() in ("1", "true", "yes", "on")
     except Exception:
         out["microscopy_run_headless"] = True
+    try:
+        theme = str(data.get("theme", "flatly") or "flatly").strip().lower()
+        if theme in ("dark", "darkly"):
+            theme = "darkly"
+        elif theme in ("light", "flatly"):
+            theme = "flatly"
+        out["theme"] = theme
+    except Exception:
+        out["theme"] = "flatly"
     return out
 
 
@@ -79,6 +101,16 @@ def save_settings(settings: Dict[str, Any]) -> None:
         safe["microscopy_run_headless"] = bool((settings or {}).get("microscopy_run_headless", True))
     except Exception:
         safe["microscopy_run_headless"] = True
+
+    try:
+        theme = str((settings or {}).get("theme", "flatly") or "flatly").strip().lower()
+        if theme in ("dark", "darkly"):
+            theme = "darkly"
+        elif theme in ("light", "flatly"):
+            theme = "flatly"
+        safe["theme"] = theme
+    except Exception:
+        safe["theme"] = "flatly"
 
     p.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
 

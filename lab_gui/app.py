@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union, Literal
 
 import tkinter as tk
-from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
+from tkinter import colorchooser, filedialog, messagebox, simpledialog
+
+import ttkbootstrap as tb
+import tkinter.ttk as ttk_native
+
+ttk = tb
+ttk.LabelFrame = ttk_native.LabelFrame
 
 import numpy as np
 import pandas as pd
@@ -58,6 +64,7 @@ from lab_gui.microscopy_tab import MicroscopyView
 from lab_gui.plate_reader_model import PlateReaderDataset
 from lab_gui.plate_reader_view import PlateReaderView
 from lab_gui.data_studio_view import DataStudioView
+from lab_gui.settings import load_settings, save_settings
 
 # Refactor step B: IO extracted into lab_gui/lcms_io.py (UI-free).
 from lab_gui.lcms_io import MzMLTICIndex, infer_uv_columns, preview_dataframe_rows, parse_uv_arrays
@@ -182,7 +189,19 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         pol_default = "all"
 
     mzml_files: List[Dict[str, Any]] = []
+    uv_files: List[Dict[str, Any]] = []
     annotations_by_mzml: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+
+    for uv_id in list(getattr(app, "_uv_order", []) or []):
+        uv_sess = (getattr(app, "_uv_sessions", {}) or {}).get(str(uv_id))
+        if uv_sess is None:
+            continue
+        uv_files.append(
+            {
+                "path": str(uv_sess.path),
+                "load_order": int(getattr(uv_sess, "load_order", 0) or 0),
+            }
+        )
 
     for sid in list(getattr(app, "_session_order", []) or []):
         sess = (getattr(app, "_sessions", {}) or {}).get(str(sid))
@@ -191,14 +210,22 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         pol = sess.last_polarity_filter or pol_default
         if pol not in ("all", "positive", "negative"):
             pol = pol_default
+        linked_uv_path = None
+        try:
+            if getattr(sess, "linked_uv_id", None) and str(sess.linked_uv_id) in getattr(app, "_uv_sessions", {}):
+                linked_uv_path = str(app._uv_sessions[str(sess.linked_uv_id)].path)
+        except Exception:
+            linked_uv_path = None
         mzml_files.append(
             {
                 "path": str(sess.path),
                 "polarity": str(pol),
                 "rt_unit": str(rt_unit),
                 "display_name": str(getattr(sess, "display_name", "")),
+                "load_order": int(getattr(sess, "load_order", 0) or 0),
                 "last_scan_index": (None if sess.last_scan_index is None else int(sess.last_scan_index)),
                 "last_selected_rt_min": (None if sess.last_selected_rt_min is None else float(sess.last_selected_rt_min)),
+                "linked_uv_path": linked_uv_path,
             }
         )
         annotations_by_mzml[str(sess.path)] = _encode_annotations(
@@ -280,6 +307,7 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         "mzml_files": mzml_files,
         "active_mzml_index": int(active_index),
         "linked_uv": linked_uv,
+        "uv_files": uv_files,
         "annotations": annotations,
         "annotations_by_mzml": annotations_by_mzml,
         "current_scan_index": current_scan_index,
@@ -296,15 +324,15 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
     }
 
 # UI colors / lab palette
-LIGHT_TEAL = "#CDF5EC"
+LIGHT_TEAL = "#5C7C75"
 BG_LIGHT = LIGHT_TEAL
 TEXT_DARK = "#111827"
 TEXT_MUTED = "#6B7280"
 
 # Brand accents (used across ttk + Matplotlib styling)
 DIVIDER = "#E5E7EB"
-PRIMARY_TEAL = "#0D9488"
-SECONDARY_TEAL = "#0F766E"
+PRIMARY_TEAL = "#04504A"
+SECONDARY_TEAL = "#05312E"
 DEEP_MAROON = "#7F1D1D"
 ACCENT_ORANGE = "#F59E0B"
 ACCENT_MAGENTA = "#C026D3"
@@ -912,6 +940,7 @@ TOOLTIP_TEXT: Dict[str, str] = {
     "panels_show_tic": "Toggle TIC panel visibility.",
     "panels_show_spectrum": "Toggle Spectrum panel visibility.",
     "panels_show_uv": "Toggle UV chromatogram panel visibility.",
+    "panels_show_diag": "Show or hide the diagnostics (log + current context) panel.",
 
     "annotate_enable": "Enable/disable automatic m/z labels for the spectrum plot.",
     "annotate_top_n": "Label only the Top N peaks by intensity (0 disables Top-N filtering).",
@@ -1583,11 +1612,11 @@ class FTIRExportEditor(tk.Toplevel):
                 width=12,
             )
             ov_mode.pack(side=tk.LEFT, padx=(8, 0))
-            ov_mode.bind("<<ComboboxSelected>>", lambda _e: self._apply_style(rebuild_peaks=False))
+            ov_mode.bind("<<ComboboxSelected>>", lambda _e: self._apply_style(rebuild_peaks=True))
             ttk.Label(ov_ctrls, text="Value").pack(side=tk.LEFT, padx=(8, 0))
             ov_val = ttk.Entry(ov_ctrls, textvariable=self._overlay_offset_var, width=10)
             ov_val.pack(side=tk.LEFT, padx=(4, 0))
-            ov_val.bind("<KeyRelease>", lambda _e: self._apply_style(rebuild_peaks=False))
+            ov_val.bind("<KeyRelease>", lambda _e: self._apply_style(rebuild_peaks=True))
 
             ttk.Separator(ov_group).grid(row=1, column=0, sticky="ew", pady=(0, 6))
 
@@ -1837,7 +1866,11 @@ class FTIRExportEditor(tk.Toplevel):
                         continue
                     ln.set_data(base[0], base[1])
             else:
-                order = sorted(self._line_by_key.keys())
+                try:
+                    order = [tuple(item.get("key") or ()) for item in (self._displayed or []) if isinstance(item, dict)]
+                    order = [(str(k[0]), str(k[1])) for k in order if len(k) == 2]
+                except Exception:
+                    order = list(self._line_by_key.keys())
                 idx_map = {k: i for i, k in enumerate(order)}
                 for k, ln in (self._line_by_key or {}).items():
                     base = self._base_xy_by_key.get(k)
@@ -1961,6 +1994,58 @@ class FTIRExportEditor(tk.Toplevel):
         except Exception:
             pass
 
+    def _overlay_offset_for_key(self, key: Tuple[str, str]) -> Tuple[float, float]:
+        try:
+            if not self._overlay_on:
+                return 0.0, 0.0
+        except Exception:
+            return 0.0, 0.0
+        try:
+            offset_mode = str(self._overlay_offset_mode_var.get() or "Normal")
+        except Exception:
+            offset_mode = "Normal"
+        try:
+            offset_val = float(self._overlay_offset_var.get() or 0.0)
+        except Exception:
+            offset_val = 0.0
+        if offset_mode == "Normal" or offset_val == 0.0:
+            return 0.0, 0.0
+
+        try:
+            order = [tuple(item.get("key") or ()) for item in (self._displayed or []) if isinstance(item, dict)]
+            order = [(str(k[0]), str(k[1])) for k in order if len(k) == 2]
+        except Exception:
+            order = []
+        try:
+            idx = order.index((str(key[0]), str(key[1])))
+        except Exception:
+            idx = 0
+
+        if offset_mode == "Offset Y":
+            return 0.0, float(idx) * float(offset_val)
+        if offset_mode == "Offset X":
+            return float(idx) * float(offset_val), 0.0
+        return 0.0, 0.0
+
+    def _interp_y_on_line(self, key: Tuple[str, str], wn: float) -> Optional[float]:
+        base = self._base_xy_by_key.get(key)
+        if base is None:
+            return None
+        try:
+            x = np.asarray(base[0], dtype=float)
+            y = np.asarray(base[1], dtype=float)
+            mask = np.isfinite(x) & np.isfinite(y)
+            x = x[mask]
+            y = y[mask]
+            if x.size < 2:
+                return None
+            order = np.argsort(x)
+            x = x[order]
+            y = y[order]
+            return float(np.interp(float(wn), x, y))
+        except Exception:
+            return None
+
     def _apply_peak_styles_only(self) -> None:
         fs = int(self.peak_label_fs_var.get())
         ms = int(self.peak_marker_size_var.get())
@@ -2067,8 +2152,12 @@ class FTIRExportEditor(tk.Toplevel):
             ys: List[float] = []
             for p in peaks:
                 try:
-                    xs.append(float(p.get("wn")) + float(dx))
-                    ys.append(float(p.get("y_display", p.get("y", 0.0))) + float(dy))
+                    wn0 = float(p.get("wn"))
+                    y0 = self._interp_y_on_line(k, wn0)
+                    if y0 is None:
+                        y0 = float(p.get("y_display", p.get("y", 0.0)))
+                    xs.append(float(wn0) + float(dx))
+                    ys.append(float(y0) + float(dy))
                 except Exception:
                     continue
 
@@ -2098,8 +2187,12 @@ class FTIRExportEditor(tk.Toplevel):
                 if not pid:
                     continue
                 try:
-                    peak_wn = float(p.get("wn")) + float(dx)
-                    peak_y = float(p.get("y_display", p.get("y", 0.0))) + float(dy)
+                    base_wn = float(p.get("wn"))
+                    y0 = self._interp_y_on_line(k, base_wn)
+                    if y0 is None:
+                        y0 = float(p.get("y_display", p.get("y", 0.0)))
+                    peak_wn = float(base_wn) + float(dx)
+                    peak_y = float(y0) + float(dy)
                     prom0 = float(p.get("prominence", 0.0) or 0.0)
                 except Exception:
                     continue
@@ -2605,7 +2698,12 @@ class FTIRExportEditor(tk.Toplevel):
         try:
             ws_id, ds_id, pid = self._drag_info
             k = (str(ws_id), str(ds_id))
-            self._label_pos_by_key_pid.setdefault(k, {})[str(pid)] = (float(new_x), float(new_y))
+            try:
+                dx, dy = self._overlay_offset_for_key(k)
+            except Exception:
+                dx, dy = 0.0, 0.0
+            # Store base (un-offset) position so offsets don't double-shift on redraw/export.
+            self._label_pos_by_key_pid.setdefault(k, {})[str(pid)] = (float(new_x) - float(dx), float(new_y) - float(dy))
         except Exception:
             pass
 
@@ -3702,7 +3800,7 @@ class LCMSView(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        toolbar = ttk.Frame(self, padding=(0, 10, 0, 6))
+        toolbar = ttk.Frame(self, padding=(6, 6, 6, 6))
         toolbar.grid(row=0, column=0, sticky="ew")
 
         content = ttk.Frame(self)
@@ -3716,15 +3814,15 @@ class LCMSView(ttk.Frame):
 
         # --- Toolbar ---
         btn_w = 14
-        b_open = ttk.Button(toolbar, text="Open mzML…", command=a._open_mzml, width=btn_w, style="Primary.TButton")
+        b_open = ttk.Button(toolbar, text="Open mzML…", command=a._open_mzml, width=btn_w)
         b_open.pack(side=tk.LEFT)
         ToolTip.attach(b_open, TOOLTIP_TEXT["open_mzml"])
 
-        b_uv = ttk.Button(toolbar, text="Add UV…", command=a._open_uv_csv_single, width=btn_w, style="Secondary.TButton")
+        b_uv = ttk.Button(toolbar, text="Add UV…", command=a._open_uv_csv_single, width=btn_w)
         b_uv.pack(side=tk.LEFT, padx=(8, 0))
         ToolTip.attach(b_uv, TOOLTIP_TEXT["load_uv_csv"])
 
-        export_btn = ttk.Menubutton(toolbar, text="Export…", width=btn_w, style="Primary.TMenubutton")
+        export_btn = ttk.Menubutton(toolbar, text="Export…", width=btn_w)
         export_btn.pack(side=tk.LEFT, padx=(18, 0))
         export_menu = tk.Menu(export_btn, tearoff=0)
         export_menu.add_command(label="Export Spectrum CSV…\tCtrl+E", command=a._export_spectrum_csv)
@@ -3743,7 +3841,7 @@ class LCMSView(ttk.Frame):
         export_btn.configure(menu=export_menu)
         ToolTip.attach(export_btn, TOOLTIP_TEXT["export_dropdown"])
 
-        b_reset = ttk.Button(toolbar, text="Reset View", command=a._reset_view_all, width=btn_w, style="Secondary.TButton")
+        b_reset = ttk.Button(toolbar, text="Reset View", command=a._reset_view_all, width=btn_w)
         b_reset.pack(side=tk.LEFT, padx=(8, 0))
         ToolTip.attach(b_reset, TOOLTIP_TEXT["reset_view"])
 
@@ -3834,11 +3932,35 @@ class LCMSView(ttk.Frame):
             pass
 
         # Mouse wheel scrolling when cursor is over the left panel
+        def _scroll_target_for_event(evt) -> Optional[Any]:
+            try:
+                w = a.winfo_containing(evt.x_root, evt.y_root)
+            except Exception:
+                w = None
+            while w is not None:
+                try:
+                    if isinstance(w, (ttk.Treeview, tk.Listbox, tk.Text)):
+                        return w
+                except Exception:
+                    pass
+                try:
+                    w = w.master
+                except Exception:
+                    w = None
+            return None
+
         def _on_mousewheel(evt) -> str:
             try:
                 delta = int(getattr(evt, "delta", 0) or 0)
                 if delta == 0:
                     return "break"
+                target = _scroll_target_for_event(evt)
+                if target is not None:
+                    try:
+                        target.yview_scroll(int(-1 * (delta / 120)), "units")
+                        return "break"
+                    except Exception:
+                        pass
                 left_canvas.yview_scroll(int(-1 * (delta / 120)), "units")
             except Exception:
                 pass
@@ -4256,12 +4378,20 @@ class LCMSView(ttk.Frame):
         diag_frame = ttk.Frame(plot_paned)
         a._build_diagnostics_panel(diag_frame)
 
+        a._plot_paned = plot_paned
+        a._diag_frame = diag_frame
+
         try:
             plot_paned.add(fig_frame, weight=4)
             plot_paned.add(diag_frame, weight=1)
         except Exception:
             plot_paned.add(fig_frame)
             plot_paned.add(diag_frame)
+
+        try:
+            a._apply_diag_panel_visibility()
+        except Exception:
+            pass
 
         # Figure (axes are created dynamically based on panel visibility)
         fig = Figure(figsize=(10.5, 8.5), dpi=100)
@@ -4486,11 +4616,35 @@ class FTIRView(ttk.Frame):
             pass
 
         # Mouse wheel scrolling when cursor is over the left panel
+        def _scroll_target_for_event(evt) -> Optional[Any]:
+            try:
+                w = self.app.winfo_containing(evt.x_root, evt.y_root)
+            except Exception:
+                w = None
+            while w is not None:
+                try:
+                    if isinstance(w, (ttk.Treeview, tk.Listbox, tk.Text)):
+                        return w
+                except Exception:
+                    pass
+                try:
+                    w = w.master
+                except Exception:
+                    w = None
+            return None
+
         def _on_mousewheel(evt) -> str:
             try:
                 delta = int(getattr(evt, "delta", 0) or 0)
                 if delta == 0:
                     return "break"
+                target = _scroll_target_for_event(evt)
+                if target is not None:
+                    try:
+                        target.yview_scroll(int(-1 * (delta / 120)), "units")
+                        return "break"
+                    except Exception:
+                        pass
                 left_canvas.yview_scroll(int(-1 * (delta / 120)), "units")
             except Exception:
                 pass
@@ -4536,11 +4690,11 @@ class FTIRView(ttk.Frame):
 
         ws_btns = ttk.Frame(wsblk)
         ws_btns.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        b_ws_new = ttk.Button(ws_btns, text="New Workspace", command=self._new_workspace, style="Secondary.TButton")
-        b_ws_ren = ttk.Button(ws_btns, text="Rename", command=self._rename_workspace, style="Secondary.TButton")
-        b_ws_dup = ttk.Button(ws_btns, text="Duplicate", command=self._duplicate_workspace, style="Secondary.TButton")
-        b_ws_col = ttk.Button(ws_btns, text="Graph Color…", command=self._edit_active_workspace_graph_color, style="Secondary.TButton")
-        b_ws_del = ttk.Button(ws_btns, text="Delete", command=self._delete_workspace, style="Secondary.TButton")
+        b_ws_new = ttk.Button(ws_btns, text="New Workspace", command=self._new_workspace)
+        b_ws_ren = ttk.Button(ws_btns, text="Rename", command=self._rename_workspace)
+        b_ws_dup = ttk.Button(ws_btns, text="Duplicate", command=self._duplicate_workspace)
+        b_ws_col = ttk.Button(ws_btns, text="Graph Color…", command=self._edit_active_workspace_graph_color)
+        b_ws_del = ttk.Button(ws_btns, text="Delete", command=self._delete_workspace)
         b_ws_new.pack(side=tk.LEFT)
         b_ws_ren.pack(side=tk.LEFT, padx=(8, 0))
         b_ws_dup.pack(side=tk.LEFT, padx=(8, 0))
@@ -4583,11 +4737,11 @@ class FTIRView(ttk.Frame):
 
         btns = ttk.Frame(left)
         btns.grid(row=3, column=0, sticky="ew", pady=(8, 10))
-        self._btn_load = ttk.Button(btns, text="Load FTIR…", command=self.load_ftir_dialog, style="Primary.TButton")
+        self._btn_load = ttk.Button(btns, text="Load FTIR…", command=self.load_ftir_dialog)
         self._btn_load.pack(side=tk.LEFT)
-        self._btn_remove = ttk.Button(btns, text="Remove", command=self.remove_selected, style="Secondary.TButton")
+        self._btn_remove = ttk.Button(btns, text="Remove", command=self.remove_selected)
         self._btn_remove.pack(side=tk.LEFT, padx=(8, 0))
-        self._btn_clear = ttk.Button(btns, text="Clear All", command=self.clear_all, style="Secondary.TButton")
+        self._btn_clear = ttk.Button(btns, text="Clear All", command=self.clear_all)
         self._btn_clear.pack(side=tk.LEFT, padx=(8, 0))
 
         try:
@@ -4635,12 +4789,12 @@ class FTIRView(ttk.Frame):
 
         gbtns = ttk.Frame(groups_blk)
         gbtns.grid(row=2, column=0, sticky="ew")
-        b_ov_new = ttk.Button(gbtns, text="New Overlay from Selection", command=self._new_overlay_group_from_selection, style="Secondary.TButton")
-        b_ov_act = ttk.Button(gbtns, text="Activate Overlay", command=self._activate_selected_overlay_group, style="Secondary.TButton")
-        b_ov_ren = ttk.Button(gbtns, text="Rename…", command=self._rename_selected_overlay_group, style="Secondary.TButton")
-        b_ov_dup = ttk.Button(gbtns, text="Duplicate", command=self._duplicate_selected_overlay_group, style="Secondary.TButton")
-        b_ov_del = ttk.Button(gbtns, text="Delete", command=self._delete_selected_overlay_group, style="Secondary.TButton")
-        b_ov_clr = ttk.Button(gbtns, text="Clear Active Overlay", command=self._clear_active_overlay_group, style="Secondary.TButton")
+        b_ov_new = ttk.Button(gbtns, text="New Overlay from Selection", command=self._new_overlay_group_from_selection)
+        b_ov_act = ttk.Button(gbtns, text="Activate Overlay", command=self._activate_selected_overlay_group)
+        b_ov_ren = ttk.Button(gbtns, text="Rename…", command=self._rename_selected_overlay_group)
+        b_ov_dup = ttk.Button(gbtns, text="Duplicate", command=self._duplicate_selected_overlay_group)
+        b_ov_del = ttk.Button(gbtns, text="Delete", command=self._delete_selected_overlay_group)
+        b_ov_clr = ttk.Button(gbtns, text="Clear Active Overlay", command=self._clear_active_overlay_group)
         b_ov_new.pack(side=tk.LEFT)
         b_ov_act.pack(side=tk.LEFT, padx=(8, 0))
         b_ov_ren.pack(side=tk.LEFT, padx=(8, 0))
@@ -4714,7 +4868,6 @@ class FTIRView(ttk.Frame):
             mbtns,
             text="Set Active = selected member",
             command=self._set_active_overlay_member_from_selected,
-            style="Secondary.TButton",
         )
         b_set_active_member.pack(side=tk.LEFT)
         try:
@@ -4756,13 +4909,13 @@ class FTIRView(ttk.Frame):
 
         top = ttk.Frame(right)
         top.grid(row=0, column=0, sticky="ew")
-        b_save_plot = ttk.Button(top, text="Save FTIR Plot…", command=self.save_plot_dialog, style="Secondary.TButton")
+        b_save_plot = ttk.Button(top, text="Save FTIR Plot…", command=self.save_plot_dialog)
         b_save_plot.pack(side=tk.LEFT)
-        self._btn_peaks = ttk.Button(top, text="Peaks…", command=self._open_peaks_dialog, style="Secondary.TButton")
+        self._btn_peaks = ttk.Button(top, text="Peaks…", command=self._open_peaks_dialog)
         self._btn_peaks.pack(side=tk.LEFT, padx=(8, 0))
-        self._btn_export_peaks = ttk.Button(top, text="Export Peaks…", command=self._export_peaks_dialog, style="Secondary.TButton")
+        self._btn_export_peaks = ttk.Button(top, text="Export Peaks…", command=self._export_peaks_dialog)
         self._btn_export_peaks.pack(side=tk.LEFT, padx=(8, 0))
-        self._btn_add_bond_label = ttk.Button(top, text="Add Bond Label…", command=self._open_add_bond_label_dialog, style="Secondary.TButton")
+        self._btn_add_bond_label = ttk.Button(top, text="Add Bond Label…", command=self._open_add_bond_label_dialog)
         self._btn_add_bond_label.pack(side=tk.LEFT, padx=(8, 0))
         cb_reverse = ttk.Checkbutton(top, text="Reverse x-axis (common FTIR)", variable=self._reverse_x_var, command=self._on_toggle_reverse)
         cb_reverse.pack(side=tk.LEFT, padx=(14, 0))
@@ -7474,8 +7627,41 @@ class FTIRView(ttk.Frame):
             peak_settings = dict(getattr(d, "peak_settings", {}) or {})
             peaks_list = [dict(p) for p in (getattr(d, "peaks", []) or []) if isinstance(p, dict)]
             suppressed = set(getattr(d, "peak_suppressed", set()) or set())
-            peak_label_positions = dict(getattr(d, "peak_label_positions", {}) or {})
+            peak_label_positions_raw = dict(getattr(d, "peak_label_positions", {}) or {})
             peak_label_overrides = dict(getattr(d, "peak_label_overrides", {}) or {})
+
+            peak_by_id: Dict[str, Dict[str, Any]] = {str(p.get("id") or ""): p for p in peaks_list if isinstance(p, dict)}
+            try:
+                dx, dy = self._overlay_offset_for_key((str(ws_id), str(ds_id)))
+            except Exception:
+                dx, dy = 0.0, 0.0
+
+            peak_label_positions: Dict[str, Tuple[float, float]] = {}
+            for pid, xy in (peak_label_positions_raw or {}).items():
+                if not (isinstance(xy, (list, tuple)) and len(xy) == 2):
+                    continue
+                try:
+                    x0 = float(xy[0])
+                    y0 = float(xy[1])
+                except Exception:
+                    continue
+                p = peak_by_id.get(str(pid))
+                if p is None:
+                    peak_label_positions[str(pid)] = (float(x0), float(y0))
+                    continue
+                try:
+                    wn = float(p.get("wn"))
+                    y_peak = float(p.get("y_display", p.get("y", 0.0)))
+                except Exception:
+                    peak_label_positions[str(pid)] = (float(x0), float(y0))
+                    continue
+                # Choose the position that is closer to the true peak tip (base coords).
+                d0 = (float(x0) - wn) ** 2 + (float(y0) - y_peak) ** 2
+                d1 = (float(x0) - float(dx) - wn) ** 2 + (float(y0) - float(dy) - y_peak) ** 2
+                if d1 < d0:
+                    peak_label_positions[str(pid)] = (float(x0) - float(dx), float(y0) - float(dy))
+                else:
+                    peak_label_positions[str(pid)] = (float(x0), float(y0))
 
             displayed.append(
                 {
@@ -9866,7 +10052,12 @@ class FTIRView(ttk.Frame):
         try:
             d = self._get_dataset_by_key((str(self._drag_peak_key[0]), str(self._drag_peak_key[1])))
             if d is not None:
-                d.peak_label_positions[str(self._drag_peak_id)] = (float(new_x), float(new_y))
+                try:
+                    dx, dy = self._overlay_offset_for_key((str(self._drag_peak_key[0]), str(self._drag_peak_key[1])))
+                except Exception:
+                    dx, dy = 0.0, 0.0
+                # Store positions in base (un-offset) coordinates so overlay offsets don't double-shift.
+                d.peak_label_positions[str(self._drag_peak_id)] = (float(new_x) - float(dx), float(new_y) - float(dy))
         except Exception:
             pass
 
@@ -10302,9 +10493,25 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
 
-class App(tk.Tk):
+class App(tb.Window):
+    @staticmethod
+    def _normalize_theme_name(value: Any) -> str:
+        try:
+            s = str(value or "").strip().lower()
+        except Exception:
+            s = ""
+        if s in ("dark", "darkly"):
+            return "darkly"
+        if s in ("light", "flatly"):
+            return "flatly"
+        return "flatly"
+
     def __init__(self) -> None:
-        super().__init__()
+        settings = load_settings()
+        theme_name = App._normalize_theme_name(settings.get("theme"))
+        super().__init__(themename=theme_name)
+        self._ui_settings = settings
+        self._theme_var = tk.StringVar(value=theme_name)
         self.title(APP_NAME)
         # Wider than tall (landscape), but adapt to the user's screen.
         try:
@@ -10454,10 +10661,13 @@ class App(tk.Tk):
         self._ctx_rt_var = tk.StringVar(value="")
         self._ctx_pol_var = tk.StringVar(value="")
         self._ctx_warn_var = tk.StringVar(value="")
+        self._show_diag_panel_var = tk.BooleanVar(value=False)
 
         self._diag_text: Optional[tk.Text] = None
         self._diag_filter_warnings_only_var = tk.BooleanVar(value=False)
         self._diag_log_records: List[Tuple[str, str, str]] = []  # (ts, level, msg)
+        self._plot_paned: Optional[Any] = None
+        self._diag_frame: Optional[tk.Widget] = None
 
         # Brand logo (keep reference to avoid GC)
         self._logo_photo: Optional[Any] = None
@@ -10494,6 +10704,7 @@ class App(tk.Tk):
         self.title_fontsize_var = tk.IntVar(value=12)
         self.label_fontsize_var = tk.IntVar(value=10)
         self.tick_fontsize_var = tk.IntVar(value=9)
+        self._matplotlib_bg_var = tk.StringVar(value="#f5f5f5")
 
         # Axis limits (blank = auto)
         self.tic_xlim_min_var = tk.StringVar(value="")
@@ -10748,14 +10959,6 @@ class App(tk.Tk):
         self._update_status_current()
 
     def _build_ui(self) -> None:
-        # ttk style/theme (modern default)
-        try:
-            style = ttk.Style(self)
-            if "clam" in style.theme_names():
-                style.theme_use("clam")
-        except Exception:
-            pass
-
         self._apply_theme()
 
         self._load_brand_logo()
@@ -10772,17 +10975,12 @@ class App(tk.Tk):
 
         self._build_menu()
 
-        # Root layout: header / content / status
+        # Root layout: content / status (header removed)
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(0, weight=1)
 
-        header = ttk.Frame(self, padding=(10, 10, 10, 0))
-        header.grid(row=0, column=0, sticky="ew")
-        ttk.Label(header, text=APP_NAME, style="Header.TLabel").pack(side=tk.LEFT)
-        ttk.Label(header, text=f"v{APP_VERSION}", foreground=TEXT_MUTED, padding=(10, 0)).pack(side=tk.RIGHT)
-
-        content = ttk.Frame(self, padding=(10, 0, 10, 10))
-        content.grid(row=1, column=0, sticky="nsew")
+        content = ttk.Frame(self, padding=(10, 10, 10, 10))
+        content.grid(row=0, column=0, sticky="nsew")
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
@@ -10895,6 +11093,26 @@ class App(tk.Tk):
             pass
 
         self._diag_text = txt
+
+    def _apply_diag_panel_visibility(self) -> None:
+        paned = getattr(self, "_plot_paned", None)
+        frame = getattr(self, "_diag_frame", None)
+        if paned is None or frame is None:
+            return
+        try:
+            panes = set(paned.panes())
+        except Exception:
+            panes = set()
+        want = bool(self._show_diag_panel_var.get())
+        try:
+            if want:
+                if str(frame) not in panes:
+                    paned.add(frame, weight=1)
+            else:
+                if str(frame) in panes:
+                    paned.forget(frame)
+        except Exception:
+            pass
 
     def _log(self, level: str, message: str, exc: Optional[Union[BaseException, str]] = None) -> None:
         lvl = (level or "INFO").upper()
@@ -11238,88 +11456,56 @@ class App(tk.Tk):
         self._apply_brand_theme()
 
     def _apply_brand_theme(self) -> None:
-        """Best-effort ttk styling to match the lab palette."""
+        """Best-effort ttk styling that layers on top of ttkbootstrap themes."""
+        style = getattr(self, "style", None) or ttk.Style(self)
+        colors = getattr(style, "colors", None)
+
+        bg = getattr(colors, "bg", BG_LIGHT)
+        fg = getattr(colors, "fg", TEXT_DARK)
+        primary = getattr(colors, "primary", PRIMARY_TEAL)
+
         try:
-            self.configure(bg=BG_LIGHT)
+            self.configure(bg=bg)
         except Exception:
             pass
 
-        style = ttk.Style(self)
-
-        # Base widget styles
+        # Base widget styles (padding + minimal colors)
         try:
-            style.configure("TFrame", background=BG_LIGHT)
-            style.configure("TLabel", background=BG_LIGHT, foreground=TEXT_DARK)
+            style.configure("TFrame", background=bg)
+            style.configure("TLabel", background=bg, foreground=fg)
             style.configure("TButton", padding=(10, 7))
-            style.configure("TCheckbutton", background=BG_LIGHT, foreground=TEXT_DARK)
-            style.configure("TRadiobutton", background=BG_LIGHT, foreground=TEXT_DARK)
+            style.configure("TCheckbutton", background=bg, foreground=fg)
+            style.configure("TRadiobutton", background=bg, foreground=fg)
         except Exception:
             pass
 
         # Labelframe + label
         try:
-            style.configure("TLabelframe", background=BG_LIGHT)
-            style.configure("TLabelframe.Label", background=BG_LIGHT, foreground=TEXT_DARK)
-            # Not all themes honor these options.
-            style.configure("TLabelframe", bordercolor=DIVIDER, lightcolor=DIVIDER, darkcolor=DIVIDER)
+            style.configure("TLabelframe", background=bg)
+            style.configure("TLabelframe.Label", background=bg, foreground=fg)
         except Exception:
             pass
 
-        # Treeview selection accent
+        # Treeview row height + heading font
         try:
-            style.configure(
-                "Treeview",
-                background="#ffffff",
-                fieldbackground="#ffffff",
-                foreground=TEXT_DARK,
-                rowheight=22,
-                bordercolor=DIVIDER,
-            )
-            style.configure(
-                "Treeview.Heading",
-                background=BG_LIGHT,
-                foreground=TEXT_MUTED,
-                relief="flat",
-            )
-            style.map(
-                "Treeview",
-                background=[("selected", ACCENT_ORANGE)],
-                foreground=[("selected", TEXT_DARK)],
-            )
+            style.configure("Treeview", rowheight=26)
         except Exception:
             pass
 
-        # Branded buttons
         try:
-            style.configure("Primary.TButton", background=PRIMARY_TEAL, foreground="#ffffff", padding=(12, 8))
-            style.map(
-                "Primary.TButton",
-                background=[("active", SECONDARY_TEAL), ("pressed", SECONDARY_TEAL), ("disabled", DIVIDER)],
-                foreground=[("disabled", TEXT_MUTED)],
-            )
+            import tkinter.font as tkfont
 
-            style.configure("Secondary.TButton", background=LIGHT_TEAL, foreground=TEXT_DARK, padding=(12, 8))
-            style.map(
-                "Secondary.TButton",
-                background=[("active", _adjust_color(LIGHT_TEAL, 0.92)), ("pressed", _adjust_color(LIGHT_TEAL, 0.88)), ("disabled", DIVIDER)],
-                foreground=[("disabled", TEXT_MUTED)],
-            )
+            heading_font = tkfont.nametofont("TkDefaultFont").copy()
+            heading_font.configure(weight="bold")
+            style.configure("Treeview.Heading", font=heading_font)
+        except Exception:
+            pass
 
-            style.configure("Danger.TButton", background=DEEP_MAROON, foreground="#ffffff", padding=(12, 8))
-            style.map(
-                "Danger.TButton",
-                background=[("active", _adjust_color(DEEP_MAROON, 0.92)), ("pressed", _adjust_color(DEEP_MAROON, 0.86)), ("disabled", DIVIDER)],
-                foreground=[("disabled", TEXT_MUTED)],
-            )
-
-            style.configure("Primary.TMenubutton", background=PRIMARY_TEAL, foreground="#ffffff", padding=(12, 8))
-            style.map(
-                "Primary.TMenubutton",
-                background=[("active", SECONDARY_TEAL), ("pressed", SECONDARY_TEAL), ("disabled", DIVIDER)],
-                foreground=[("disabled", TEXT_MUTED)],
-            )
-
-            style.configure("Header.TLabel", background=BG_LIGHT, foreground=PRIMARY_TEAL)
+        # Minimal padding only; keep theme colors
+        try:
+            style.configure("TButton", padding=(10, 7))
+            style.configure("TMenubutton", padding=(10, 7))
+            style.configure("Header.TLabel", background=bg, foreground=fg)
         except Exception:
             pass
 
@@ -11332,6 +11518,30 @@ class App(tk.Tk):
             style.configure("Header.TLabel", font=header_font)
         except Exception:
             pass
+
+    def _set_theme(self, theme_name: str) -> None:
+        theme_name = App._normalize_theme_name(theme_name)
+        try:
+            self.style.theme_use(theme_name)
+        except Exception:
+            return
+
+        try:
+            self._theme_var.set(theme_name)
+        except Exception:
+            pass
+
+        try:
+            self._ui_settings["theme"] = theme_name
+            save_settings(self._ui_settings)
+        except Exception:
+            pass
+
+        try:
+            self._apply_theme()
+        except Exception:
+            pass
+
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
@@ -11376,6 +11586,47 @@ class App(tk.Tk):
         tools_menu.add_separator()
         tools_menu.add_command(label="Reset View\tCtrl+0", command=self._reset_view_all)
         menubar.add_cascade(label="Tools", menu=tools_menu)
+
+        view_menu = tk.Menu(menubar, tearoff=0)
+        theme_menu = tk.Menu(view_menu, tearoff=0)
+        theme_menu.add_radiobutton(
+            label="Dark",
+            value="darkly",
+            variable=self._theme_var,
+            command=lambda: self._set_theme("darkly"),
+        )
+        theme_menu.add_radiobutton(
+            label="Light",
+            value="flatly",
+            variable=self._theme_var,
+            command=lambda: self._set_theme("flatly"),
+        )
+        view_menu.add_cascade(label="Theme", menu=theme_menu)
+        view_menu.add_separator()
+        view_menu.add_checkbutton(
+            label="Show Diagnostics Panel",
+            variable=self._show_diag_panel_var,
+            command=self._apply_diag_panel_visibility,
+        )
+
+        def _pick_matplotlib_bg() -> None:
+            try:
+                initial = (self._matplotlib_bg_var.get() or "").strip() or "#f5f5f5"
+            except Exception:
+                initial = "#f5f5f5"
+            try:
+                _rgb, hex_color = colorchooser.askcolor(title="Matplotlib background", initialcolor=initial, parent=self)
+            except Exception:
+                hex_color = None
+            if hex_color:
+                try:
+                    self._matplotlib_bg_var.set(str(hex_color))
+                except Exception:
+                    pass
+                self._apply_matplotlib_bg_current()
+
+        view_menu.add_command(label="Matplotlib Background…", command=_pick_matplotlib_bg)
+        menubar.add_cascade(label="View", menu=view_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Shortcuts", command=self._show_shortcuts)
@@ -13474,6 +13725,7 @@ class App(tk.Tk):
                 uv_path_to_id[str(uv_sess.path)] = str(uv_id)
             except Exception:
                 continue
+        uv_load_order_by_path: Dict[str, int] = ctx.get("uv_load_order_by_path") or {}
 
         def _decode_custom_labels(payload: Any) -> Dict[str, List[CustomLabel]]:
             out: Dict[str, List[CustomLabel]] = {}
@@ -13543,6 +13795,80 @@ class App(tk.Tk):
                         continue
                 out[float(uv_rt)] = labels
             return out
+
+        # Restore mzML order as saved
+        mzml_order_paths = list(ctx.get("mzml_order_paths") or [])
+        if mzml_order_paths:
+            path_to_sid: Dict[str, str] = {}
+            for sid, sess in (self._sessions or {}).items():
+                try:
+                    path_to_sid[str(sess.path)] = str(sid)
+                except Exception:
+                    continue
+            new_order: List[str] = []
+            for p in mzml_order_paths:
+                sid = path_to_sid.get(str(p))
+                if sid and sid not in new_order:
+                    new_order.append(str(sid))
+            for sid in list(self._session_order):
+                if sid not in new_order:
+                    new_order.append(str(sid))
+            self._session_order = list(new_order)
+            max_load = 0
+            for i, sid in enumerate(self._session_order, start=1):
+                try:
+                    order_val = int(i)
+                    self._sessions[sid].load_order = order_val
+                    if order_val > max_load:
+                        max_load = order_val
+                except Exception:
+                    pass
+            try:
+                self._session_load_counter = max(int(self._session_load_counter or 0), int(max_load))
+            except Exception:
+                pass
+            if self._ws_tree is not None:
+                for sid in self._session_order:
+                    try:
+                        if self._ws_tree.exists(str(sid)):
+                            self._ws_tree.move(str(sid), "", "end")
+                    except Exception:
+                        pass
+
+        # Restore UV order as saved
+        uv_order_paths = list(ctx.get("uv_order_paths") or [])
+        if uv_order_paths:
+            new_uv_order: List[str] = []
+            for p in uv_order_paths:
+                uv_id = uv_path_to_id.get(str(p))
+                if uv_id and uv_id not in new_uv_order:
+                    new_uv_order.append(str(uv_id))
+            for uv_id in list(self._uv_order):
+                if uv_id not in new_uv_order:
+                    new_uv_order.append(str(uv_id))
+            self._uv_order = list(new_uv_order)
+            max_uv_load = 0
+            for i, uv_id in enumerate(self._uv_order, start=1):
+                try:
+                    uv_path = str(self._uv_sessions[uv_id].path)
+                    saved_order = uv_load_order_by_path.get(uv_path)
+                    order_val = int(saved_order) if saved_order is not None else int(i)
+                    self._uv_sessions[uv_id].load_order = order_val
+                    if order_val > max_uv_load:
+                        max_uv_load = order_val
+                except Exception:
+                    continue
+            try:
+                self._uv_load_counter = max(int(self._uv_load_counter or 0), int(max_uv_load))
+            except Exception:
+                pass
+            if self._uv_ws_tree is not None:
+                for uv_id in self._uv_order:
+                    try:
+                        if self._uv_ws_tree.exists(str(uv_id)):
+                            self._uv_ws_tree.move(str(uv_id), "", "end")
+                    except Exception:
+                        pass
 
         # Apply per-session saved fields now that UV sessions are loaded
         for sid, sess in list(self._sessions.items()):
@@ -13789,6 +14115,23 @@ class App(tk.Tk):
                 sess.custom_labels_by_spectrum = custom_labels
             if overrides:
                 sess.spec_label_overrides = overrides
+
+            # Restore linked UV per session (if saved)
+            try:
+                linked_uv_path = saved.get("linked_uv_path")
+                if isinstance(linked_uv_path, str) and linked_uv_path:
+                    uv_id = uv_path_to_id.get(str(linked_uv_path))
+                    if uv_id:
+                        sess.linked_uv_id = str(uv_id)
+                        try:
+                            for d in getattr(self.workspace, "lcms_datasets", []) or []:
+                                if str(getattr(d, "session_id", "")) == str(sid):
+                                    d.uv_csv_path = str(self._uv_sessions[str(uv_id)].path)
+                                    break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
         # Linked UV
         linked_uv = ctx.get("linked_uv")
@@ -14292,6 +14635,9 @@ class App(tk.Tk):
             active_idx = 0
 
         linked_uv = data.get("linked_uv") if isinstance(data.get("linked_uv"), dict) else None
+        uv_rows = data.get("uv_files") or []
+        if not isinstance(uv_rows, list):
+            uv_rows = []
         annotations_by_mzml = data.get("annotations_by_mzml") if isinstance(data.get("annotations_by_mzml"), dict) else {}
         annotations_active = data.get("annotations") if isinstance(data.get("annotations"), dict) else None
 
@@ -14308,6 +14654,9 @@ class App(tk.Tk):
             "missing_uv": [],
             "active_mzml_path": None,
             "linked_uv": None,
+            "mzml_order_paths": [],
+            "uv_order_paths": [],
+            "uv_load_order_by_path": {},
         }
 
         current_scan_index = None
@@ -14318,8 +14667,25 @@ class App(tk.Tk):
             current_scan_index = None
 
         rt_unit = None
+        ordered_mzml_rows = list(mzml_rows)
+        try:
+            indexed_mzml_rows = list(enumerate(list(mzml_rows)))
+            ordered_mzml_rows = [
+                row
+                for _i, row in sorted(
+                    indexed_mzml_rows,
+                    key=lambda item: (
+                        0 if isinstance((item[1] or {}).get("load_order"), (int, float, str)) else 1,
+                        int(float((item[1] or {}).get("load_order"))) if isinstance((item[1] or {}).get("load_order"), (int, float, str)) else 0,
+                        int(item[0]),
+                    ),
+                )
+            ]
+        except Exception:
+            ordered_mzml_rows = list(mzml_rows)
+
         resolved_mzml_paths: List[str] = []
-        for row in mzml_rows:
+        for row in ordered_mzml_rows:
             if not isinstance(row, dict):
                 continue
             p = str(row.get("path") or "").strip()
@@ -14330,12 +14696,60 @@ class App(tk.Tk):
             rt_unit = rt_unit or str(row.get("rt_unit") or "").strip()
             saved = dict(row)
             saved["path"] = str(rp)
+            try:
+                l_uv = saved.get("linked_uv_path")
+                if l_uv:
+                    saved["linked_uv_path"] = str(_resolve_path(str(l_uv)))
+            except Exception:
+                pass
             ann = annotations_by_mzml.get(str(p)) if isinstance(annotations_by_mzml, dict) else None
             if ann is None:
                 ann = annotations_by_mzml.get(str(rp)) if isinstance(annotations_by_mzml, dict) else None
             if isinstance(ann, dict):
                 saved["annotations"] = ann
             ctx["pending_mzml"][str(rp)] = saved
+            ctx["mzml_order_paths"].append(str(rp))
+
+        ordered_uv_rows = list(uv_rows)
+        try:
+            indexed_uv_rows = list(enumerate(list(uv_rows)))
+            ordered_uv_rows = [
+                row
+                for _i, row in sorted(
+                    indexed_uv_rows,
+                    key=lambda item: (
+                        0 if isinstance((item[1] or {}).get("load_order"), (int, float, str)) else 1,
+                        int(float((item[1] or {}).get("load_order"))) if isinstance((item[1] or {}).get("load_order"), (int, float, str)) else 0,
+                        int(item[0]),
+                    ),
+                )
+            ]
+        except Exception:
+            ordered_uv_rows = list(uv_rows)
+
+        resolved_uv_paths: List[str] = []
+        for row in ordered_uv_rows:
+            if isinstance(row, str):
+                p = str(row).strip()
+                saved = {"path": p}
+            elif isinstance(row, dict):
+                p = str(row.get("path") or "").strip()
+                saved = dict(row)
+            else:
+                continue
+            if not p:
+                continue
+            rp = _resolve_path(p)
+            resolved = str(rp)
+            if resolved not in ctx["pending_uv"]:
+                saved["path"] = resolved
+                ctx["pending_uv"][resolved] = saved
+            resolved_uv_paths.append(resolved)
+            try:
+                if isinstance(saved.get("load_order"), (int, float, str)):
+                    ctx["uv_load_order_by_path"][resolved] = int(float(saved.get("load_order")))
+            except Exception:
+                pass
 
         if rt_unit in ("minutes", "seconds"):
             try:
@@ -14366,12 +14780,18 @@ class App(tk.Tk):
                     "uv_csv_path": str(_resolve_path(uv_p)),
                     "uv_ms_offset": uv_offset,
                 }
-                ctx["pending_uv"][str(_resolve_path(uv_p))] = {"path": str(_resolve_path(uv_p))}
+                resolved_uv = str(_resolve_path(uv_p))
+                if resolved_uv not in ctx["pending_uv"]:
+                    ctx["pending_uv"][resolved_uv] = {"path": resolved_uv}
+                    resolved_uv_paths.append(resolved_uv)
                 try:
                     self._uv_ms_rt_offset_min = float(uv_offset)
                     self.uv_ms_rt_offset_var.set(f"{float(self._uv_ms_rt_offset_min):.3f}")
                 except Exception:
                     pass
+
+        if resolved_uv_paths:
+            ctx["uv_order_paths"] = list(resolved_uv_paths)
 
         self._lcms_workspace_restore_ctx = ctx
 
@@ -15660,14 +16080,10 @@ class App(tk.Tk):
                 preview_rows: List[Tuple[Any, ...]] = preview_dataframe_rows(df, n=10)
 
                 if bool(info.get("low_conf")):
-                    xcol, ycol, unit_guess = prompt_settings(
-                        cols=cols,
-                        preview=preview_rows,
-                        default_x=str(xcol),
-                        default_y=str(ycol),
-                        unit_guess=str(unit_guess),
-                        reason=str(info.get("reason") or ""),
-                    )
+                    try:
+                        self._warn(f"{csv_path.name}: low-confidence column detection; using inferred columns without prompt")
+                    except Exception:
+                        pass
 
                 rt_min, signal, rt_range, import_warnings = parse_uv_arrays(df, xcol=str(xcol), ycol=str(ycol), unit_guess=str(unit_guess))
                 sess = UVSession(
@@ -17939,10 +18355,18 @@ class App(tk.Tk):
         return float(apex_y) >= (0.01 * float(y_global_max))
 
     def _apply_plot_style_to_axes(self, fig: Optional[Figure], axes: Sequence[Any]) -> None:
+        bg = (self._matplotlib_bg_var.get() or "").strip()
+        try:
+            if not bg:
+                bg = "#f5f5f5"
+            mcolors.to_rgba(bg)
+        except Exception:
+            bg = "#f5f5f5"
+
         # Figure background
         try:
             if fig is not None:
-                fig.patch.set_facecolor(BG_LIGHT)
+                fig.patch.set_facecolor(bg)
         except Exception:
             pass
 
@@ -18069,6 +18493,56 @@ class App(tk.Tk):
                         y_max = y_min + 1.0
                     headroom = 0.08 * (y_max - y_min)
                     self._ax_uv.set_ylim(bottom=(y_min - headroom), top=(y_max + headroom))
+
+    def _apply_matplotlib_bg(self, fig: Optional[Figure], canvas: Optional[Any]) -> None:
+        if fig is None:
+            return
+        bg = (self._matplotlib_bg_var.get() or "").strip()
+        try:
+            if not bg:
+                bg = "#f5f5f5"
+            mcolors.to_rgba(bg)
+        except Exception:
+            bg = "#f5f5f5"
+        try:
+            fig.patch.set_facecolor(bg)
+        except Exception:
+            pass
+        try:
+            if canvas is not None:
+                canvas.draw_idle()
+        except Exception:
+            pass
+
+    def _apply_matplotlib_bg_current(self) -> None:
+        tab = self._active_module_name().strip().lower()
+        if tab == "lcms":
+            self._apply_matplotlib_bg(self._fig, self._canvas)
+            self._apply_plot_style()
+            return
+        if tab == "ftir":
+            view = getattr(self, "_ftir_view", None)
+            fig = getattr(view, "_fig", None) if view is not None else None
+            canvas = getattr(view, "_canvas", None) if view is not None else None
+            self._apply_matplotlib_bg(fig, canvas)
+            try:
+                if view is not None:
+                    view._redraw()
+            except Exception:
+                pass
+            return
+        if tab == "plate reader":
+            view = getattr(self, "_plate_reader_view", None)
+            fig = getattr(view, "_fig", None) if view is not None else None
+            canvas = getattr(view, "_canvas", None) if view is not None else None
+            self._apply_matplotlib_bg(fig, canvas)
+            return
+        if tab == "data studio":
+            view = getattr(self, "_data_studio_view", None)
+            fig = getattr(view, "_fig", None) if view is not None else None
+            canvas = getattr(view, "_canvas", None) if view is not None else None
+            self._apply_matplotlib_bg(fig, canvas)
+            return
 
     def _open_graph_settings(self) -> None:
         dlg = tk.Toplevel(self)

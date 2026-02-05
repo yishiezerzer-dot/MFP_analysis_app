@@ -8,7 +8,13 @@ from typing import Any, List, Optional
 
 import tkinter as tk
 from tkinter import simpledialog
-from tkinter import colorchooser, filedialog, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox
+
+import ttkbootstrap as tb
+import tkinter.ttk as ttk_native
+
+ttk = tb
+ttk.LabelFrame = ttk_native.LabelFrame
 
 import numpy as np
 import pandas as pd
@@ -22,6 +28,7 @@ from lab_gui.plate_reader_model import (
     PlateReaderMICWizardConfig,
     PlateReaderMICWizardResult,
     _utc_now_iso,
+    build_mic_wizard_config_and_result,
 )
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
@@ -522,104 +529,31 @@ class PlateReaderRunWizard(tk.Toplevel):
         control_rows = self._selected_rows(self._control_rows_lb)
         conc_cols = self._selected_columns()
 
-        if not sample_rows:
-            messagebox.showerror("MIC", "Select at least one sample row.", parent=self)
-            return
-        if not conc_cols:
-            messagebox.showerror("MIC", "Select at least one concentration column.", parent=self)
-            return
-
         tick_text = (self._ticks_var.get() or "").strip()
-        tick_labels: List[str] = []
-        if tick_text:
-            tick_labels = [t.strip() for t in tick_text.split(",") if t.strip()]
-            if len(tick_labels) != len(conc_cols):
-                messagebox.showerror(
-                    "MIC",
-                    f"Tick labels count ({len(tick_labels)}) must match selected columns ({len(conc_cols)}).",
-                    parent=self,
-                )
-                return
-
-        # Persist the auto-tick setting (for next wizard run) and auto-fill if needed.
         auto_power2 = bool(getattr(self, "_auto_ticks_var", tk.BooleanVar(value=False)).get())
-        if auto_power2 and (not tick_labels) and conc_cols:
-            if len(conc_cols) == 1:
-                tick_labels = ["0"]
-            else:
-                n = int(len(conc_cols))
-                tick_labels = [str(int(2 ** (n - 2 - i))) for i in range(n - 1)] + ["0"]
 
-        sample_mat, sample_nan = coerce_numeric_matrix(self._df, row_indices=sample_rows, columns=conc_cols)
-        if sample_mat.size == 0:
-            messagebox.showerror("MIC", "Selected sample cells are empty.", parent=self)
+        try:
+            cfg, result, sample_nan = build_mic_wizard_config_and_result(
+                self._df,
+                use_first_row_as_header=bool(self._use_header_var.get()),
+                sample_rows=sample_rows,
+                control_rows=control_rows,
+                concentration_columns=conc_cols,
+                tick_text=tick_text,
+                auto_tick_labels_power2=auto_power2,
+                title=str(self._title_var.get() or "MIC"),
+                x_label=str(self._xlabel_var.get() or "Concentration"),
+                y_label=str(self._ylabel_var.get() or "OD 600nm"),
+                plot_type=str(self._plot_type_var.get() or "bar"),
+                control_style=str(self._control_style_var.get() or "bars"),
+                prev_cfg=self._dataset.wizard_mic_config,
+            )
+        except ValueError as exc:
+            messagebox.showerror("MIC", str(exc), parent=self)
             return
-        sample_mean = np.nanmean(sample_mat, axis=0)
-        sample_std = np.nanstd(sample_mat, axis=0, ddof=1) if sample_mat.shape[0] > 1 else np.zeros(sample_mat.shape[1])
-
-        control_mean = None
-        control_std = None
-        if control_rows:
-            ctrl_mat, _ctrl_nan = coerce_numeric_matrix(self._df, row_indices=control_rows, columns=conc_cols)
-            if ctrl_mat.size:
-                control_mean = np.nanmean(ctrl_mat, axis=0)
-                control_std = np.nanstd(ctrl_mat, axis=0, ddof=1) if ctrl_mat.shape[0] > 1 else np.zeros(ctrl_mat.shape[1])
 
         if sample_nan > 0.35:
             messagebox.showwarning("MIC", f"Many selected sample cells are non-numeric (NaN ratio: {sample_nan:.0%}).", parent=self)
-
-        prev_cfg = self._dataset.wizard_mic_config
-
-        cfg = PlateReaderMICWizardConfig(
-            use_first_row_as_header=bool(self._use_header_var.get()),
-            sample_rows=list(sample_rows),
-            control_rows=list(control_rows),
-            concentration_columns=list(conc_cols),
-            tick_labels=list(tick_labels),
-            auto_tick_labels_power2=bool(auto_power2),
-            title=str(self._title_var.get() or "MIC"),
-            x_label=str(self._xlabel_var.get() or "Concentration"),
-            y_label=str(self._ylabel_var.get() or "OD 600nm"),
-            plot_type=str(self._plot_type_var.get() or "bar"),
-            control_style=str(self._control_style_var.get() or "bars"),
-        )
-
-        # Important UX: re-running MIC should update the data points but keep the plot styling
-        # the user edited in the Plot Editor.
-        if prev_cfg is not None:
-            for k in (
-                "invert_x",
-                "sample_color",
-                "control_color",
-                "line_width",
-                "marker_size",
-                "bar_width",
-                "capsize",
-                "errorbar_linewidth",
-                "title_fontsize",
-                "label_fontsize",
-                "tick_fontsize",
-                "x_min",
-                "x_max",
-                "y_min",
-                "y_max",
-                "grid_on",
-                "legend_on",
-            ):
-                try:
-                    if hasattr(prev_cfg, k):
-                        setattr(cfg, k, getattr(prev_cfg, k))
-                except Exception:
-                    pass
-
-        result = PlateReaderMICWizardResult(
-            concentrations=[float(i) for i in range(len(conc_cols))],
-            x_tick_labels=(tick_labels if tick_labels else [str(c) for c in conc_cols]),
-            sample_mean=[float(x) if np.isfinite(x) else float("nan") for x in sample_mean.tolist()],
-            sample_std=[float(x) if np.isfinite(x) else float("nan") for x in sample_std.tolist()],
-            control_mean=([float(x) if np.isfinite(x) else float("nan") for x in control_mean.tolist()] if control_mean is not None else None),
-            control_std=([float(x) if np.isfinite(x) else float("nan") for x in control_std.tolist()] if control_std is not None else None),
-        )
 
         self._on_apply(cfg, result)
         try:
