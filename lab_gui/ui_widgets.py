@@ -375,7 +375,8 @@ class MatplotlibNavigator:
 
         if not self._pan_active:
             return
-        if self._pan_ax is None or ax != self._pan_ax:
+        pan_ax = self._pan_ax
+        if pan_ax is None or ax is None or ax != pan_ax:
             return
         if self._pan_start_pix is None or self._pan_start_lim is None or self._pan_anchor_data is None:
             return
@@ -386,7 +387,7 @@ class MatplotlibNavigator:
             return
 
         try:
-            inv = ax.transData.inverted()
+            inv = pan_ax.transData.inverted()
             x0, y0 = self._pan_start_pix
             sx, sy = inv.transform((x0, y0))
             cx, cy = inv.transform((curx, cury))
@@ -398,8 +399,8 @@ class MatplotlibNavigator:
 
         (xlim0, xlim1), (ylim0, ylim1) = self._pan_start_lim
         try:
-            ax.set_xlim(float(xlim0) - dx, float(xlim1) - dx)
-            ax.set_ylim(float(ylim0) - dy, float(ylim1) - dy)
+            pan_ax.set_xlim(float(xlim0) - dx, float(xlim1) - dx)
+            pan_ax.set_ylim(float(ylim0) - dy, float(ylim1) - dy)
             self.canvas.draw_idle()
         except Exception:
             pass
@@ -448,7 +449,11 @@ class MatplotlibNavigator:
         except Exception:
             self._pan_start_lim = None
         try:
-            self._pan_anchor_data = self._event_xy(event, ax)
+            anchor = self._event_xy(event, ax)
+            if anchor[0] is None or anchor[1] is None:
+                self._pan_anchor_data = None
+            else:
+                self._pan_anchor_data = (float(anchor[0]), float(anchor[1]))
         except Exception:
             self._pan_anchor_data = None
 

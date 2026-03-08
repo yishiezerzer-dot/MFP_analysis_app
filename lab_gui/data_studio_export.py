@@ -4,13 +4,15 @@ import colorsys
 from typing import Any, Dict, List, Optional
 
 import tkinter as tk
-from tkinter import colorchooser, filedialog, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 
 import numpy as np
 import pandas as pd
 
 from matplotlib import cm, colors as mcolors
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# Keep this import aligned with Matplotlib stubs to avoid Pylance false-positives.
+from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from lab_gui.ui_widgets import MatplotlibNavigator, ToolTip
@@ -309,7 +311,7 @@ class DataStudioExportEditor(tk.Toplevel):
                 return
             col = tree.identify_column(evt.x) if evt is not None else "#1"
             if col == "#1":
-                new_label = tk.simpledialog.askstring("Label", "Series label:", initialvalue=str(st.get("label", "")), parent=win)
+                new_label = simpledialog.askstring("Label", "Series label:", initialvalue=str(st.get("label", "")), parent=win)
                 if new_label is None:
                     return
                 st["label"] = str(new_label)
@@ -470,7 +472,12 @@ class DataStudioExportEditor(tk.Toplevel):
             data = [np.asarray(s.get("y", []), dtype=float) for s in series]
             labels = [str(self._series_styles.get(str(s.get("id")), {}).get("label", s.get("label", ""))) for s in series]
             if plot_type == "Box plot":
-                self._ax.boxplot(data, labels=labels, showfliers=True)
+                try:
+                    self._ax.boxplot(data, tick_labels=labels, showfliers=True)
+                except TypeError:
+                    # Older Matplotlib accepts `labels=...`; call dynamically to avoid stub mismatch.
+                    boxplot_any = getattr(self._ax, "boxplot")
+                    boxplot_any(data, labels=labels, showfliers=True)
             else:
                 self._ax.violinplot(data, showmeans=True, showmedians=True)
                 self._ax.set_xticks(range(1, len(labels) + 1))
@@ -483,14 +490,17 @@ class DataStudioExportEditor(tk.Toplevel):
                 color = str(st.get("color", "")).strip() or color_map.get(sid.split(":", 1)[0], None)
                 y = np.asarray(s.get("y", []), dtype=float)
                 self._ax.hist(y, bins=20, alpha=0.5, label=label, color=color)
-        elif plot_type == "Heatmap" and self._payload.get("heatmap") is not None:
+        elif plot_type == "Heatmap":
             hm = self._payload.get("heatmap")
-            im = self._ax.imshow(hm["values"], aspect="auto")
-            self._ax.set_xticks(range(len(hm["cols"])) )
-            self._ax.set_xticklabels([str(c) for c in hm["cols"]], rotation=45, ha="right")
-            self._ax.set_yticks(range(len(hm["rows"])) )
-            self._ax.set_yticklabels([str(r) for r in hm["rows"]])
-            self._fig.colorbar(im, ax=self._ax, fraction=0.046, pad=0.04)
+            if isinstance(hm, dict):
+                im = self._ax.imshow(hm.get("values", []), aspect="auto")
+                cols = list(hm.get("cols", []) or [])
+                rows = list(hm.get("rows", []) or [])
+                self._ax.set_xticks(range(len(cols)))
+                self._ax.set_xticklabels([str(c) for c in cols], rotation=45, ha="right")
+                self._ax.set_yticks(range(len(rows)))
+                self._ax.set_yticklabels([str(r) for r in rows])
+                self._fig.colorbar(im, ax=self._ax, fraction=0.046, pad=0.04)
         else:
             for s in series:
                 sid = str(s.get("id"))

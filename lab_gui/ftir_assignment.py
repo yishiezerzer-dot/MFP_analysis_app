@@ -120,7 +120,8 @@ def assign_ftir_peaks(
 
 def _normalize_peak(p: Dict[str, Any]) -> Dict[str, Any]:
     d = dict(p or {})
-    wn = _to_float(d.get("wn"), default=float("nan"))
+    wn_raw = _to_float(d.get("wn"), default=float("nan"))
+    wn = float(wn_raw) if wn_raw is not None else float("nan")
     if not _finite(wn):
         raise ValueError("Each peak must have a finite 'wn' (cm^-1)")
 
@@ -130,23 +131,25 @@ def _normalize_peak(p: Dict[str, Any]) -> Dict[str, Any]:
     sharpness = _to_float(d.get("sharpness"), default=None)
 
     # Treat negative/zero width as missing.
-    if _finite(width) and float(width) <= 0:
+    if width is not None and float(width) <= 0:
         width = None
 
     return {
         "wn": float(wn),
-        "height": float(height) if _finite(height) else None,
-        "width": float(width) if _finite(width) else None,
-        "prominence": float(prominence) if _finite(prominence) else None,
-        "sharpness": float(sharpness) if _finite(sharpness) else None,
+        "height": (None if height is None else float(height)),
+        "width": (None if width is None else float(width)),
+        "prominence": (None if prominence is None else float(prominence)),
+        "sharpness": (None if sharpness is None else float(sharpness)),
     }
 
 
 def _normalize_entry(e: Dict[str, Any]) -> Dict[str, Any]:
     d = dict(e or {})
     lo, hi = d.get("range_cm1") or (None, None)
-    lo_f = _to_float(lo, default=float("nan"))
-    hi_f = _to_float(hi, default=float("nan"))
+    lo_raw = _to_float(lo, default=float("nan"))
+    hi_raw = _to_float(hi, default=float("nan"))
+    lo_f = float(lo_raw) if lo_raw is not None else float("nan")
+    hi_f = float(hi_raw) if hi_raw is not None else float("nan")
     if not (_finite(lo_f) and _finite(hi_f)):
         raise ValueError(f"Invalid range_cm1 in entry {d.get('id')}")
     lo_v, hi_v = (float(lo_f), float(hi_f))
@@ -230,7 +233,7 @@ def _score_entry(
         r = pat.get("range_cm1") or (None, None)
         plo = _to_float(r[0] if isinstance(r, (list, tuple)) and len(r) >= 2 else None, default=None)
         phi = _to_float(r[1] if isinstance(r, (list, tuple)) and len(r) >= 2 else None, default=None)
-        if not (_finite(plo) and _finite(phi)):
+        if plo is None or phi is None:
             continue
         lo2, hi2 = (float(plo), float(phi))
         if lo2 > hi2:
@@ -243,7 +246,7 @@ def _score_entry(
         r = pat.get("range_cm1") or (None, None)
         nlo = _to_float(r[0] if isinstance(r, (list, tuple)) and len(r) >= 2 else None, default=None)
         nhi = _to_float(r[1] if isinstance(r, (list, tuple)) and len(r) >= 2 else None, default=None)
-        if not (_finite(nlo) and _finite(nhi)):
+        if nlo is None or nhi is None:
             continue
         lo2, hi2 = (float(nlo), float(nhi))
         if lo2 > hi2:
@@ -288,12 +291,12 @@ def _infer_peak_intensity(p: Dict[str, Any], *, max_height: Optional[float], max
     """Infer weak/medium/strong/variable from relative height/prominence."""
 
     # Prefer prominence, else height.
-    prom = p.get("prominence")
-    height = p.get("height")
+    prom = _to_float(p.get("prominence"), default=None)
+    height = _to_float(p.get("height"), default=None)
 
-    if _finite(prom) and _finite(max_prom) and float(max_prom) > 0:
+    if prom is not None and max_prom is not None and float(max_prom) > 0:
         rel = float(prom) / float(max_prom)
-    elif _finite(height) and _finite(max_height) and float(max_height) > 0:
+    elif height is not None and max_height is not None and float(max_height) > 0:
         rel = float(height) / float(max_height)
     else:
         return "variable"
@@ -308,19 +311,19 @@ def _infer_peak_intensity(p: Dict[str, Any], *, max_height: Optional[float], max
 # ------------------------------ utilities --------------------------------
 
 
-def _to_float(x: Any, *, default: Any) -> Any:
+def _to_float(x: Any, *, default: Optional[float]) -> Optional[float]:
     if x is None:
         return default
     try:
         v = float(x)
         if not math.isfinite(v):
             return default
-        return v
+        return float(v)
     except Exception:
         return default
 
 
-def _finite(x: Any) -> bool:
+def _finite(x: Optional[float]) -> bool:
     try:
         return x is not None and math.isfinite(float(x))
     except Exception:

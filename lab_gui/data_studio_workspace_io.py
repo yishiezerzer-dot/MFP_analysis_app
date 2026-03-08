@@ -21,6 +21,9 @@ def encode_workspace(ws: DataStudioWorkspace) -> Dict[str, Any]:
                 "header_row": int(ds.header_row),
                 "columns": dict(ds.columns or {}),
                 "schema_hash": str(ds.schema_hash or ""),
+                "transform_steps": list(ds.transform_steps or []),
+                "derived_enabled": bool(getattr(ds, "derived_enabled", False)),
+                "derived_name_suffix": str(getattr(ds, "derived_name_suffix", " (transformed)")),
             }
         )
 
@@ -48,6 +51,24 @@ def encode_workspace(ws: DataStudioWorkspace) -> Dict[str, Any]:
             "y_cols": list(y_cols or []),
         }
 
+    recipes_rows: List[Dict[str, Any]] = []
+    recipe_ids: List[str] = list(ws.recipe_order) if ws.recipe_order else list((ws.recipes or {}).keys())
+    for rid in recipe_ids:
+        rec = (ws.recipes or {}).get(rid)
+        if not isinstance(rec, dict):
+            continue
+        recipes_rows.append(
+            {
+                "id": str(rid),
+                "name": str(rec.get("name") or "Recipe"),
+                "plot_type": str(rec.get("plot_type") or "Line"),
+                "x_col": (None if rec.get("x_col") in (None, "") else str(rec.get("x_col"))),
+                "y_cols": (lambda v: (list(v) if isinstance(v, list) else []))(rec.get("y_cols")),
+                "options": (lambda v: (dict(v) if isinstance(v, dict) else {}))(rec.get("options")),
+                "created_at": rec.get("created_at"),
+            }
+        )
+
     return {
         "schema_version": 1,
         "kind": "data_studio_workspace",
@@ -55,6 +76,7 @@ def encode_workspace(ws: DataStudioWorkspace) -> Dict[str, Any]:
         "plot_defs": plot_defs,
         "active_plot_id": (None if ws.active_plot_id is None else str(ws.active_plot_id)),
         "preferred_axes_by_dataset": preferred_axes,
+        "recipes": recipes_rows,
     }
 
 
@@ -89,6 +111,9 @@ def decode_workspace(payload: Dict[str, Any]) -> Tuple[DataStudioWorkspace, List
             header_row=int(row.get("header_row") or 0),
             columns=dict(row.get("columns") or {}),
             schema_hash=str(row.get("schema_hash") or ""),
+            transform_steps=list(row.get("transform_steps") or []),
+            derived_enabled=bool(row.get("derived_enabled", False)),
+            derived_name_suffix=str(row.get("derived_name_suffix") or " (transformed)"),
         )
         ws.datasets[ds_id] = ds
         ws.order.append(ds_id)
@@ -123,6 +148,25 @@ def decode_workspace(payload: Dict[str, Any]) -> Tuple[DataStudioWorkspace, List
                 (None if axes.get("x_col") in (None, "") else str(axes.get("x_col"))),
                 list(axes.get("y_cols") or []),
             )
+
+    # Recipes are optional for backward compatibility with older workspaces.
+    recipes_rows = payload.get("recipes") or []
+    if isinstance(recipes_rows, list):
+        for row in recipes_rows:
+            if not isinstance(row, dict):
+                continue
+            rid = str(row.get("id", "") or "")
+            if not rid:
+                continue
+            ws.recipes[rid] = {
+                "name": str(row.get("name") or "Recipe"),
+                "plot_type": str(row.get("plot_type") or "Line"),
+                "x_col": (None if row.get("x_col") in (None, "") else str(row.get("x_col"))),
+                "y_cols": list(row.get("y_cols") or []),
+                "options": dict(row.get("options") or {}),
+                "created_at": row.get("created_at"),
+            }
+            ws.recipe_order.append(rid)
 
     ws.active_plot_id = (None if payload.get("active_plot_id") in (None, "") else str(payload.get("active_plot_id")))
     if not ws.active_plot_id and ws.plot_defs:

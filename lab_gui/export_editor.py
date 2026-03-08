@@ -8,9 +8,13 @@ from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 
 import numpy as np
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib import colors as mcolors
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# Keep this import aligned with Matplotlib stubs to avoid Pylance false-positives.
+from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib.ticker import ScalarFormatter
+from matplotlib.transforms import Bbox
 
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
@@ -52,6 +56,260 @@ class ExportEditor(tk.Toplevel):
 
     def _tt(self, key: str) -> str:
         return str(self._tooltip_text.get(str(key), "") or "")
+
+    def _source_axis(self) -> Optional[Any]:
+        attr = {"tic": "_ax_tic", "uv": "_ax_uv", "spectrum": "_ax_spec"}.get(str(self.kind), "")
+        if not attr:
+            return None
+        return getattr(self.app, attr, None)
+
+    def _to_hex_color(self, value: Any, fallback: str) -> str:
+        try:
+            return str(mcolors.to_hex(value, keep_alpha=False))
+        except Exception:
+            return str(fallback)
+
+    def _grid_style_from_lines(self, lines: List[Any], *, fallback_color: str, fallback_alpha: float, fallback_lw: float) -> Dict[str, Any]:
+        for ln in list(lines or []):
+            try:
+                return {
+                    "color": ln.get_color(),
+                    "alpha": float(ln.get_alpha() if ln.get_alpha() is not None else fallback_alpha),
+                    "linewidth": float(ln.get_linewidth()),
+                    "linestyle": str(ln.get_linestyle() or "-"),
+                }
+            except Exception:
+                continue
+        return {
+            "color": fallback_color,
+            "alpha": float(fallback_alpha),
+            "linewidth": float(fallback_lw),
+            "linestyle": "-",
+        }
+
+    def _capture_live_style_snapshot(self) -> Dict[str, Any]:
+        defaults: Dict[str, Any] = {
+            "figure_facecolor": "#F4F7F7",
+            "axes_facecolor": "#FCFEFE",
+            "title_color": "#0F4C46",
+            "label_color": "#111827",
+            "tick_color": "#6B7280",
+            "spine_color": "#C7D6D2",
+            "spine_width": 0.9,
+            "title_family": "Segoe UI",
+            "label_family": "Segoe UI",
+            "tick_family": "Segoe UI",
+            "title_weight": "semibold",
+            "label_weight": "semibold",
+            "grid_x": {"color": "#EEF4F3", "alpha": 1.0, "linewidth": 0.6, "linestyle": "-"},
+            "grid_y": {"color": "#D6E2DF", "alpha": 0.95, "linewidth": 0.8, "linestyle": "-"},
+            "plot_color": {"tic": "#0F766E", "uv": "#0F8AA6", "spectrum": "#0B5D6B"}.get(str(self.kind), "#0F766E"),
+            "fill_color": {"tic": "#CDEEE6", "uv": "#D9F1F7"}.get(str(self.kind), "#CDEEE6"),
+            "line_width": {"tic": 1.8, "uv": 1.65, "spectrum": 1.0}.get(str(self.kind), 1.5),
+            "line_alpha": {"tic": 0.99, "uv": 0.98, "spectrum": 0.96}.get(str(self.kind), 0.94),
+            "fill_alpha": {"tic": 0.24, "uv": 0.28}.get(str(self.kind), 0.24),
+            "line_capstyle": "round",
+            "collection_linewidth": 1.0,
+            "legend_text_color": "#111827",
+            "legend_box_color": "#FCFEFE",
+            "table_facecolor": "#FFFFFF",
+            "table_text_color": "#111827",
+        }
+
+        src_fig = getattr(self.app, "_fig", None)
+        src_ax = self._source_axis()
+
+        try:
+            if src_fig is not None:
+                defaults["figure_facecolor"] = src_fig.get_facecolor()
+        except Exception:
+            pass
+
+        if src_ax is None:
+            return defaults
+
+        try:
+            defaults["axes_facecolor"] = src_ax.get_facecolor()
+        except Exception:
+            pass
+        try:
+            defaults["title_color"] = src_ax.title.get_color()
+        except Exception:
+            pass
+        try:
+            defaults["label_color"] = src_ax.xaxis.label.get_color()
+        except Exception:
+            pass
+        try:
+            defaults["title_family"] = str((src_ax.title.get_fontfamily() or [defaults["title_family"]])[0])
+        except Exception:
+            pass
+        try:
+            defaults["label_family"] = str((src_ax.xaxis.label.get_fontfamily() or [defaults["label_family"]])[0])
+        except Exception:
+            pass
+        try:
+            tick_labels = list(src_ax.get_xticklabels()) + list(src_ax.get_yticklabels())
+            for lbl in tick_labels:
+                txt = str(lbl.get_text() or "").strip()
+                if txt:
+                    defaults["tick_color"] = lbl.get_color()
+                    fam = lbl.get_fontfamily() or [defaults["tick_family"]]
+                    defaults["tick_family"] = str(fam[0])
+                    break
+        except Exception:
+            pass
+        try:
+            defaults["title_weight"] = str(src_ax.title.get_fontweight() or defaults["title_weight"])
+        except Exception:
+            pass
+        try:
+            defaults["label_weight"] = str(src_ax.xaxis.label.get_fontweight() or defaults["label_weight"])
+        except Exception:
+            pass
+        try:
+            spine = src_ax.spines.get("bottom")
+            if spine is not None:
+                defaults["spine_color"] = spine.get_edgecolor()
+                defaults["spine_width"] = float(spine.get_linewidth())
+        except Exception:
+            pass
+
+        try:
+            defaults["grid_x"] = self._grid_style_from_lines(
+                list(src_ax.get_xgridlines()),
+                fallback_color="#EEF4F3",
+                fallback_alpha=1.0,
+                fallback_lw=0.6,
+            )
+        except Exception:
+            pass
+        try:
+            defaults["grid_y"] = self._grid_style_from_lines(
+                list(src_ax.get_ygridlines()),
+                fallback_color="#D6E2DF",
+                fallback_alpha=0.95,
+                fallback_lw=0.8,
+            )
+        except Exception:
+            pass
+
+        try:
+            lines = list(getattr(src_ax, "lines", []))
+            if lines:
+                ln = lines[0]
+                defaults["plot_color"] = ln.get_color()
+                defaults["line_width"] = float(ln.get_linewidth())
+                defaults["line_alpha"] = float(ln.get_alpha() if ln.get_alpha() is not None else defaults["line_alpha"])
+                try:
+                    defaults["line_capstyle"] = str(ln.get_solid_capstyle() or defaults["line_capstyle"])
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            for coll in list(getattr(src_ax, "collections", [])):
+                facecolors = coll.get_facecolors() if hasattr(coll, "get_facecolors") else []
+                edgecolors = coll.get_edgecolors() if hasattr(coll, "get_edgecolors") else []
+                linewidths = coll.get_linewidths() if hasattr(coll, "get_linewidths") else []
+                if linewidths is not None and len(linewidths):
+                    defaults["collection_linewidth"] = float(linewidths[0])
+                if self.kind in ("tic", "uv") and facecolors is not None and len(facecolors):
+                    alpha = coll.get_alpha() if hasattr(coll, "get_alpha") else None
+                    if alpha is None:
+                        try:
+                            alpha = float(facecolors[0][-1])
+                        except Exception:
+                            alpha = defaults["fill_alpha"]
+                    if float(alpha or 0.0) < 0.8:
+                        defaults["fill_color"] = facecolors[0]
+                        defaults["fill_alpha"] = float(alpha or defaults["fill_alpha"])
+                        break
+                if self.kind == "spectrum":
+                    if edgecolors is not None and len(edgecolors):
+                        defaults["plot_color"] = edgecolors[0]
+                        break
+                    if facecolors is not None and len(facecolors):
+                        defaults["plot_color"] = facecolors[0]
+                        break
+        except Exception:
+            pass
+
+        return defaults
+
+    def _apply_live_plot_theme(self) -> None:
+        snap = dict(getattr(self, "_live_style_snapshot", {}) or {})
+        fig_bg = snap.get("figure_facecolor", "#F4F7F7")
+        ax_bg = (self.axes_facecolor_var.get() or "").strip() or self._to_hex_color(snap.get("axes_facecolor"), "#FCFEFE")
+        title_color = snap.get("title_color", "#0F4C46")
+        label_color = snap.get("label_color", "#111827")
+        tick_color = snap.get("tick_color", "#6B7280")
+        spine_color = snap.get("spine_color", "#C7D6D2")
+        spine_width = float(snap.get("spine_width", 0.9) or 0.9)
+        grid_x = dict(snap.get("grid_x", {}) or {})
+        grid_y = dict(snap.get("grid_y", {}) or {})
+
+        try:
+            self._fig.patch.set_facecolor(fig_bg)
+        except Exception:
+            pass
+
+        try:
+            self._fig.subplots_adjust(left=0.09, right=0.985, bottom=0.14, top=0.94)
+        except Exception:
+            pass
+
+        try:
+            self._ax.set_facecolor(ax_bg)
+            self._ax.set_axisbelow(True)
+            self._ax.margins(x=0.01)
+        except Exception:
+            pass
+
+        try:
+            self._ax.title.set_color(title_color)
+            self._ax.title.set_fontfamily(str(snap.get("title_family", "Segoe UI")))
+            self._ax.title.set_fontweight(str(snap.get("title_weight", "semibold")))
+            self._ax.title.set_position((0.5, 1.02))
+        except Exception:
+            pass
+        try:
+            self._ax.xaxis.label.set_color(label_color)
+            self._ax.yaxis.label.set_color(label_color)
+            self._ax.xaxis.label.set_fontfamily(str(snap.get("label_family", "Segoe UI")))
+            self._ax.yaxis.label.set_fontfamily(str(snap.get("label_family", "Segoe UI")))
+            self._ax.xaxis.label.set_fontweight(str(snap.get("label_weight", "semibold")))
+            self._ax.yaxis.label.set_fontweight(str(snap.get("label_weight", "semibold")))
+            self._ax.xaxis.labelpad = 12
+            self._ax.yaxis.labelpad = 10
+        except Exception:
+            pass
+        try:
+            self._ax.tick_params(axis="both", colors=tick_color, which="major", length=4, width=0.8, pad=7)
+            for lbl in list(self._ax.get_xticklabels()) + list(self._ax.get_yticklabels()):
+                try:
+                    lbl.set_fontfamily(str(snap.get("tick_family", "Segoe UI")))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            self._ax.spines["top"].set_visible(False)
+            self._ax.spines["right"].set_visible(False)
+            self._ax.spines["left"].set_color(spine_color)
+            self._ax.spines["bottom"].set_color(spine_color)
+            self._ax.spines["left"].set_linewidth(spine_width)
+            self._ax.spines["bottom"].set_linewidth(spine_width)
+        except Exception:
+            pass
+
+        try:
+            self._ax.grid(True, axis="y", which="major", color=grid_y.get("color", "#D6E2DF"), alpha=float(grid_y.get("alpha", 0.95) or 0.95), linewidth=float(grid_y.get("linewidth", 0.8) or 0.8), linestyle=str(grid_y.get("linestyle", "-") or "-"))
+            self._ax.grid(True, axis="x", which="major", color=grid_x.get("color", "#EEF4F3"), alpha=float(grid_x.get("alpha", 1.0) or 1.0), linewidth=float(grid_x.get("linewidth", 0.6) or 0.6), linestyle=str(grid_x.get("linestyle", "-") or "-"))
+        except Exception:
+            pass
 
     def _init_ui(self) -> None:
 
@@ -110,12 +368,23 @@ class ExportEditor(tk.Toplevel):
                 self._toolbar.grid(row=1, column=0, sticky="ew")
             except Exception:
                 pass
+            try:
+                if hasattr(self.app, "_style_mpl_toolbar"):
+                    self.app._style_mpl_toolbar(self._toolbar)
+            except Exception:
+                pass
         except Exception:
             self._toolbar = None
 
         self._coord_var = tk.StringVar(value="")
         self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
         self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+        try:
+            self._coord_label.configure(style="Muted.TLabel", padding=(2, 6, 2, 0))
+        except Exception:
+            pass
+
+        self._live_style_snapshot = self._capture_live_style_snapshot()
 
         try:
             self._mpl_nav = MatplotlibNavigator(
@@ -143,6 +412,7 @@ class ExportEditor(tk.Toplevel):
 
         self.fig_w_var = tk.DoubleVar(value=float(self._fig.get_size_inches()[0]))
         self.fig_h_var = tk.DoubleVar(value=float(self._fig.get_size_inches()[1]))
+        self.overlay_gap_var = tk.DoubleVar(value=float(getattr(self.app, "_overlay_offset_scale", 0.12) or 0.12))
 
         self.number_labels_var = tk.BooleanVar(value=False)
 
@@ -161,17 +431,17 @@ class ExportEditor(tk.Toplevel):
         self.tbl_h_var = tk.DoubleVar(value=0.43)
 
         # Colors
-        self.plot_color_var = tk.StringVar(value="#1f77b4")
-        self.label_color_var = tk.StringVar(value="#111111")
-        self.axes_facecolor_var = tk.StringVar(value="#ffffff")
-        self.table_facecolor_var = tk.StringVar(value="#ffffff")
-        self.table_text_color_var = tk.StringVar(value="#111111")
+        self.plot_color_var = tk.StringVar(value="")
+        self.label_color_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111"))
+        self.axes_facecolor_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("axes_facecolor"), "#FCFEFE"))
+        self.table_facecolor_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("table_facecolor"), "#FFFFFF"))
+        self.table_text_color_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("table_text_color"), "#111111"))
 
         # Legend (overlay)
         self.legend_on_var = tk.BooleanVar(value=True)
         self.legend_fs_var = tk.IntVar(value=max(6, int(self.app.tick_fontsize_var.get()) - 1))
-        self.legend_text_color_var = tk.StringVar(value="#111111")
-        self.legend_box_color_var = tk.StringVar(value="#ffffff")
+        self.legend_text_color_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("legend_text_color"), "#111111"))
+        self.legend_box_color_var = tk.StringVar(value=self._to_hex_color(self._live_style_snapshot.get("legend_box_color"), "#FCFEFE"))
         self.legend_frame_on_var = tk.BooleanVar(value=True)
         self._legend_artist: Any = None
         self._legend_handles: List[Any] = []
@@ -180,15 +450,16 @@ class ExportEditor(tk.Toplevel):
         self._legend_entries: List[Tuple[str, str]] = []
         self._legend_label_override: Dict[str, str] = {}
 
-        self._preserve_plot_colors = False
+        self._preserve_plot_colors = self.kind in ("tic", "uv", "spectrum")
+
         try:
-            if self.kind in ("tic", "uv", "spectrum") and hasattr(self.app, "_is_overlay_active") and bool(self.app._is_overlay_active()):
-                self._preserve_plot_colors = True
-                self.plot_color_var.set("")
+            self._fig.patch.set_facecolor(self._live_style_snapshot.get("figure_facecolor", "#F4F7F7"))
         except Exception:
-            self._preserve_plot_colors = False
+            pass
 
         self._install_color_traces()
+        self._plot_rebuild_job: Optional[str] = None
+        self._install_overlay_gap_trace()
         self._live_style_job: Optional[str] = None
         self._install_live_style_traces()
 
@@ -500,6 +771,10 @@ class ExportEditor(tk.Toplevel):
         s_fig_h = _add_slider(inner, variable=self.fig_h_var, from_=3.0, to=20.0, step=0.1, fmt="{:.1f}")
         row += 1
 
+        ttk.Label(inner, text="Overlay gap × max").grid(row=row, column=0, sticky="w")
+        s_overlay_gap = _add_slider(inner, variable=self.overlay_gap_var, from_=0.0, to=1.5, step=0.01, fmt="{:.2f}")
+        row += 1
+
         ttk.Separator(inner).grid(row=row, column=0, columnspan=2, sticky="ew", pady=8)
         row += 1
 
@@ -678,7 +953,9 @@ class ExportEditor(tk.Toplevel):
         tv.configure(yscrollcommand=sb.set)
         self._tbl_tree = tv
 
-        def _edit_table_cell(evt=None):
+        def _edit_table_cell(evt: Any = None):
+            if evt is None:
+                return
             try:
                 row_id = tv.identify_row(evt.y)
                 col_id = tv.identify_column(evt.x)
@@ -806,6 +1083,7 @@ class ExportEditor(tk.Toplevel):
             ToolTip.attach(s_ann_fs, "Annotation font size (export-only).")
             ToolTip.attach(s_fig_w, "Figure width in inches (export-only).")
             ToolTip.attach(s_fig_h, "Figure height in inches (export-only).")
+            ToolTip.attach(s_overlay_gap, "Overlay gap as a fraction of the panel maximum. Used by Offset mode and stacked spectra.")
             ToolTip.attach(s_leg_fs, "Legend font size (overlay export-only).")
             ToolTip.attach(ent_leg_txt, "Legend text color (overlay export-only).")
             ToolTip.attach(ent_leg_bg, "Legend box color (overlay export-only).")
@@ -1003,6 +1281,7 @@ class ExportEditor(tk.Toplevel):
         self._ann_original_text = {}
 
     def _add_annotation(self, text: str, *, xy: Tuple[float, float], xytext: Tuple[float, float]) -> Any:
+        ann_color = (self.label_color_var.get() or "").strip() or self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111")
         ann = self._ax.annotate(
             str(text),
             xy=(float(xy[0]), float(xy[1])),
@@ -1012,7 +1291,8 @@ class ExportEditor(tk.Toplevel):
             va="bottom",
             rotation=90,
             fontsize=int(self.ann_fs_var.get()),
-            arrowprops={"arrowstyle": "-", "lw": 0.9},
+            color=ann_color,
+            arrowprops={"arrowstyle": "-", "lw": 0.95, "color": ann_color, "alpha": 0.9},
             clip_on=True,
         )
         try:
@@ -1069,7 +1349,7 @@ class ExportEditor(tk.Toplevel):
                 if not any((per_max.get(str(sid), 0.0) or 0.0) > 0 for sid in ids):
                     self._ax.text(0.5, 0.5, "No TIC data loaded", ha="center", va="center", transform=self._ax.transAxes)
                 else:
-                    offset_step = 0.12 * max_global if max_global > 0 else 1.0
+                    offset_step = self._overlay_gap_step(max_global)
                     for i, sid in enumerate(ids):
                         _meta, rts, tics = self.app._overlay_meta_for_session(str(sid), pol)
                         if rts is None or tics is None or rts.size == 0 or tics.size == 0:
@@ -1087,14 +1367,29 @@ class ExportEditor(tk.Toplevel):
                         default_label = str(name_map.get(str(sid), str(sid)))
                         label = str(self._legend_label_override.get(str(sid), default_label))
                         try:
-                            (ln,) = self._ax.plot(rts, y, linewidth=1, color=col, alpha=0.85, label=label)
+                            (ln,) = self._ax.plot(
+                                rts,
+                                y,
+                                linewidth=float(self._live_style_snapshot.get("line_width", 1.5) or 1.5),
+                                color=col,
+                                alpha=float(self._live_style_snapshot.get("line_alpha", 0.94) or 0.94),
+                                solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                                label=label,
+                            )
                             self._legend_handles.append(ln)
                             self._legend_labels.append(label)
                             if str(sid) not in self._legend_handle_by_sid:
                                 self._legend_handle_by_sid[str(sid)] = ln
                                 self._legend_entries.append((str(sid), label))
                         except Exception:
-                            self._ax.plot(rts, y, linewidth=1, color=col, alpha=0.85)
+                            self._ax.plot(
+                                rts,
+                                y,
+                                linewidth=float(self._live_style_snapshot.get("line_width", 1.5) or 1.5),
+                                color=col,
+                                alpha=float(self._live_style_snapshot.get("line_alpha", 0.94) or 0.94),
+                                solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                            )
             else:
                 self.title_var.set((self.app.tic_title_var.get() or "TIC (MS1)").strip())
                 self.xlabel_var.set(self.app.tic_xlabel_var.get())
@@ -1104,7 +1399,25 @@ class ExportEditor(tk.Toplevel):
                 if rts is None or tics is None or rts.size == 0:
                     self._ax.text(0.5, 0.5, "No TIC data loaded", ha="center", va="center", transform=self._ax.transAxes)
                 else:
-                    self._ax.plot(rts, tics, linewidth=1)
+                    self._ax.plot(
+                        rts,
+                        tics,
+                        linewidth=float(self._live_style_snapshot.get("line_width", 1.8) or 1.8),
+                        color=self._to_hex_color(self._live_style_snapshot.get("plot_color"), "#0F766E"),
+                        alpha=float(self._live_style_snapshot.get("line_alpha", 0.99) or 0.99),
+                        solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                    )
+                    try:
+                        self._ax.fill_between(
+                            rts,
+                            tics,
+                            0.0,
+                            color=self._to_hex_color(self._live_style_snapshot.get("fill_color"), "#CDEEE6"),
+                            alpha=float(self._live_style_snapshot.get("fill_alpha", 0.24) or 0.24),
+                            linewidth=0,
+                        )
+                    except Exception:
+                        pass
 
         elif self.kind == "uv":
             if hasattr(self.app, "_is_overlay_active") and bool(self.app._is_overlay_active()) and bool(self.app._overlay_show_uv_var.get()):
@@ -1115,8 +1428,26 @@ class ExportEditor(tk.Toplevel):
 
                 ids = list(self.app._overlay_dataset_ids())
                 name_map = self.app._overlay_display_names(ids)
-                any_uv = False
+                mode = str(getattr(self.app, "_overlay_mode_var").get() or "Stacked")
+                max_global = 0.0
                 for sid in ids:
+                    sess = self.app._sessions.get(str(sid))
+                    if sess is None:
+                        continue
+                    uv_id = getattr(sess, "linked_uv_id", None)
+                    if not uv_id or str(uv_id) not in self.app._uv_sessions:
+                        continue
+                    uv_sess = self.app._uv_sessions[str(uv_id)]
+                    y = np.asarray(uv_sess.signal, dtype=float)
+                    if y.size == 0:
+                        continue
+                    try:
+                        max_global = max(max_global, float(np.max(y)))
+                    except Exception:
+                        continue
+                offset_step = self._overlay_gap_step(max_global)
+                any_uv = False
+                for i, sid in enumerate(ids):
                     sess = self.app._sessions.get(str(sid))
                     if sess is None:
                         continue
@@ -1128,19 +1459,36 @@ class ExportEditor(tk.Toplevel):
                     y = np.asarray(uv_sess.signal, dtype=float)
                     if x.size == 0 or y.size == 0:
                         continue
+                    if mode == "Offset":
+                        y = y + (float(i) * float(offset_step))
                     any_uv = True
                     col = self.app._ensure_overlay_color(str(sid))
                     default_label = str(name_map.get(str(sid), str(sid)))
                     label = str(self._legend_label_override.get(str(sid), default_label))
                     try:
-                        (ln,) = self._ax.plot(x, y, linewidth=1, color=col, alpha=0.85, label=label)
+                        (ln,) = self._ax.plot(
+                            x,
+                            y,
+                            linewidth=float(self._live_style_snapshot.get("line_width", 1.4) or 1.4),
+                            color=col,
+                            alpha=float(self._live_style_snapshot.get("line_alpha", 0.92) or 0.92),
+                            solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                            label=label,
+                        )
                         self._legend_handles.append(ln)
                         self._legend_labels.append(label)
                         if str(sid) not in self._legend_handle_by_sid:
                             self._legend_handle_by_sid[str(sid)] = ln
                             self._legend_entries.append((str(sid), label))
                     except Exception:
-                        self._ax.plot(x, y, linewidth=1, color=col, alpha=0.85)
+                        self._ax.plot(
+                            x,
+                            y,
+                            linewidth=float(self._live_style_snapshot.get("line_width", 1.4) or 1.4),
+                            color=col,
+                            alpha=float(self._live_style_snapshot.get("line_alpha", 0.92) or 0.92),
+                            solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                        )
 
                 if not any_uv:
                     self._ax.text(0.5, 0.5, "No UV linked", ha="center", va="center", transform=self._ax.transAxes)
@@ -1156,7 +1504,25 @@ class ExportEditor(tk.Toplevel):
                 if x is None or y is None or x.size == 0:
                     self._ax.text(0.5, 0.5, "No UV linked", ha="center", va="center", transform=self._ax.transAxes)
                 else:
-                    self._ax.plot(x, y, linewidth=1)
+                    self._ax.plot(
+                        x,
+                        y,
+                        linewidth=float(self._live_style_snapshot.get("line_width", 1.65) or 1.65),
+                        color=self._to_hex_color(self._live_style_snapshot.get("plot_color"), "#0F8AA6"),
+                        alpha=float(self._live_style_snapshot.get("line_alpha", 0.98) or 0.98),
+                        solid_capstyle=str(self._live_style_snapshot.get("line_capstyle", "round") or "round"),
+                    )
+                    try:
+                        self._ax.fill_between(
+                            x,
+                            y,
+                            0.0,
+                            color=self._to_hex_color(self._live_style_snapshot.get("fill_color"), "#D9F1F7"),
+                            alpha=float(self._live_style_snapshot.get("fill_alpha", 0.28) or 0.28),
+                            linewidth=0,
+                        )
+                    except Exception:
+                        pass
 
                     labels_by_uvrt = self.app._active_uv_labels_by_uvrt(create=False)
                     if bool(self.app.uv_label_from_ms_var.get()) and labels_by_uvrt:
@@ -1192,7 +1558,13 @@ class ExportEditor(tk.Toplevel):
                                     va="bottom",
                                     rotation=90,
                                     fontsize=fs,
-                                    arrowprops={"arrowstyle": "-", "lw": 0.9},
+                                    color=(self.label_color_var.get() or "").strip() or self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111"),
+                                    arrowprops={
+                                        "arrowstyle": "-",
+                                        "lw": 0.95,
+                                        "color": (self.label_color_var.get() or "").strip() or self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111"),
+                                        "alpha": 0.9,
+                                    },
                                     clip_on=True,
                                 )
                                 try:
@@ -1241,7 +1613,7 @@ class ExportEditor(tk.Toplevel):
                     if not spectra:
                         self._ax.text(0.5, 0.5, "No spectra near selected RT", ha="center", va="center", transform=self._ax.transAxes)
                     else:
-                        offset_step = 0.12 * max_global if max_global > 0 else 1.0
+                        offset_step = self._overlay_gap_step(max_global)
                         active_sid = str(getattr(self.app, "_active_session_id", "") or "")
                         if active_sid not in ids and ids:
                             active_sid = str(ids[0])
@@ -1261,14 +1633,29 @@ class ExportEditor(tk.Toplevel):
                             default_label = str(name_map.get(str(sid), str(sid)))
                             label = str(self._legend_label_override.get(str(sid), default_label))
                             try:
-                                coll = self._ax.vlines(mz_vals, base, y, linewidth=0.7, color=col, alpha=0.8, label=label)
+                                coll = self._ax.vlines(
+                                    mz_vals,
+                                    base,
+                                    y,
+                                    linewidth=float(self._live_style_snapshot.get("collection_linewidth", 1.0) or 1.0),
+                                    color=col,
+                                    alpha=float(self._live_style_snapshot.get("line_alpha", 0.9) or 0.9),
+                                    label=label,
+                                )
                                 self._legend_handles.append(coll)
                                 self._legend_labels.append(label)
                                 if str(sid) not in self._legend_handle_by_sid:
                                     self._legend_handle_by_sid[str(sid)] = coll
                                     self._legend_entries.append((str(sid), label))
                             except Exception:
-                                self._ax.vlines(mz_vals, base, y, linewidth=0.7, color=col, alpha=0.8)
+                                self._ax.vlines(
+                                    mz_vals,
+                                    base,
+                                    y,
+                                    linewidth=float(self._live_style_snapshot.get("collection_linewidth", 1.0) or 1.0),
+                                    color=col,
+                                    alpha=float(self._live_style_snapshot.get("line_alpha", 0.9) or 0.9),
+                                )
 
                             if str(sid) == active_sid:
                                 try:
@@ -1332,7 +1719,14 @@ class ExportEditor(tk.Toplevel):
                     self.xlabel_var.set(self.app.spec_xlabel_var.get())
                     self.ylabel_var.set(self.app.spec_ylabel_var.get())
 
-                    self._ax.vlines(mz, 0.0, inten, linewidth=0.8)
+                    self._ax.vlines(
+                        mz,
+                        0.0,
+                        inten,
+                        linewidth=float(self._live_style_snapshot.get("collection_linewidth", 1.0) or 1.0),
+                        color=self._to_hex_color(self._live_style_snapshot.get("plot_color"), "#0B5D6B"),
+                        alpha=float(self._live_style_snapshot.get("line_alpha", 0.96) or 0.96),
+                    )
 
                     labels_by_key = self.app._collect_labels_for_export(np.asarray(mz, dtype=float), np.asarray(inten, dtype=float))
                     if labels_by_key:
@@ -1407,6 +1801,8 @@ class ExportEditor(tk.Toplevel):
         self._apply_style_and_limits_impl(initial=False)
 
     def _apply_style_only_impl(self) -> None:
+        self._apply_live_plot_theme()
+
         self._ax.set_title(self.title_var.get())
         self._ax.set_xlabel(self.xlabel_var.get())
         self._ax.set_ylabel(self.ylabel_var.get())
@@ -1419,10 +1815,6 @@ class ExportEditor(tk.Toplevel):
         self._ax.xaxis.label.set_fontsize(lfs)
         self._ax.yaxis.label.set_fontsize(lfs)
         self._ax.tick_params(axis="both", which="major", labelsize=kfs)
-        try:
-            self._ax.grid(True, which="major", alpha=0.20)
-        except Exception:
-            pass
 
         sci = ScalarFormatter(useMathText=True)
         sci.set_scientific(True)
@@ -1525,6 +1917,69 @@ class ExportEditor(tk.Toplevel):
                 except Exception:
                     pass
 
+    def _overlay_gap_step(self, max_global: float) -> float:
+        try:
+            scale = float(self.overlay_gap_var.get() or 0.12)
+        except Exception:
+            scale = 0.12
+        scale = max(0.0, min(5.0, float(scale)))
+        if float(max_global) > 0:
+            return float(scale) * float(max_global)
+        return 1.0 if scale > 0 else 0.0
+
+    def _install_overlay_gap_trace(self) -> None:
+        if bool(getattr(self, "_overlay_gap_trace_installed", False)):
+            return
+        self._overlay_gap_trace_installed = True
+
+        def _schedule(*_args) -> None:
+            try:
+                self._schedule_plot_rebuild()
+            except Exception:
+                pass
+
+        try:
+            self.overlay_gap_var.trace_add("write", _schedule)
+        except Exception:
+            try:
+                self.overlay_gap_var.trace("w", _schedule)
+            except Exception:
+                pass
+
+    def _schedule_plot_rebuild(self) -> None:
+        try:
+            if self._plot_rebuild_job is not None:
+                try:
+                    self.after_cancel(self._plot_rebuild_job)
+                except Exception:
+                    pass
+                self._plot_rebuild_job = None
+        except Exception:
+            pass
+
+        try:
+            self._plot_rebuild_job = self.after(90, self._rebuild_plot_now)
+        except Exception:
+            self._plot_rebuild_job = None
+
+    def _rebuild_plot_now(self) -> None:
+        self._plot_rebuild_job = None
+        lims = {
+            "xmin": self.xmin_var.get(),
+            "xmax": self.xmax_var.get(),
+            "ymin": self.ymin_var.get(),
+            "ymax": self.ymax_var.get(),
+        }
+        try:
+            self._build_initial_plot()
+            self.xmin_var.set(lims["xmin"])
+            self.xmax_var.set(lims["xmax"])
+            self.ymin_var.set(lims["ymin"])
+            self.ymax_var.set(lims["ymax"])
+            self._apply_style_and_limits_impl(initial=False)
+        except Exception:
+            pass
+
     def _schedule_live_style_apply(self) -> None:
         try:
             if self._live_style_job is not None:
@@ -1615,17 +2070,18 @@ class ExportEditor(tk.Toplevel):
         self._table_artist = None
 
         if rows:
+            bbox = Bbox.from_bounds(
+                float(self.tbl_x_var.get()),
+                float(self.tbl_y_var.get()),
+                float(self.tbl_w_var.get()),
+                float(self.tbl_h_var.get()),
+            )
             tbl = self._ax.table(
                 cellText=rows,
                 colLabels=["#", "Label", "RT (min)"],
                 colLoc="left",
                 cellLoc="left",
-                bbox=[
-                    float(self.tbl_x_var.get()),
-                    float(self.tbl_y_var.get()),
-                    float(self.tbl_w_var.get()),
-                    float(self.tbl_h_var.get()),
-                ],
+                bbox=bbox,
             )
             self._table_artist = tbl
             try:

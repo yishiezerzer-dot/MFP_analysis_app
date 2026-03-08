@@ -4,7 +4,7 @@ import json
 import traceback
 import uuid
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 import tkinter as tk
 from tkinter import simpledialog
@@ -13,13 +13,15 @@ from tkinter import colorchooser, filedialog, messagebox
 import ttkbootstrap as tb
 import tkinter.ttk as ttk_native
 
-ttk = tb
-ttk.LabelFrame = ttk_native.LabelFrame
+ttk: Any = tb
+ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
 
 import numpy as np
 import pandas as pd
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# Keep this import aligned with Matplotlib stubs to avoid Pylance false-positives.
+from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from lab_gui.plate_reader_io import coerce_numeric_matrix, preview_dataframe, read_plate_file
@@ -31,6 +33,8 @@ from lab_gui.plate_reader_model import (
     build_mic_wizard_config_and_result,
 )
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
+from lab_gui.ui_theme import style_primary, style_success, style_danger, style_secondary
+from lab_gui.plot_card import PlotCard
 
 
 class _DataPreviewWindow(tk.Toplevel):
@@ -187,7 +191,7 @@ class PlateReaderRunWizard(tk.Toplevel):
         f = self._step_select
         f.columnconfigure(0, weight=1)
 
-        ttk.Label(f, text="Choose analysis", font=("TkDefaultFont", 12, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(f, text="Choose analysis", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(f, text="Only MIC is implemented right now.").grid(row=1, column=0, sticky="w", pady=(4, 10))
 
         box = ttk.LabelFrame(f, text="Analysis", padding=10)
@@ -211,7 +215,7 @@ class PlateReaderRunWizard(tk.Toplevel):
         f.columnconfigure(0, weight=1)
         f.rowconfigure(2, weight=1)
 
-        ttk.Label(f, text="MIC configuration", font=("TkDefaultFont", 12, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(f, text="MIC configuration", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             f,
             text="Select sample/control replicate rows, select concentration columns, and (optionally) remap tick labels.",
@@ -235,7 +239,7 @@ class PlateReaderRunWizard(tk.Toplevel):
         ttk.Checkbutton(top, text="First row is headers", variable=self._use_header_var, command=self._reload_df).grid(
             row=0, column=0, sticky="w"
         )
-        ToolTip.attach(top.winfo_children()[-1], "If unchecked, the first row is treated as data (no headers).")
+        ToolTip.attach(cast(tk.Widget, top.winfo_children()[-1]), "If unchecked, the first row is treated as data (no headers).")
 
         prev_box = ttk.LabelFrame(top, text="Preview (first rows)", padding=6)
         prev_box.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
@@ -339,9 +343,15 @@ class PlateReaderRunWizard(tk.Toplevel):
 
         btns = ttk.Frame(f)
         btns.grid(row=5, column=0, sticky="e", pady=(12, 0))
-        ttk.Button(btns, text="Back", command=lambda: self._show_step("select")).grid(row=0, column=0)
-        ttk.Button(btns, text="Cancel", command=self._cancel).grid(row=0, column=1, padx=(8, 0))
-        ttk.Button(btns, text="Apply", command=self._apply).grid(row=0, column=2, padx=(8, 0))
+        _tb = ttk.Button(btns, text="Back", command=lambda: self._show_step("select"))
+        _tb.grid(row=0, column=0)
+        style_secondary(_tb)
+        _tc = ttk.Button(btns, text="Cancel", command=self._cancel)
+        _tc.grid(row=0, column=1, padx=(8, 0))
+        style_danger(_tc)
+        _ta = ttk.Button(btns, text="Apply", command=self._apply)
+        _ta.grid(row=0, column=2, padx=(8, 0))
+        style_success(_ta)
 
         self._load_from_dataset()
         self._render_preview_table()
@@ -457,7 +467,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         except Exception:
             pass
         try:
-            cols = [str(c) for c in self._df.columns]
+            df_local = self._df
+            if df_local is None:
+                return
+            cols = [str(c) for c in df_local.columns]
             want = set([str(c) for c in (cfg.concentration_columns or [])])
             for idx, c in enumerate(cols):
                 if c in want:
@@ -466,13 +479,16 @@ class PlateReaderRunWizard(tk.Toplevel):
             pass
 
     def _populate_row_and_col_lists(self) -> None:
+        df_local = self._df
+        if df_local is None:
+            return
         for lb in (self._sample_rows_lb, self._control_rows_lb):
             try:
                 lb.delete(0, tk.END)
             except Exception:
                 pass
         try:
-            n = int(self._df.shape[0])
+            n = int(df_local.shape[0])
         except Exception:
             n = 0
         for i in range(n):
@@ -483,7 +499,7 @@ class PlateReaderRunWizard(tk.Toplevel):
             self._cols_lb.delete(0, tk.END)
         except Exception:
             pass
-        for c in [str(c) for c in self._df.columns]:
+        for c in [str(c) for c in df_local.columns]:
             self._cols_lb.insert(tk.END, c)
 
     def _render_preview_table(self) -> None:
@@ -517,14 +533,21 @@ class PlateReaderRunWizard(tk.Toplevel):
             return []
 
     def _selected_columns(self) -> List[str]:
+        df_local = self._df
+        if df_local is None:
+            return []
         try:
             idxs = [int(i) for i in self._cols_lb.curselection()]
         except Exception:
             idxs = []
-        cols = [str(c) for c in self._df.columns]
+        cols = [str(c) for c in df_local.columns]
         return [cols[i] for i in idxs if 0 <= i < len(cols)]
 
     def _apply(self) -> None:
+        df_local = self._df
+        if df_local is None:
+            messagebox.showerror("MIC", "No dataframe loaded.", parent=self)
+            return
         sample_rows = self._selected_rows(self._sample_rows_lb)
         control_rows = self._selected_rows(self._control_rows_lb)
         conc_cols = self._selected_columns()
@@ -534,7 +557,7 @@ class PlateReaderRunWizard(tk.Toplevel):
 
         try:
             cfg, result, sample_nan = build_mic_wizard_config_and_result(
-                self._df,
+                df_local,
                 use_first_row_as_header=bool(self._use_header_var.get()),
                 sample_rows=sample_rows,
                 control_rows=control_rows,
@@ -607,24 +630,30 @@ class PlateReaderView(ttk.Frame):
 
         self._add_files_btn = ttk.Button(ws_btns, text="Add Files…", command=self._add_files)
         self._add_files_btn.grid(row=0, column=0, sticky="w")
+        style_primary(self._add_files_btn)
         ToolTip.attach(self._add_files_btn, "Add one or more Excel/CSV plate-reader files to the workspace.")
 
         self._load_ws_btn = ttk.Button(ws_btns, text="Load…", command=self._load_plate_reader_workspace)
         self._load_ws_btn.grid(row=0, column=1, sticky="w", padx=(8, 0))
+        style_primary(self._load_ws_btn)
         ToolTip.attach(self._load_ws_btn, "Load a saved Plate Reader workspace JSON.")
 
         self._save_ws_btn = ttk.Button(ws_btns, text="Save…", command=self._save_plate_reader_workspace)
         self._save_ws_btn.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        style_success(self._save_ws_btn)
         ToolTip.attach(self._save_ws_btn, "Save the current Plate Reader workspace to JSON.")
 
         self._remove_btn = ttk.Button(ws_btns, text="Remove", command=self._remove_selected)
         self._remove_btn.grid(row=0, column=3, sticky="w", padx=(12, 0))
+        style_danger(self._remove_btn)
 
         self._rename_btn = ttk.Button(ws_btns, text="Rename…", command=self._rename_selected)
         self._rename_btn.grid(row=0, column=4, sticky="w", padx=(8, 0))
+        style_secondary(self._rename_btn)
 
         self._clear_btn = ttk.Button(ws_btns, text="Clear", command=self._clear_workspace)
         self._clear_btn.grid(row=0, column=5, sticky="e")
+        style_danger(self._clear_btn)
 
         self._ws_tree = ttk.Treeview(ws, columns=("type", "shape", "mic"), show="tree headings", selectmode="browse", height=14)
         self._ws_tree.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
@@ -655,14 +684,17 @@ class PlateReaderView(ttk.Frame):
 
         self._preview_btn = ttk.Button(top, text="Preview", command=self._open_preview)
         self._preview_btn.grid(row=0, column=0, sticky="w")
+        style_secondary(self._preview_btn)
         ToolTip.attach(self._preview_btn, "Open a read-only preview of the active dataset.")
 
         self._run_btn = ttk.Button(top, text="Run", command=self._open_wizard)
         self._run_btn.grid(row=0, column=1, sticky="w", padx=(8, 0))
+        style_success(self._run_btn)
         ToolTip.attach(self._run_btn, "Open the Analysis Wizard (MIC first) for the active dataset.")
 
         self._edit_plot_btn = ttk.Button(top, text="Edit Plot…", command=self._open_plot_editor)
         self._edit_plot_btn.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        style_secondary(self._edit_plot_btn)
         ToolTip.attach(self._edit_plot_btn, "Edit plot styling for the active dataset.")
 
         info = ttk.Frame(top)
@@ -672,12 +704,9 @@ class PlateReaderView(ttk.Frame):
         ttk.Label(info, textvariable=self._active_mic_var).grid(row=0, column=1, sticky="w", padx=(12, 0))
         ttk.Label(top, textvariable=self._status_var).grid(row=0, column=4, sticky="e")
 
-        plot = ttk.Frame(right)
-        plot.grid(row=1, column=0, sticky="nsew")
-        plot.columnconfigure(0, weight=1)
-        plot.rowconfigure(0, weight=1)
-        plot.rowconfigure(1, weight=0)
-        plot.rowconfigure(2, weight=0)
+        plot_card = PlotCard(right, title="Plate Reader", show_header=True)
+        plot_card.grid(row=1, column=0, sticky="nsew")
+        plot = plot_card.body
 
         self._fig = Figure(figsize=(9.0, 6.0), dpi=110)
         self._ax = self._fig.add_subplot(1, 1, 1)
@@ -688,12 +717,22 @@ class PlateReaderView(ttk.Frame):
             self._toolbar = NavigationToolbar2Tk(self._canvas, plot, pack_toolbar=False)
             self._toolbar.update()
             self._toolbar.grid(row=1, column=0, sticky="ew")
+            try:
+                if hasattr(self.app, "_style_mpl_toolbar"):
+                    self.app._style_mpl_toolbar(self._toolbar)
+            except Exception:
+                pass
         except Exception:
             self._toolbar = None
 
         self._coord_var = tk.StringVar(value="")
         self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
         self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+        try:
+            self._coord_label.configure(style="Muted.TLabel", padding=(2, 6, 2, 0))
+        except Exception:
+            pass
+        plot_card.register_canvas(self._canvas)
 
         try:
             self._mpl_nav = MatplotlibNavigator(
@@ -859,7 +898,7 @@ class PlateReaderView(ttk.Frame):
                 path=p,
                 display_name=display_name,
                 sheet_name=(None if row.get("sheet_name", None) is None else str(row.get("sheet_name"))),
-                header_row=(None if row.get("header_row", None) is None else int(row.get("header_row"))),
+                header_row=(None if row.get("header_row", None) is None else int(cast(Any, row.get("header_row")))),
                 imported_at_utc=str(row.get("imported_at_utc", "") or ""),
             )
 
@@ -939,11 +978,18 @@ class PlateReaderView(ttk.Frame):
                     ds = d
                     break
         if ds is None:
-            ds = dss[-1]
+            ds_last = dss[-1]
+            ds = ds_last
             try:
-                self.workspace.active_plate_reader_id = ds.id
+                self.workspace.active_plate_reader_id = ds_last.id
             except Exception:
                 pass
+
+        if ds is None:
+            self._dataset = None
+            self._df = None
+            self._set_active_labels()
+            return
 
         self._dataset = ds
 
@@ -1260,14 +1306,17 @@ class PlateReaderView(ttk.Frame):
             messagebox.showinfo("Plate Reader", "Load or select a file first.", parent=self)
             return
 
+        ds_local = self._dataset
+        df_local = self._df
+
         def on_apply(cfg: PlateReaderMICWizardConfig, result: PlateReaderMICWizardResult) -> None:
-            self._dataset.wizard_last_analysis = "mic"
-            self._dataset.wizard_mic_config = cfg
-            self._dataset.wizard_mic_result = result
-            self._dataset.header_row = 0 if cfg.use_first_row_as_header else None
+            ds_local.wizard_last_analysis = "mic"
+            ds_local.wizard_mic_config = cfg
+            ds_local.wizard_mic_result = result
+            ds_local.header_row = 0 if cfg.use_first_row_as_header else None
 
             # Keep in-memory data only; no reload on apply.
-            self._df = self._dataset.current_df()
+            self._df = ds_local.current_df()
 
             self._render_from_dataset()
             self._status_var.set("Applied")
@@ -1275,7 +1324,7 @@ class PlateReaderView(ttk.Frame):
             self._refresh_workspace_list()
             self._update_buttons()
 
-        PlateReaderRunWizard(self, dataset=self._dataset, df=self._df, on_apply=on_apply)
+        PlateReaderRunWizard(self, dataset=ds_local, df=df_local, on_apply=on_apply)
 
     def _render_empty_plot(self) -> None:
         try:
@@ -1317,7 +1366,7 @@ class PlateReaderPlotEditor(tk.Toplevel):
         body.columnconfigure(1, weight=1)
 
         # Labels
-        ttk.Label(body, text="Labels", font=("TkDefaultFont", 10, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(body, text="Labels", style="SubSection.TLabel").grid(row=0, column=0, sticky="w")
 
         self._title_txt = tk.StringVar(value=str(getattr(cfg, "title", "MIC")))
         self._xlabel_txt = tk.StringVar(value=str(getattr(cfg, "x_label", "Concentration")))
@@ -1335,7 +1384,7 @@ class PlateReaderPlotEditor(tk.Toplevel):
 
         # Colors
         ttk.Separator(body).grid(row=5, column=0, columnspan=2, sticky="ew", pady=12)
-        ttk.Label(body, text="Colors", font=("TkDefaultFont", 10, "bold")).grid(row=6, column=0, sticky="w")
+        ttk.Label(body, text="Colors", style="SubSection.TLabel").grid(row=6, column=0, sticky="w")
 
         self._sample_color = tk.StringVar(value=str(getattr(cfg, "sample_color", "#1f77b4")))
         self._control_color = tk.StringVar(value=str(getattr(cfg, "control_color", "#ff7f0e")))
@@ -1349,7 +1398,7 @@ class PlateReaderPlotEditor(tk.Toplevel):
 
         # Thickness controls
         ttk.Separator(body).grid(row=8, column=0, columnspan=2, sticky="ew", pady=12)
-        ttk.Label(body, text="Thickness", font=("TkDefaultFont", 10, "bold")).grid(row=9, column=0, sticky="w")
+        ttk.Label(body, text="Thickness", style="SubSection.TLabel").grid(row=9, column=0, sticky="w")
 
         self._line_w = tk.DoubleVar(value=float(getattr(cfg, "line_width", 1.6)))
         self._marker_s = tk.DoubleVar(value=float(getattr(cfg, "marker_size", 6.0)))
@@ -1380,7 +1429,7 @@ class PlateReaderPlotEditor(tk.Toplevel):
 
         # Fonts + toggles
         ttk.Separator(body).grid(row=15, column=0, columnspan=2, sticky="ew", pady=12)
-        ttk.Label(body, text="Text & Layout", font=("TkDefaultFont", 10, "bold")).grid(row=16, column=0, sticky="w")
+        ttk.Label(body, text="Text & Layout", style="SubSection.TLabel").grid(row=16, column=0, sticky="w")
 
         self._title_fs = tk.IntVar(value=int(getattr(cfg, "title_fontsize", 12)))
         self._label_fs = tk.IntVar(value=int(getattr(cfg, "label_fontsize", 10)))
@@ -1403,7 +1452,7 @@ class PlateReaderPlotEditor(tk.Toplevel):
 
         # Limits
         ttk.Separator(body).grid(row=21, column=0, columnspan=2, sticky="ew", pady=12)
-        ttk.Label(body, text="Axis limits (optional)", font=("TkDefaultFont", 10, "bold")).grid(row=22, column=0, sticky="w")
+        ttk.Label(body, text="Axis limits (optional)", style="SubSection.TLabel").grid(row=22, column=0, sticky="w")
         self._x_min = tk.StringVar(value=("" if getattr(cfg, "x_min", None) is None else str(getattr(cfg, "x_min"))))
         self._x_max = tk.StringVar(value=("" if getattr(cfg, "x_max", None) is None else str(getattr(cfg, "x_max"))))
         self._y_min = tk.StringVar(value=("" if getattr(cfg, "y_min", None) is None else str(getattr(cfg, "y_min"))))
@@ -1424,8 +1473,12 @@ class PlateReaderPlotEditor(tk.Toplevel):
 
         btns = ttk.Frame(body)
         btns.grid(row=24, column=0, columnspan=2, sticky="e", pady=(14, 0))
-        ttk.Button(btns, text="Close", command=self._close).grid(row=0, column=0)
-        ttk.Button(btns, text="Apply", command=self._apply).grid(row=0, column=1, padx=(8, 0))
+        _bc = ttk.Button(btns, text="Close", command=self._close)
+        _bc.grid(row=0, column=0)
+        style_secondary(_bc)
+        _ba = ttk.Button(btns, text="Apply", command=self._apply)
+        _ba.grid(row=0, column=1, padx=(8, 0))
+        style_success(_ba)
 
         try:
             self.transient(parent.winfo_toplevel())

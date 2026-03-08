@@ -164,7 +164,8 @@ def _normalize_area(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     xx = np.asarray(x, dtype=float)
     yy = np.asarray(y, dtype=float)
     try:
-        area = float(np.trapz(np.abs(yy), xx))
+        # Prefer `trapezoid` to match NumPy stubs (some type checkers don't expose `trapz`).
+        area = float(np.trapezoid(np.abs(yy), xx))
         if not math.isfinite(area) or area <= 0.0:
             return yy
         return (yy / area).astype(float)

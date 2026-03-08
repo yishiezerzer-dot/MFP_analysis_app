@@ -14,6 +14,10 @@ class DataStudioDataset:
     header_row: int = 0
     columns: Dict[str, str] = field(default_factory=dict)
     schema_hash: str = ""
+    # Transform pipeline (non-destructive). Backward compatible in workspace IO.
+    transform_steps: List[Dict[str, object]] = field(default_factory=list)
+    derived_enabled: bool = False
+    derived_name_suffix: str = " (transformed)"
 
 
 @dataclass
@@ -36,3 +40,6 @@ class DataStudioWorkspace:
     active_id: Optional[str] = None
     overlay_ids: List[str] = field(default_factory=list)
     preferred_axes_by_dataset: Dict[str, Tuple[Optional[str], List[str]]] = field(default_factory=dict)
+    # Sticky plot recipes (saved presets). Backward compatible in workspace IO.
+    recipes: Dict[str, Dict[str, object]] = field(default_factory=dict)
+    recipe_order: List[str] = field(default_factory=list)

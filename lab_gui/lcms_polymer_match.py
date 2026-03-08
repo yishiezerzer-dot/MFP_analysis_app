@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from math import comb
 import os
 
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -772,7 +772,7 @@ def explain_best_match_for_peak_sorted(
         )
 
     target_kind_s = str(target_kind)
-    best: Optional[Dict[str, object]] = None
+    best: Optional[Dict[str, Any]] = None
 
     def consider_candidate(
         *,
@@ -882,13 +882,14 @@ def explain_best_match_for_peak_sorted(
     return best
 
 
-def run_polymer_self_checks() -> Dict[str, object]:
+def run_polymer_self_checks() -> Dict[str, Any]:
     """Lightweight internal self-checks for dev/debug."""
-    results: Dict[str, object] = {"ok": True, "checks": {}}
+    checks: Dict[str, Any] = {}
+    results: Dict[str, Any] = {"ok": True, "checks": checks}
 
     # 1) Compositions count
     comps = list(generate_polymer_compositions(2, 3, 1))
-    results["checks"]["compositions_2monomers_dp3_count"] = len(comps)
+    checks["compositions_2monomers_dp3_count"] = len(comps)
     if len(comps) != 9:
         results["ok"] = False
 
@@ -896,8 +897,8 @@ def run_polymer_self_checks() -> Dict[str, object]:
     m = 100.0
     pos = (m + PROTON_MASS) / 1.0
     neg = (m - PROTON_MASS) / 1.0
-    results["checks"]["pos_M_plus_H"] = pos
-    results["checks"]["neg_M_minus_H"] = neg
+    checks["pos_M_plus_H"] = pos
+    checks["neg_M_minus_H"] = neg
     if abs(pos - 101.007276) > 1e-9 or abs(neg - 98.992724) > 1e-9:
         results["ok"] = False
 
@@ -905,8 +906,8 @@ def run_polymer_self_checks() -> Dict[str, object]:
     mz = np.array([100.01, 100.00, 99.99], dtype=float)
     inten = np.array([20.0, 10.0, 50.0], dtype=float)
     hit = find_best_peak_match(mz, inten, 100.00, tol_da=0.02, tol_ppm=None)
-    results["checks"]["unsorted_match_mz"] = (None if hit is None else hit.matched_mz)
-    results["checks"]["unsorted_match_intensity"] = (None if hit is None else hit.intensity)
+    checks["unsorted_match_mz"] = (None if hit is None else hit.matched_mz)
+    checks["unsorted_match_intensity"] = (None if hit is None else hit.intensity)
     # smallest ppm error should pick 100.00 even if intensity is lower
     if hit is None or abs(hit.matched_mz - 100.0) > 1e-9:
         results["ok"] = False
@@ -920,8 +921,8 @@ def run_polymer_self_checks() -> Dict[str, object]:
         enable_cl=True,
         enable_formate=True,
     )
-    results["checks"]["neg_has_minus_H"] = any(abs(dm - (-PROTON_MASS)) < 1e-9 for _lbl, dm in adducts_neg)
-    if not results["checks"]["neg_has_minus_H"]:
+    checks["neg_has_minus_H"] = any(abs(dm - (-PROTON_MASS)) < 1e-9 for _lbl, dm in adducts_neg)
+    if not checks["neg_has_minus_H"]:
         results["ok"] = False
 
     return results

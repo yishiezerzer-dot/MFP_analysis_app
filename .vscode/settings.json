@@ -1,3 +1,24 @@
 {
-    "chat.agent.maxRequests": 100
+    "chat.agent.maxRequests": 100,
+    "files.exclude": {
+        "**/__pycache__/**": true,
+        "**/*.pyc": true,
+        "microscopy/**": true,
+        "**/MicroscopyResults/**": true,
+        "**/droplet_count/**": true
+    },
+    "search.exclude": {
+        "**/__pycache__/**": true,
+        "**/*.pyc": true,
+        "microscopy/**": true,
+        "**/MicroscopyResults/**": true,
+        "**/droplet_count/**": true
+    },
+    "files.watcherExclude": {
+        "**/__pycache__/**": true,
+        "**/*.pyc": true,
+        "microscopy/**": true,
+        "**/MicroscopyResults/**": true,
+        "**/droplet_count/**": true
+    }
 }

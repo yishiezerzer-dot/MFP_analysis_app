@@ -539,7 +539,8 @@ def compute_mic(
 
     agg = (
         work.groupby(["__group", "__conc"], dropna=False)["__value"]
-        .agg([("mean", "mean"), ("std", "std"), ("n", "count")])
+        .agg(["mean", "std", "count"])
+        .rename(columns={"count": "n"})
         .reset_index()
         .rename(columns={"__group": "group", "__conc": "concentration"})
     )
@@ -784,7 +785,8 @@ def compute_mic_wide(
 
     agg = (
         work.groupby(["group", "concentration"], dropna=False)["value"]
-        .agg([("mean", "mean"), ("std", "std"), ("n", "count")])
+        .agg(["mean", "std", "count"])
+        .rename(columns={"count": "n"})
         .reset_index()
     )
 
@@ -910,7 +912,8 @@ def compute_mic_wide_od(
 
     agg = (
         long_df.groupby(["group", "concentration"], dropna=False)["value"]
-        .agg([("mean", "mean"), ("std", "std"), ("n", "count")])
+        .agg(["mean", "std", "count"])
+        .rename(columns={"count": "n"})
         .reset_index()
     )
 
