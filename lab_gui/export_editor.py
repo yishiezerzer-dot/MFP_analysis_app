@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -16,6 +17,8 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.transforms import Bbox
 
+from lab_gui.plot_card import PlotCard
+from lab_gui.ui_theme import style_primary, style_secondary, style_success, style_danger
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 
@@ -326,23 +329,60 @@ class ExportEditor(tk.Toplevel):
 
         # Layout: keep the export window focused on the plot.
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
 
-        top = ttk.Frame(self, padding=6)
+        top = ttk.LabelFrame(self, text="Export Actions", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(2, weight=1)
+        top.columnconfigure(3, weight=1)
+        top.columnconfigure(4, weight=1)
+        ttk.Label(
+            top,
+            text="Tune the export-specific presentation here while keeping the final figure large and readable.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=5, sticky="w", pady=(0, 8))
         controls_btn = ttk.Button(top, text="Controls…", command=self._open_controls_window)
-        controls_btn.pack(side=tk.LEFT)
+        controls_btn.grid(row=1, column=0, sticky="ew")
+        style_primary(controls_btn)
+        arrange_btn = ttk.Button(top, text="Auto Arrange Labels", command=self._auto_arrange_labels)
+        arrange_btn.grid(row=1, column=1, sticky="ew", padx=(8, 8))
+        style_secondary(arrange_btn)
+        distribute_btn = ttk.Button(top, text="Distribute Labels…", command=self._open_distribute_labels_dialog)
+        distribute_btn.grid(row=1, column=2, sticky="ew", padx=(0, 8))
+        style_secondary(distribute_btn)
         saveas_btn = ttk.Button(top, text="Save As…", command=self._save_as)
-        saveas_btn.pack(side=tk.LEFT, padx=(8, 0))
+        saveas_btn.grid(row=1, column=3, sticky="ew", padx=(0, 8))
+        style_success(saveas_btn)
         close_btn = ttk.Button(top, text="Close", command=self._on_close_export)
-        close_btn.pack(side=tk.RIGHT)
+        close_btn.grid(row=1, column=4, sticky="ew")
+        style_secondary(close_btn)
 
         ToolTip.attach(controls_btn, self._tt("exp_controls"))
+        ToolTip.attach(arrange_btn, self._tt("annotate_peaks"))
+        ToolTip.attach(distribute_btn, "Manually distribute export labels with configurable X and Y spacing for all labels or a selected index range.")
         ToolTip.attach(saveas_btn, self._tt("exp_saveas"))
         ToolTip.attach(close_btn, self._tt("exp_close"))
 
-        plot = ttk.Frame(self)
-        plot.grid(row=1, column=0, sticky="nsew")
+        stage_hdr = ttk.Frame(self, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=1, column=0, sticky="ew", pady=(10, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="Export Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="Review the final composition at full size, then open controls only when you need detailed styling changes.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, text=str(self.kind).upper(), style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        plot_card = PlotCard(self, title=f"{str(self.kind).upper()} Export", status_text="Preview", show_header=True)
+        plot_card.grid(row=2, column=0, sticky="nsew")
+        plot = plot_card.body
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
@@ -355,6 +395,7 @@ class ExportEditor(tk.Toplevel):
         self._canvas = FigureCanvasTkAgg(self._fig, master=plot)
         self._canvas.draw()
         self._canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+        plot_card.register_canvas(self._canvas)
 
         # IMPORTANT: Avoid mixing geometry managers in the same container.
         # The toolbar packs itself by default; we use grid here.
@@ -404,6 +445,7 @@ class ExportEditor(tk.Toplevel):
         self.label_fs_var = tk.IntVar(value=int(self.app.label_fontsize_var.get()))
         self.tick_fs_var = tk.IntVar(value=int(self.app.tick_fontsize_var.get()))
         self.ann_fs_var = tk.IntVar(value=max(6, int(self.app.tick_fontsize_var.get()) - 1))
+        self.ann_orientation_var = tk.StringVar(value="vertical")
 
         self.xmin_var = tk.StringVar(value="")
         self.xmax_var = tk.StringVar(value="")
@@ -419,6 +461,7 @@ class ExportEditor(tk.Toplevel):
         self._annotations: List[Any] = []
         self._ann_original_text: Dict[int, str] = {}
         self._active_ann: Optional[Any] = None
+        self._label_distribution_win: Optional[tk.Toplevel] = None
 
         # Table + overrides (for editing the table text)
         self._num_to_ann: Dict[int, Any] = {}
@@ -589,15 +632,28 @@ class ExportEditor(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         win.rowconfigure(0, weight=1)
         win.columnconfigure(0, weight=1)
-        outer.rowconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
         outer.columnconfigure(0, weight=1)
+
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Export Controls", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="This window holds detailed styling controls so the main export preview can stay uncluttered.",
+            style="CardHint.TLabel",
+            wraplength=420,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text=str(self.kind).upper(), style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
         # Scrollable area
         canvas = tk.Canvas(outer, highlightthickness=0)
-        canvas.grid(row=0, column=0, sticky="nsew")
+        canvas.grid(row=1, column=0, sticky="nsew")
         self._controls_scroll_canvas = canvas
         ysb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        ysb.grid(row=0, column=1, sticky="ns")
+        ysb.grid(row=1, column=1, sticky="ns")
         canvas.configure(yscrollcommand=ysb.set)
 
         inner = ttk.Frame(canvas, padding=6)
@@ -733,6 +789,11 @@ class ExportEditor(tk.Toplevel):
 
         ttk.Label(inner, text="Annotation font size").grid(row=row, column=0, sticky="w")
         s_ann_fs = _add_slider(inner, variable=self.ann_fs_var, from_=6, to=48, step=1)
+        row += 1
+
+        ttk.Label(inner, text="Label orientation").grid(row=row, column=0, sticky="w")
+        ann_orientation_box = ttk.Combobox(inner, textvariable=self.ann_orientation_var, values=("vertical", "horizontal"), state="readonly")
+        ann_orientation_box.grid(row=row, column=1, sticky="ew", padx=(8, 0))
         row += 1
 
         ttk.Separator(inner).grid(row=row, column=0, columnspan=2, sticky="ew", pady=8)
@@ -1081,6 +1142,7 @@ class ExportEditor(tk.Toplevel):
             ToolTip.attach(s_label_fs, "Axis label font size (export-only).")
             ToolTip.attach(s_tick_fs, "Tick label font size (export-only).")
             ToolTip.attach(s_ann_fs, "Annotation font size (export-only).")
+            ToolTip.attach(ann_orientation_box, "Export-only label orientation. Switch between vertical and horizontal annotation text.")
             ToolTip.attach(s_fig_w, "Figure width in inches (export-only).")
             ToolTip.attach(s_fig_h, "Figure height in inches (export-only).")
             ToolTip.attach(s_overlay_gap, "Overlay gap as a fraction of the panel maximum. Used by Offset mode and stacked spectra.")
@@ -1271,6 +1333,21 @@ class ExportEditor(tk.Toplevel):
             return None
         return float(raw)
 
+    def _annotation_rotation(self) -> float:
+        return 0.0 if str(self.ann_orientation_var.get() or "vertical").strip().lower() == "horizontal" else 90.0
+
+    def _apply_annotation_orientation(self) -> None:
+        rotation = float(self._annotation_rotation())
+        for ann in list(self._annotations):
+            try:
+                ann.set_rotation(rotation)
+            except Exception:
+                pass
+            try:
+                ann.set_rotation_mode("anchor")
+            except Exception:
+                pass
+
     def _clear_annotations(self) -> None:
         for ann in list(self._annotations):
             try:
@@ -1289,7 +1366,7 @@ class ExportEditor(tk.Toplevel):
             textcoords="data",
             ha="center",
             va="bottom",
-            rotation=90,
+            rotation=float(self._annotation_rotation()),
             fontsize=int(self.ann_fs_var.get()),
             color=ann_color,
             arrowprops={"arrowstyle": "-", "lw": 0.95, "color": ann_color, "alpha": 0.9},
@@ -1302,6 +1379,412 @@ class ExportEditor(tk.Toplevel):
         self._annotations.append(ann)
         self._ann_original_text[id(ann)] = str(text)
         return ann
+
+    def _auto_arrange_labels(self) -> None:
+        if not self._annotations:
+            try:
+                messagebox.showinfo("Auto Arrange Labels", "There are no export labels to arrange.", parent=self)
+            except Exception:
+                pass
+            return
+        helper = getattr(self.app, "_auto_arrange_annotation_artists", None)
+        if not callable(helper):
+            return
+        items: List[Dict[str, Any]] = []
+        for idx, ann in enumerate(list(self._annotations)):
+            try:
+                anchor_xy = ann.xy
+            except Exception:
+                continue
+            priority = 50.0
+            try:
+                priority += max(0.0, float(anchor_xy[1]))
+            except Exception:
+                pass
+            priority -= float(idx) * 0.05
+            items.append(
+                {
+                    "artist": ann,
+                    "anchor_xy": (float(anchor_xy[0]), float(anchor_xy[1])),
+                    "locked": False,
+                    "priority": float(priority),
+                }
+            )
+        try:
+            result = helper(canvas=self._canvas, ax=self._ax, items=items, full_reflow=True)
+            changed = bool(result.get("changed", False)) if isinstance(result, dict) else bool(result)
+        except Exception:
+            changed = False
+        if changed:
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+
+    def _sorted_export_annotations(self) -> List[Any]:
+        anns: List[Tuple[float, Any]] = []
+        for ann in list(self._annotations):
+            try:
+                anns.append((float(ann.xy[0]), ann))
+            except Exception:
+                anns.append((0.0, ann))
+        anns.sort(key=lambda item: float(item[0]))
+        return [ann for _, ann in anns]
+
+    def _parse_annotation_selection(self, raw: str, total: int) -> List[int]:
+        raw = str(raw or "").strip()
+        if not raw:
+            return []
+        selected: List[int] = []
+        for chunk in raw.split(","):
+            part = str(chunk).strip()
+            if not part:
+                continue
+            if "-" in part:
+                left, right = part.split("-", 1)
+                start = int(str(left).strip())
+                end = int(str(right).strip())
+                lo = min(start, end)
+                hi = max(start, end)
+                for value in range(lo, hi + 1):
+                    if 1 <= value <= total and value not in selected:
+                        selected.append(int(value))
+                continue
+            value = int(part)
+            if 1 <= value <= total and value not in selected:
+                selected.append(int(value))
+        return selected
+
+    def _resolve_selected_annotations(self, *, scope: str, selection_text: str) -> List[Any]:
+        ordered = self._sorted_export_annotations()
+        if not ordered:
+            return []
+        if str(scope) != "selected":
+            return list(ordered)
+        selected_indices = self._parse_annotation_selection(selection_text, len(ordered))
+        if not selected_indices:
+            raise ValueError("Enter one or more label indices, for example 1-4,7")
+        selected_annotations = [ordered[idx - 1] for idx in selected_indices if 1 <= idx <= len(ordered)]
+        if not selected_annotations:
+            raise ValueError("The selected label indices are out of range")
+        return selected_annotations
+
+    def _distribute_annotations(self, *, scope: str, selection_text: str, x_step: float, y_step: float, apply_x: bool = True, apply_y: bool = True) -> int:
+        selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
+        if not selected_annotations:
+            return 0
+
+        lane_pattern = [0, -1, 1, -2, 2]
+        moved = 0
+        x_min: Optional[float] = None
+        x_max: Optional[float] = None
+        x_padding = 0.0
+        try:
+            x0, x1 = self._ax.get_xlim()
+            x_min = min(float(x0), float(x1))
+            x_max = max(float(x0), float(x1))
+            x_padding = max(abs(float(x_step)) * 0.35, (x_max - x_min) * 0.01)
+        except Exception:
+            x_min = None
+            x_max = None
+            x_padding = max(abs(float(x_step)) * 0.35, 0.0)
+        y_min: Optional[float] = None
+        y_max: Optional[float] = None
+        y_padding = 0.0
+        try:
+            y0, y1 = self._ax.get_ylim()
+            y_min = min(float(y0), float(y1))
+            y_max = max(float(y0), float(y1))
+            y_span = max(1e-9, y_max - y_min)
+            y_padding = max(abs(float(y_step)) * 0.25, y_span * 0.01)
+        except Exception:
+            y_min = None
+            y_max = None
+            y_padding = max(abs(float(y_step)) * 0.25, 0.0)
+
+        anchor_ann = selected_annotations[0]
+        try:
+            anchor_anchor_x = float(anchor_ann.xy[0])
+            anchor_current_x = float(anchor_ann.get_position()[0])
+            anchor_current_y = float(anchor_ann.get_position()[1])
+        except Exception:
+            return 0
+
+        placements: List[Dict[str, Any]] = []
+        for idx, ann in enumerate(selected_annotations):
+            try:
+                anchor_x = float(ann.xy[0])
+                current_x = float(ann.get_position()[0])
+                current_y = float(ann.get_position()[1])
+            except Exception:
+                continue
+            if idx == 0:
+                target_x = float(anchor_current_x)
+                target_y = float(anchor_current_y)
+            else:
+                rel_idx = idx - 1
+                lane = int(lane_pattern[rel_idx % len(lane_pattern)])
+                row = int(rel_idx // len(lane_pattern))
+                relative_rt = float(anchor_x - anchor_anchor_x)
+                target_x = float(anchor_current_x + relative_rt + (lane * float(x_step)))
+                target_y = float(anchor_current_y + ((row + 1) * float(y_step)))
+            if x_min is not None and x_max is not None:
+                if idx == 0:
+                    target_x = float(anchor_current_x)
+                else:
+                    target_x = min(max(target_x, float(x_min + x_padding)), float(x_max - x_padding))
+            if y_min is not None and y_max is not None:
+                if idx == 0:
+                    target_y = float(anchor_current_y)
+                else:
+                    target_y = min(max(target_y, float(y_min + y_padding)), float(y_max - y_padding))
+            placements.append({
+                "ann": ann,
+                "anchor_x": float(anchor_x),
+                "current_x": float(current_x),
+                "current_y": float(current_y),
+                "target_x": float(target_x),
+                "target_y": float(target_y),
+            })
+
+        if not placements:
+            return 0
+
+        if bool(apply_x):
+            min_order_spacing = max(abs(float(x_step)) * 0.45, 1e-6)
+            for idx in range(2, len(placements)):
+                placements[idx]["target_x"] = max(
+                    float(placements[idx]["target_x"]),
+                    float(placements[idx - 1]["target_x"]) + min_order_spacing,
+                )
+
+            if x_min is not None and x_max is not None:
+                upper_bound = float(x_max - x_padding)
+                lower_bound = float(x_min + x_padding)
+                if float(placements[-1]["target_x"]) > upper_bound:
+                    placements[-1]["target_x"] = upper_bound
+                    for idx in range(len(placements) - 2, 0, -1):
+                        placements[idx]["target_x"] = min(
+                            float(placements[idx]["target_x"]),
+                            float(placements[idx + 1]["target_x"]) - min_order_spacing,
+                        )
+                    if len(placements) > 1 and float(placements[1]["target_x"]) < max(lower_bound, float(placements[0]["target_x"]) + min_order_spacing):
+                        placements[1]["target_x"] = max(lower_bound, float(placements[0]["target_x"]) + min_order_spacing)
+                        for idx in range(2, len(placements)):
+                            placements[idx]["target_x"] = max(
+                                float(placements[idx]["target_x"]),
+                                float(placements[idx - 1]["target_x"]) + min_order_spacing,
+                            )
+
+        for entry in placements:
+            try:
+                final_x = float(entry["target_x"]) if bool(apply_x) else float(entry["current_x"])
+                final_y = float(entry["target_y"]) if bool(apply_y) else float(entry["current_y"])
+                entry["ann"].set_position((final_x, final_y))
+                moved += 1
+            except Exception:
+                continue
+
+        if moved:
+            self._apply_numbering(redraw_only=True)
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+        return int(moved)
+
+    def _shift_annotations(self, *, scope: str, selection_text: str, shift_x: float, shift_y: float, apply_x: bool = True, apply_y: bool = True) -> int:
+        selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
+        if not selected_annotations:
+            return 0
+
+        moved = 0
+        try:
+            x0, x1 = self._ax.get_xlim()
+            x_min = min(float(x0), float(x1))
+            x_max = max(float(x0), float(x1))
+            x_padding = max(abs(float(shift_x)) * 0.25, (x_max - x_min) * 0.01)
+        except Exception:
+            x_min = float("-inf")
+            x_max = float("inf")
+            x_padding = 0.0
+        try:
+            y0, y1 = self._ax.get_ylim()
+            y_min = min(float(y0), float(y1))
+            y_max = max(float(y0), float(y1))
+            y_padding = max(abs(float(shift_y)) * 0.25, (y_max - y_min) * 0.01)
+        except Exception:
+            y_min = float("-inf")
+            y_max = float("inf")
+            y_padding = 0.0
+
+        for ann in selected_annotations:
+            try:
+                current_x, current_y = ann.get_position()
+            except Exception:
+                continue
+            next_x = float(current_x) + (float(shift_x) if bool(apply_x) else 0.0)
+            next_y = float(current_y) + (float(shift_y) if bool(apply_y) else 0.0)
+            if math.isfinite(x_min) and math.isfinite(x_max):
+                next_x = min(max(next_x, float(x_min + x_padding)), float(x_max - x_padding))
+            if math.isfinite(y_min) and math.isfinite(y_max):
+                next_y = min(max(next_y, float(y_min + y_padding)), float(y_max - y_padding))
+            try:
+                ann.set_position((float(next_x), float(next_y)))
+                moved += 1
+            except Exception:
+                continue
+
+        if moved:
+            self._apply_numbering(redraw_only=True)
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+        return int(moved)
+
+    def _open_distribute_labels_dialog(self) -> None:
+        if self._label_distribution_win is not None:
+            try:
+                if bool(self._label_distribution_win.winfo_exists()):
+                    self._label_distribution_win.deiconify()
+                    self._label_distribution_win.lift()
+                    self._label_distribution_win.focus_force()
+                    return
+            except Exception:
+                pass
+
+        ordered = self._sorted_export_annotations()
+        if not ordered:
+            try:
+                messagebox.showinfo("Distribute Labels", "There are no export labels to distribute.", parent=self)
+            except Exception:
+                pass
+            return
+
+        dlg = tk.Toplevel(self)
+        self._label_distribution_win = dlg
+        dlg.title("Distribute Labels")
+        dlg.transient(self)
+        dlg.resizable(False, False)
+
+        scope_var = tk.StringVar(value="all")
+        selection_var = tk.StringVar(value="")
+        x_step_var = tk.DoubleVar(value=0.35 if self.kind in ("tic", "uv") else 0.5)
+        y_step_var = tk.DoubleVar(value=0.08)
+        shift_x_var = tk.DoubleVar(value=0.0)
+        shift_y_var = tk.DoubleVar(value=0.0)
+
+        frm = ttk.Frame(dlg, padding=12)
+        frm.grid(row=0, column=0, sticky="nsew")
+        frm.columnconfigure(1, weight=1)
+
+        ttk.Label(frm, text="Scope").grid(row=0, column=0, sticky="w")
+        scope_box = ttk.Combobox(frm, textvariable=scope_var, values=("all", "selected"), state="readonly", width=18)
+        scope_box.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+
+        ttk.Label(frm, text="Selected indices").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        selection_entry = ttk.Entry(frm, textvariable=selection_var)
+        selection_entry.grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        ttk.Label(frm, text="X spacing").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=x_step_var).grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        ttk.Label(frm, text="Y spacing").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=y_step_var).grid(row=3, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        ttk.Label(frm, text="Move X together").grid(row=4, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=shift_x_var).grid(row=4, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        ttk.Label(frm, text="Move Y together").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=shift_y_var).grid(row=5, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        preview_lines: List[str] = []
+        for idx, ann in enumerate(ordered, start=1):
+            try:
+                label_text = str(self._ann_original_text.get(id(ann), ann.get_text()))
+            except Exception:
+                label_text = ""
+            preview_lines.append(f"{idx}. {label_text}")
+        preview_text = tk.Text(frm, width=42, height=min(10, max(4, len(preview_lines))), wrap="word")
+        preview_text.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        try:
+            preview_text.insert("1.0", "Use left-to-right label indices, for example 1-4,7\n\n" + "\n".join(preview_lines))
+            preview_text.configure(state="disabled")
+        except Exception:
+            pass
+
+        def _apply(*, apply_x: bool, apply_y: bool) -> None:
+            try:
+                moved = self._distribute_annotations(
+                    scope=str(scope_var.get() or "all"),
+                    selection_text=str(selection_var.get() or ""),
+                    x_step=float(x_step_var.get()),
+                    y_step=float(y_step_var.get()),
+                    apply_x=bool(apply_x),
+                    apply_y=bool(apply_y),
+                )
+            except ValueError as exc:
+                messagebox.showerror("Distribute Labels", str(exc), parent=dlg)
+                return
+            except Exception as exc:
+                messagebox.showerror("Distribute Labels", f"Failed to distribute labels:\n{exc}", parent=dlg)
+                return
+            try:
+                messagebox.showinfo("Distribute Labels", f"Updated {moved} label(s).", parent=dlg)
+            except Exception:
+                pass
+
+        def _shift(*, apply_x: bool, apply_y: bool) -> None:
+            try:
+                moved = self._shift_annotations(
+                    scope=str(scope_var.get() or "all"),
+                    selection_text=str(selection_var.get() or ""),
+                    shift_x=float(shift_x_var.get()),
+                    shift_y=float(shift_y_var.get()),
+                    apply_x=bool(apply_x),
+                    apply_y=bool(apply_y),
+                )
+            except ValueError as exc:
+                messagebox.showerror("Distribute Labels", str(exc), parent=dlg)
+                return
+            except Exception as exc:
+                messagebox.showerror("Distribute Labels", f"Failed to move labels:\n{exc}", parent=dlg)
+                return
+            try:
+                messagebox.showinfo("Distribute Labels", f"Moved {moved} label(s).", parent=dlg)
+            except Exception:
+                pass
+
+        def _close() -> None:
+            self._label_distribution_win = None
+            try:
+                dlg.destroy()
+            except Exception:
+                pass
+
+        buttons = ttk.Frame(frm)
+        buttons.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        buttons.columnconfigure(0, weight=1)
+        buttons.columnconfigure(1, weight=1)
+        buttons.columnconfigure(2, weight=1)
+        buttons.columnconfigure(3, weight=1)
+        buttons.columnconfigure(4, weight=1)
+        buttons.columnconfigure(5, weight=1)
+        buttons.columnconfigure(6, weight=1)
+
+        ttk.Button(buttons, text="Apply X", command=lambda: _apply(apply_x=True, apply_y=False)).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Apply Y", command=lambda: _apply(apply_x=False, apply_y=True)).grid(row=0, column=1, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Apply X + Y", command=lambda: _apply(apply_x=True, apply_y=True)).grid(row=0, column=2, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Move X", command=lambda: _shift(apply_x=True, apply_y=False)).grid(row=0, column=3, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Move Y", command=lambda: _shift(apply_x=False, apply_y=True)).grid(row=0, column=4, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Move X + Y", command=lambda: _shift(apply_x=True, apply_y=True)).grid(row=0, column=5, sticky="ew", padx=(0, 6))
+        ttk.Button(buttons, text="Close", command=_close).grid(row=0, column=6, sticky="ew")
+
+        try:
+            dlg.protocol("WM_DELETE_WINDOW", _close)
+        except Exception:
+            pass
 
     def _build_initial_plot(self) -> None:
         # NOTE: This relies on App-provided attributes/methods; kept identical to original behavior.
@@ -1556,7 +2039,7 @@ class ExportEditor(tk.Toplevel):
                                     textcoords="data",
                                     ha="center",
                                     va="bottom",
-                                    rotation=90,
+                                    rotation=float(self._annotation_rotation()),
                                     fontsize=fs,
                                     color=(self.label_color_var.get() or "").strip() or self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111"),
                                     arrowprops={
@@ -1827,6 +2310,7 @@ class ExportEditor(tk.Toplevel):
                 ann.set_fontsize(afs)
             except Exception:
                 pass
+        self._apply_annotation_orientation()
 
         try:
             w = float(self.fig_w_var.get())
@@ -1906,6 +2390,7 @@ class ExportEditor(tk.Toplevel):
             self.label_fs_var,
             self.tick_fs_var,
             self.ann_fs_var,
+            self.ann_orientation_var,
             self.fig_w_var,
             self.fig_h_var,
         ):

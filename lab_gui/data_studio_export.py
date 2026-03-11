@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import colorsys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
@@ -15,6 +15,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
+from lab_gui.plot_card import PlotCard
+from lab_gui.ui_theme import style_primary, style_secondary, style_success, style_danger
 from lab_gui.ui_widgets import MatplotlibNavigator, ToolTip
 
 
@@ -30,17 +32,50 @@ class DataStudioExportEditor(tk.Toplevel):
             pass
 
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
 
-        top = ttk.Frame(self, padding=6)
+        top = ttk.LabelFrame(self, text="Export Actions", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
-        ttk.Button(top, text="Controls…", command=self._open_controls).pack(side=tk.LEFT)
-        ttk.Button(top, text="Save As…", command=self._save_as).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(top, text="Export Data…", command=self._export_data).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(top, text="Close", command=self.destroy).pack(side=tk.RIGHT)
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(2, weight=1)
+        top.columnconfigure(3, weight=1)
+        ttk.Label(
+            top,
+            text="Finalize the exported Data Studio figure here while keeping the large preview front and center.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        controls_btn = ttk.Button(top, text="Controls…", command=self._open_controls)
+        controls_btn.grid(row=1, column=0, sticky="ew")
+        style_primary(controls_btn)
+        save_btn = ttk.Button(top, text="Save As…", command=self._save_as)
+        save_btn.grid(row=1, column=1, sticky="ew", padx=(8, 8))
+        style_success(save_btn)
+        export_btn = ttk.Button(top, text="Export Data…", command=self._export_data)
+        export_btn.grid(row=1, column=2, sticky="ew")
+        style_secondary(export_btn)
+        close_btn = ttk.Button(top, text="Close", command=self.destroy)
+        close_btn.grid(row=1, column=3, sticky="ew", padx=(8, 0))
+        style_danger(close_btn)
 
-        plot = ttk.Frame(self)
-        plot.grid(row=1, column=0, sticky="nsew")
+        stage_hdr = ttk.Frame(self, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=1, column=0, sticky="ew", pady=(10, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="Data Studio Export Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="Keep the finished chart visible, then open the control window only for detailed typography, color, and bounds changes.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, text="EXPORT", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        plot_card = PlotCard(cast(tk.Widget, self), title="Data Studio Export", status_text="Preview", show_header=True)
+        plot_card.grid(row=2, column=0, sticky="nsew")
+        plot = plot_card.body
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
@@ -51,6 +86,7 @@ class DataStudioExportEditor(tk.Toplevel):
         self._canvas = FigureCanvasTkAgg(self._fig, master=plot)
         self._canvas.draw()
         self._canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+        plot_card.register_canvas(self._canvas)
         try:
             self._toolbar = NavigationToolbar2Tk(self._canvas, plot, pack_toolbar=False)
             self._toolbar.update()
@@ -59,7 +95,12 @@ class DataStudioExportEditor(tk.Toplevel):
             self._toolbar = None
 
         self._coord_var = tk.StringVar(value="")
-        ttk.Label(plot, textvariable=self._coord_var, anchor="w").grid(row=2, column=0, sticky="ew", pady=(2, 0))
+        coord_lbl = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
+        coord_lbl.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+        try:
+            coord_lbl.configure(style="Muted.TLabel", padding=(2, 6, 2, 0))
+        except Exception:
+            pass
 
         try:
             self._nav = MatplotlibNavigator(canvas=self._canvas, ax=self._ax, status_label=self._coord_var)
@@ -133,13 +174,26 @@ class DataStudioExportEditor(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         win.rowconfigure(0, weight=1)
         win.columnconfigure(0, weight=1)
-        outer.rowconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
         outer.columnconfigure(0, weight=1)
 
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Export Controls", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Detailed styling lives here so the export preview stays spacious and focused.",
+            style="CardHint.TLabel",
+            wraplength=420,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="DATA STUDIO", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         canvas = tk.Canvas(outer, highlightthickness=0)
-        canvas.grid(row=0, column=0, sticky="nsew")
+        canvas.grid(row=1, column=0, sticky="nsew")
         ysb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        ysb.grid(row=0, column=1, sticky="ns")
+        ysb.grid(row=1, column=1, sticky="ns")
         canvas.configure(yscrollcommand=ysb.set)
 
         inner = ttk.Frame(canvas, padding=6)

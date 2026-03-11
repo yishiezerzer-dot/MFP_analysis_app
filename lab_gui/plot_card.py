@@ -41,13 +41,13 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Brand colours (keep in sync with app.py / app_chrome.py)
 # ---------------------------------------------------------------------------
-_CARD_BG = "#FCFEFE"
-_HEADER_FG = "#0F4C46"
-_STATUS_FG = "#64748B"
-_BORDER_COLOR = "#D7E5E2"
-_SHADOW_COLOR = "#E6EEEC"
-_CORNER_RADIUS = 14
-_SHADOW_OFFSET = 4
+_CARD_BG = "#F8F4EE"
+_HEADER_FG = "#12322F"
+_STATUS_FG = "#8B5128"
+_BORDER_COLOR = "#D3DBD7"
+_SHADOW_COLOR = "#DFE7E3"
+_CORNER_RADIUS = 18
+_SHADOW_OFFSET = 5
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ class PlotCard(ttk.Frame):
             _pbg = (
                 getattr(getattr(_s, "colors", None), "bg", None)
                 or _s.lookup("TFrame", "background")
-                or "#F4F7F7"
+                or "#E9EFEC"
             )
             self._card_canvas.configure(bg=str(_pbg))
         except Exception:
@@ -138,16 +138,23 @@ class PlotCard(ttk.Frame):
         # ---- header ----
         self._header_frame = ttk.Frame(self)
         if show_header:
-            self._header_frame.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 2))
+            self._header_frame.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 4))
         self._header_frame.columnconfigure(0, weight=1)
+
+        self._eyebrow_label = ttk.Label(
+            self._header_frame,
+            text="ANALYSIS VIEW",
+            style="AppEyebrow.TLabel",
+        )
+        self._eyebrow_label.grid(row=0, column=0, sticky="w")
 
         self._title_var = tk.StringVar(value=str(title))
         self._title_label = ttk.Label(
             self._header_frame,
             textvariable=self._title_var,
-            font=("Segoe UI Semibold", 11),
+            font=("Segoe UI Semibold", 12),
         )
-        self._title_label.grid(row=0, column=0, sticky="w")
+        self._title_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
         try:
             self._title_label.configure(foreground=_HEADER_FG)
         except Exception:
@@ -157,9 +164,10 @@ class PlotCard(ttk.Frame):
         self._status_label = ttk.Label(
             self._header_frame,
             textvariable=self._status_var,
-            font=("Segoe UI", 9),
+            font=("Segoe UI Semibold", 8),
+            style="CardStatus.TLabel",
         )
-        self._status_label.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self._status_label.grid(row=0, column=1, rowspan=2, sticky="e", padx=(8, 0))
         try:
             self._status_label.configure(foreground=_STATUS_FG)
         except Exception:
@@ -167,7 +175,7 @@ class PlotCard(ttk.Frame):
 
         # ---- body (callers grid their canvas here) ----
         self._body = ttk.Frame(self, style="Surface.TFrame")
-        self._body.grid(row=1, column=0, sticky="nsew", padx=14, pady=(2, 12))
+        self._body.grid(row=1, column=0, sticky="nsew", padx=16, pady=(4, 14))
         self._body.columnconfigure(0, weight=1)
         self._body.rowconfigure(0, weight=1)
         self._body.rowconfigure(1, weight=0)
@@ -231,6 +239,10 @@ class PlotCard(ttk.Frame):
             c, 0, 0, w - off - 1, h - off - 1, r,
             fill=_CARD_BG, outline=_BORDER_COLOR, tags="card_bg",
         )
+        try:
+            c.create_line(18, 58, max(18, w - off - 18), 58, fill=_BORDER_COLOR, width=1, tags="card_bg")
+        except Exception:
+            pass
 
     def register_canvas(self, canvas: Any) -> None:
         """Register the FigureCanvasTkAgg for automatic resize handling.

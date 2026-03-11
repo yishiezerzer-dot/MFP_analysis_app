@@ -43,6 +43,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import ScalarFormatter
 from matplotlib import colors as mcolors
 from matplotlib import cm
+from matplotlib.transforms import Bbox
 
 # Refactor step A: models extracted into lab_gui/*_model.py (UI-free).
 from lab_gui.lcms_model import (
@@ -105,7 +106,6 @@ from lab_gui.ftir_io import _try_parse_float_pair, _parse_ftir_xy_only, _parse_f
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 # App chrome (modern top bar).
-from lab_gui.app_chrome import AppChrome
 from lab_gui.plot_card import PlotCard
 
 # Centralised styling helpers.
@@ -243,6 +243,32 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
                     continue
         return out
 
+    def _encode_positions(positions: Dict[str, Any]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for spec_id, items in (positions or {}).items():
+            rows: List[Dict[str, Any]] = []
+            if not isinstance(items, dict):
+                continue
+            for key, payload in items.items():
+                if not isinstance(payload, dict):
+                    continue
+                xy = payload.get("xytext")
+                if not isinstance(xy, (list, tuple)) or len(xy) != 2:
+                    continue
+                try:
+                    rows.append(
+                        {
+                            "key": str(key),
+                            "xytext": [float(xy[0]), float(xy[1])],
+                            "locked": bool(payload.get("locked", False)),
+                        }
+                    )
+                except Exception:
+                    continue
+            if rows:
+                out[str(spec_id)] = rows
+        return out
+
     rt_unit = "minutes"
     try:
         rt_unit = str(app.rt_unit_var.get() or "minutes")
@@ -297,6 +323,7 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
                 "last_scan_index": (None if sess.last_scan_index is None else int(sess.last_scan_index)),
                 "last_selected_rt_min": (None if sess.last_selected_rt_min is None else float(sess.last_selected_rt_min)),
                 "linked_uv_path": linked_uv_path,
+                "spec_label_positions": _encode_positions(getattr(sess, "spec_label_positions", {}) or {}),
             }
         )
         annotations_by_mzml[str(sess.path)] = _encode_annotations(
@@ -1295,19 +1322,46 @@ class FTIRExportEditor(tk.Toplevel):
             self.geometry("1500x900")
 
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
 
-        top = ttk.Frame(self, padding=6)
+        top = ttk.LabelFrame(self, text="Export Actions", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(2, weight=1)
+        ttk.Label(
+            top,
+            text="Finalize the FTIR export styling here while keeping the figure preview large and uninterrupted.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
         controls_btn = ttk.Button(top, text="Controls…", command=self._open_controls_window)
-        controls_btn.pack(side=tk.LEFT)
+        controls_btn.grid(row=1, column=0, sticky="ew")
+        style_primary(controls_btn)
         saveas_btn = ttk.Button(top, text="Save As…", command=self._save_as)
-        saveas_btn.pack(side=tk.LEFT, padx=(8, 0))
+        saveas_btn.grid(row=1, column=1, sticky="ew", padx=(8, 8))
+        style_success(saveas_btn)
         close_btn = ttk.Button(top, text="Close", command=self._on_close)
-        close_btn.pack(side=tk.RIGHT)
+        close_btn.grid(row=1, column=2, sticky="ew")
+        style_secondary(close_btn)
 
-        plot = ttk.Frame(self)
-        plot.grid(row=1, column=0, sticky="nsew")
+        stage_hdr = ttk.Frame(self, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=1, column=0, sticky="ew", pady=(10, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="FTIR Export Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="Review the final FTIR composition here and open detailed controls only when you need to tune styling.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, text="FTIR", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        plot_card = PlotCard(cast(tk.Widget, self), title="FTIR Export", status_text="Preview", show_header=True)
+        plot_card.grid(row=2, column=0, sticky="nsew")
+        plot = plot_card.body
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(0, weight=1)
         plot.rowconfigure(1, weight=0)
@@ -1319,6 +1373,7 @@ class FTIRExportEditor(tk.Toplevel):
         self._canvas = FigureCanvasTkAgg(self._fig, master=plot)
         self._canvas.draw()
         self._canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+        plot_card.register_canvas(self._canvas)
 
         try:
             self._toolbar = NavigationToolbar2Tk(self._canvas, plot, pack_toolbar=False)
@@ -1336,6 +1391,10 @@ class FTIRExportEditor(tk.Toplevel):
         self._coord_var = tk.StringVar(value="")
         self._coord_label = ttk.Label(plot, textvariable=self._coord_var, anchor="w")
         self._coord_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+        try:
+            self._coord_label.configure(style="Muted.TLabel", padding=(2, 6, 2, 0))
+        except Exception:
+            pass
 
         try:
             self._mpl_nav = MatplotlibNavigator(
@@ -1520,14 +1579,27 @@ class FTIRExportEditor(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         win.rowconfigure(0, weight=1)
         win.columnconfigure(0, weight=1)
-        outer.rowconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
         outer.columnconfigure(0, weight=1)
 
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="FTIR Export Controls", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="This window contains detailed FTIR export styling so the main preview can stay focused on the figure.",
+            style="CardHint.TLabel",
+            wraplength=500,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="FTIR", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         canvas = tk.Canvas(outer, highlightthickness=0)
-        canvas.grid(row=0, column=0, sticky="nsew")
+        canvas.grid(row=1, column=0, sticky="nsew")
         self._controls_scroll_canvas = canvas
         ysb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        ysb.grid(row=0, column=1, sticky="ns")
+        ysb.grid(row=1, column=1, sticky="ns")
         canvas.configure(yscrollcommand=ysb.set)
 
         inner = ttk.Frame(canvas, padding=6)
@@ -2855,12 +2927,25 @@ class AlignmentDiagnostics(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        outer.rowconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
         outer.columnconfigure(0, weight=1)
+
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Alignment Diagnostics", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Inspect anchor quality, residual spread, and selected UV↔MS alignment points before editing the anchor set.",
+            style="CardHint.TLabel",
+            wraplength=820,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="UV↔MS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
         # Plot area
         plotf = ttk.Frame(outer)
-        plotf.grid(row=0, column=0, sticky="nsew")
+        plotf.grid(row=1, column=0, sticky="nsew")
         plotf.rowconfigure(0, weight=1)
         plotf.columnconfigure(0, weight=1)
 
@@ -2881,7 +2966,7 @@ class AlignmentDiagnostics(tk.Toplevel):
 
         # Bottom area: stats + table + buttons
         bottom = ttk.Frame(outer)
-        bottom.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        bottom.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         bottom.columnconfigure(0, weight=1)
         bottom.columnconfigure(1, weight=3)
 
@@ -2925,7 +3010,7 @@ class AlignmentDiagnostics(tk.Toplevel):
         self._tree.configure(yscrollcommand=ysb.set)
 
         btns = ttk.Frame(outer)
-        btns.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        btns.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         btns.columnconfigure(0, weight=1)
 
         self._btn_refresh = ttk.Button(btns, text="Refresh", command=self.refresh)
@@ -2934,9 +3019,13 @@ class AlignmentDiagnostics(tk.Toplevel):
         close_btn = ttk.Button(btns, text="Close", command=self._on_close)
 
         self._btn_refresh.pack(side=tk.LEFT)
+        style_secondary(self._btn_refresh)
         self._btn_remove.pack(side=tk.LEFT, padx=(10, 0))
+        style_danger(self._btn_remove)
         self._btn_export.pack(side=tk.LEFT, padx=(10, 0))
+        style_success(self._btn_export)
         close_btn.pack(side=tk.RIGHT)
+        style_secondary(close_btn)
 
         try:
             self._tree.bind("<<TreeviewSelect>>", self._on_select, add=True)
@@ -3309,14 +3398,28 @@ class SIMWindow(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        outer.rowconfigure(1, weight=1)
+        outer.rowconfigure(2, weight=1)
         outer.columnconfigure(0, weight=1)
 
-        self._header_var = tk.StringVar(value="")
-        ttk.Label(outer, textvariable=self._header_var, foreground=TEXT_MUTED).grid(row=0, column=0, sticky="w")
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew")
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Extracted Ion Chromatogram", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Track the target ion trace and jump directly back into the active mzML session from the chromatogram.",
+            style="CardHint.TLabel",
+            wraplength=780,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="EIC", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
-        plotf = ttk.Frame(outer)
-        plotf.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+        self._header_var = tk.StringVar(value="")
+        ttk.Label(outer, textvariable=self._header_var, style="Muted.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+
+        plot_card = PlotCard(cast(tk.Widget, outer), title="EIC Chromatogram", status_text="Live view", show_header=True)
+        plot_card.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        plotf = plot_card.body
         plotf.rowconfigure(0, weight=1)
         plotf.columnconfigure(0, weight=1)
 
@@ -3324,18 +3427,26 @@ class SIMWindow(tk.Toplevel):
         self._ax = self._fig.add_subplot(1, 1, 1)
         self._canvas = FigureCanvasTkAgg(self._fig, master=plotf)
         self._canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+        plot_card.register_canvas(self._canvas)
         try:
             toolbar = NavigationToolbar2Tk(self._canvas, plotf)
             toolbar.update()
+            try:
+                if hasattr(self.app, "_style_mpl_toolbar"):
+                    self.app._style_mpl_toolbar(toolbar)
+            except Exception:
+                pass
         except Exception:
             toolbar = None
 
         btns = ttk.Frame(outer)
-        btns.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        btns.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         export_btn = ttk.Button(btns, text="Export EIC CSV…", command=self._export_csv)
         close_btn = ttk.Button(btns, text="Close", command=self._on_close)
         export_btn.pack(side=tk.LEFT)
+        style_success(export_btn)
         close_btn.pack(side=tk.RIGHT)
+        style_secondary(close_btn)
 
         try:
             self._cid_click = self._canvas.mpl_connect("button_press_event", self._on_click)
@@ -3583,12 +3694,25 @@ class InstructionWindow(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        outer.rowconfigure(1, weight=1)
+        outer.rowconfigure(2, weight=1)
         outer.columnconfigure(0, weight=1)
+
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew")
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="User Guide", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Search the documentation, jump between sections, and copy individual guidance without leaving the main workspace.",
+            style="CardHint.TLabel",
+            wraplength=860,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="GUIDE", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
         # Top: search
         top = ttk.Frame(outer)
-        top.grid(row=0, column=0, sticky="ew")
+        top.grid(row=1, column=0, sticky="ew", pady=(10, 0))
         top.columnconfigure(1, weight=1)
 
         ttk.Label(top, text="Search").grid(row=0, column=0, sticky="w")
@@ -3612,7 +3736,7 @@ class InstructionWindow(tk.Toplevel):
 
         # Middle: left nav + right text
         mid = ttk.Frame(outer)
-        mid.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        mid.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
         mid.rowconfigure(0, weight=1)
         mid.columnconfigure(0, weight=0)
         mid.columnconfigure(1, weight=1)
@@ -3649,7 +3773,7 @@ class InstructionWindow(tk.Toplevel):
 
         # Bottom: build info
         bottom = ttk.Frame(outer)
-        bottom.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        bottom.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         bottom.columnconfigure(0, weight=1)
 
         try:
@@ -3658,7 +3782,9 @@ class InstructionWindow(tk.Toplevel):
             built = ""
         info = f"{APP_NAME} • v{APP_VERSION} • {built}".strip(" •")
         ttk.Label(bottom, text=info).grid(row=0, column=0, sticky="w")
-        ttk.Button(bottom, text="Close", command=self._on_close).grid(row=0, column=1, sticky="e")
+        close_btn = ttk.Button(bottom, text="Close", command=self._on_close)
+        close_btn.grid(row=0, column=1, sticky="e")
+        style_secondary(close_btn)
 
         try:
             self._nav.bind("<<TreeviewSelect>>", self._on_select_section, add=True)
@@ -3827,13 +3953,26 @@ class LabelExplanationWindow(tk.Toplevel):
         outer.grid(row=0, column=0, sticky="nsew")
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        outer.rowconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
         outer.columnconfigure(0, weight=1)
 
+        hdr = ttk.Frame(outer, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Label Explanation", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Review generated label explanations in a dedicated reading surface without losing the active analysis context.",
+            style="CardHint.TLabel",
+            wraplength=560,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="DETAIL", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         self._text = tk.Text(outer, wrap="word")
-        self._text.grid(row=0, column=0, sticky="nsew")
+        self._text.grid(row=1, column=0, sticky="nsew")
         sb = ttk.Scrollbar(outer, orient="vertical", command=self._text.yview)
-        sb.grid(row=0, column=1, sticky="ns")
+        sb.grid(row=1, column=1, sticky="ns")
         self._text.configure(yscrollcommand=sb.set)
         try:
             self._text.configure(state="disabled")
@@ -3841,9 +3980,11 @@ class LabelExplanationWindow(tk.Toplevel):
             pass
 
         bottom = ttk.Frame(outer)
-        bottom.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        bottom.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         bottom.columnconfigure(0, weight=1)
-        ttk.Button(bottom, text="Close", command=self._on_close).grid(row=0, column=1, sticky="e")
+        close_btn = ttk.Button(bottom, text="Close", command=self._on_close)
+        close_btn.grid(row=0, column=1, sticky="e")
+        style_secondary(close_btn)
 
         try:
             self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -3894,7 +4035,7 @@ class LCMSView(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        toolbar = ttk.Frame(self, padding=(8, 8, 8, 10))
+        toolbar = ttk.Frame(self, style="ShellPanel.TFrame", padding=(10, 10, 10, 12))
         toolbar.grid(row=0, column=0, sticky="ew")
 
         content = ttk.Frame(self)
@@ -3902,14 +4043,28 @@ class LCMSView(ttk.Frame):
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
-        # Let the user resize left controls vs plots
-        paned = ttk.Panedwindow(content, orient="horizontal")
+        # Let the user resize left controls vs plots.
+        # Use a classic PanedWindow here because it honors the initial sash
+        # position more reliably on Windows than ttk.Panedwindow.
+        paned = tk.PanedWindow(
+            content,
+            orient=tk.HORIZONTAL,
+            sashwidth=8,
+            showhandle=False,
+            opaqueresize=True,
+            borderwidth=0,
+            relief="flat",
+            bg="#D9E1DD",
+        )
         paned.grid(row=0, column=0, sticky="nsew")
 
         # --- Toolbar ---
         btn_w = 13
-        file_group = ttk.Frame(toolbar)
-        file_group.pack(side=tk.LEFT)
+        file_shell = ttk.Frame(toolbar, style="Surface.TFrame", padding=(12, 8, 12, 10))
+        file_shell.pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Label(file_shell, text="LOAD", style="ToolbarEyebrow.TLabel").pack(anchor="w")
+        file_group = ttk.Frame(file_shell, style="Surface.TFrame")
+        file_group.pack(anchor="w", pady=(4, 0))
 
         b_open = ttk.Button(file_group, text="Open mzML…", command=a._open_mzml, width=btn_w)
         b_open.pack(side=tk.LEFT)
@@ -3921,11 +4076,11 @@ class LCMSView(ttk.Frame):
         style_primary(b_uv)
         ToolTip.attach(b_uv, TOOLTIP_TEXT["load_uv_csv"])
 
-        sep_actions = ttk.Separator(toolbar, orient="vertical")
-        sep_actions.pack(side=tk.LEFT, fill="y", padx=12)
-
-        view_group = ttk.Frame(toolbar)
-        view_group.pack(side=tk.LEFT)
+        view_shell = ttk.Frame(toolbar, style="Surface.TFrame", padding=(12, 8, 12, 10))
+        view_shell.pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Label(view_shell, text="VIEW", style="ToolbarEyebrow.TLabel").pack(anchor="w")
+        view_group = ttk.Frame(view_shell, style="Surface.TFrame")
+        view_group.pack(anchor="w", pady=(4, 0))
 
         export_btn = ttk.Menubutton(view_group, text="Export…", width=btn_w)
         export_btn.pack(side=tk.LEFT)
@@ -3952,11 +4107,15 @@ class LCMSView(ttk.Frame):
         style_toolbar(b_reset)
         ToolTip.attach(b_reset, TOOLTIP_TEXT["reset_view"])
 
-        sep_overlay = ttk.Separator(toolbar, orient="vertical")
-        sep_overlay.pack(side=tk.LEFT, fill="y", padx=12)
+        hint_shell = ttk.Frame(toolbar, style="Surface.TFrame", padding=(12, 8, 12, 10))
+        hint_shell.pack(side=tk.RIGHT, fill=tk.Y)
+        ttk.Label(hint_shell, text="WORKFLOW TIP", style="ToolbarEyebrow.TLabel").pack(anchor="e")
 
-        overlay_frame = ttk.Frame(toolbar)
-        overlay_frame.pack(side=tk.LEFT)
+        overlay_shell = ttk.Frame(toolbar, style="Surface.TFrame", padding=(12, 8, 12, 10))
+        overlay_shell.pack(side=tk.LEFT, padx=(0, 8), fill=tk.X, expand=True)
+        ttk.Label(overlay_shell, text="OVERLAY", style="ToolbarEyebrow.TLabel").pack(anchor="w")
+        overlay_frame = ttk.Frame(overlay_shell, style="Surface.TFrame")
+        overlay_frame.pack(anchor="w", pady=(4, 0), fill=tk.X, expand=True)
         ov_start = ttk.Button(overlay_frame, text="Overlay Selected", command=a._start_overlay_selected)
         ov_start.pack(side=tk.LEFT)
         style_success(ov_start)
@@ -4016,15 +4175,25 @@ class LCMSView(ttk.Frame):
         ToolTip.attach(ov_stack, TOOLTIP_TEXT["overlay_stack"])
         ToolTip.attach(ov_persist, TOOLTIP_TEXT["overlay_persist"])
 
-        hint = ttk.Label(toolbar, text="Tip: Click TIC/UV to select RT • Right-click label to edit", style="ToolbarHint.TLabel")
-        hint.pack(side=tk.RIGHT)
+        hint = ttk.Label(
+            hint_shell,
+            text="Click TIC or UV to select RT. Right-click a label to edit it without leaving the plot stage.",
+            style="ToolbarHint.TLabel",
+            justify="right",
+            wraplength=290,
+        )
+        hint.pack(anchor="e", pady=(4, 0))
 
         # --- Left Control Panel (scrollable) ---
-        left_outer = ttk.Frame(paned)
+        left_outer = ttk.Frame(paned, width=420)
         left_outer.columnconfigure(0, weight=1)
         left_outer.rowconfigure(0, weight=1)
+        try:
+            left_outer.grid_propagate(False)
+        except Exception:
+            pass
 
-        left_canvas = tk.Canvas(left_outer, highlightthickness=0, bd=0)
+        left_canvas = tk.Canvas(left_outer, highlightthickness=0, bd=0, width=420)
         left_scroll = ttk.Scrollbar(left_outer, orient="vertical", command=left_canvas.yview)
         left_canvas.configure(yscrollcommand=left_scroll.set)
         left_canvas.grid(row=0, column=0, sticky="nsew")
@@ -4112,20 +4281,89 @@ class LCMSView(ttk.Frame):
         plot = ttk.Frame(paned)
         plot.columnconfigure(0, weight=1)
         plot.rowconfigure(2, weight=1)
+        try:
+            plot.grid_propagate(True)
+        except Exception:
+            pass
 
         try:
-            paned.add(left_outer)
-            paned.add(plot)
+            paned.add(left_outer, minsize=400, stretch="never")
+            paned.add(plot, minsize=860, stretch="always")
         except Exception:
             left_outer.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
             plot.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
+        def _set_initial_lcms_split() -> None:
+            try:
+                total_w = int(content.winfo_width())
+            except Exception:
+                total_w = 0
+            target = 440
+            if total_w > 0:
+                target = max(420, min(520, int(total_w * 0.30)))
+            try:
+                paned.sash_place(0, target, 1)
+            except Exception:
+                try:
+                    paned.tk.call(str(paned), "sash", "place", 0, target, 1)
+                except Exception:
+                    pass
+            try:
+                left_outer.configure(width=target)
+                left_canvas.configure(width=max(400, target - 8))
+            except Exception:
+                pass
+
+        try:
+            content.after_idle(_set_initial_lcms_split)
+            content.after(120, _set_initial_lcms_split)
+            content.after(320, _set_initial_lcms_split)
+            content.after(700, _set_initial_lcms_split)
+        except Exception:
+            pass
+
         # --- Workspace sidebar (existing LCMS sidebar UI) ---
         # NOTE: this assigns widget references back onto the App (`a`) to preserve
         # behavior without refactoring all callbacks.
+        session_card = ttk.LabelFrame(left, text="Session Snapshot", padding=10, style="Card.TLabelframe")
+        session_card.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        session_card.columnconfigure(1, weight=1)
+
+        ttk.Label(session_card, text="LCMS studio", style="SectionTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(
+            session_card,
+            text="Monitor the active file, linkage state, and the next workflow step without opening diagnostics.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
+
+        ttk.Label(session_card, text="Active mzML", style="AppEyebrow.TLabel").grid(row=2, column=0, sticky="w")
+        ttk.Label(session_card, textvariable=a._ctx_mzml_var).grid(row=2, column=1, sticky="w")
+        ttk.Label(session_card, text="Linked UV", style="AppEyebrow.TLabel").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, textvariable=a._ctx_uv_var).grid(row=3, column=1, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, text="Current RT", style="AppEyebrow.TLabel").grid(row=4, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, textvariable=a._ctx_rt_var).grid(row=4, column=1, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, text="Polarity", style="AppEyebrow.TLabel").grid(row=5, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, textvariable=a._ctx_pol_var).grid(row=5, column=1, sticky="w", pady=(4, 0))
+
+        workflow_shell = ttk.Frame(session_card, style="Surface.TFrame")
+        workflow_shell.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        workflow_shell.columnconfigure(0, weight=1)
+        ttk.Label(workflow_shell, text="Workflow", style="AppEyebrow.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(workflow_shell, textvariable=a._ctx_workflow_var, style="Muted.TLabel", wraplength=300, justify="left").grid(
+            row=1, column=0, sticky="w", pady=(2, 0)
+        )
+        ttk.Label(workflow_shell, text="Next step", style="AppEyebrow.TLabel").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(workflow_shell, textvariable=a._ctx_next_var, wraplength=300, justify="left").grid(row=3, column=0, sticky="w", pady=(2, 0))
+
         ws = ttk.LabelFrame(left, text="Datasets & UV", padding=8, style="Card.TLabelframe")
-        ws.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        ws.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         ws.columnconfigure(0, weight=1)
+
+        ttk.Label(ws, text="Manage mzML sessions, overlay membership, and UV links.", style="CardHint.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
 
         tree = ttk.Treeview(
             ws,
@@ -4143,15 +4381,15 @@ class LCMSView(ttk.Frame):
         tree.column("overlay", width=60, stretch=False, anchor="center")
         tree.column("active", width=26, stretch=False, anchor="center")
         tree.column("color", width=54, stretch=False, anchor="center")
-        tree.column("name", width=200, stretch=True)
-        tree.column("ms1", width=70, stretch=False, anchor="e")
-        tree.column("pol", width=70, stretch=False)
-        tree.grid(row=0, column=0, sticky="ew")
+        tree.column("name", width=210, stretch=True)
+        tree.column("ms1", width=60, stretch=False, anchor="e")
+        tree.column("pol", width=58, stretch=False)
+        tree.grid(row=1, column=0, sticky="ew")
         a._ws_tree = tree
         a._configure_lcms_tree(tree)
 
         ws_btns = ttk.Frame(ws)
-        ws_btns.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        ws_btns.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         ws_btns.columnconfigure(0, weight=1)
         ws_btns.columnconfigure(1, weight=1)
         _b_add_mzml = ttk.Button(ws_btns, text="Add mzML…", command=a._open_mzml_many)
@@ -4166,16 +4404,16 @@ class LCMSView(ttk.Frame):
         uv_tree.heading("name", text="UV CSV")
         uv_tree.heading("rt", text="RT range")
         uv_tree.heading("sig", text="Signal")
-        uv_tree.column("linked", width=110, stretch=False)
-        uv_tree.column("name", width=180, stretch=True)
-        uv_tree.column("rt", width=120, stretch=False)
-        uv_tree.column("sig", width=110, stretch=False)
-        uv_tree.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        uv_tree.column("linked", width=104, stretch=False)
+        uv_tree.column("name", width=190, stretch=True)
+        uv_tree.column("rt", width=104, stretch=False)
+        uv_tree.column("sig", width=88, stretch=False)
+        uv_tree.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         a._uv_ws_tree = uv_tree
         a._configure_lcms_tree(uv_tree)
 
         uv_btns = ttk.Frame(ws)
-        uv_btns.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        uv_btns.grid(row=4, column=0, sticky="ew", pady=(8, 0))
         uv_btns.columnconfigure(0, weight=1)
         uv_btns.columnconfigure(1, weight=1)
         _b_add_uv = ttk.Button(uv_btns, text="Add UV CSV…", command=a._open_uv_csv_many)
@@ -4207,25 +4445,29 @@ class LCMSView(ttk.Frame):
             pass
 
         quick = ttk.LabelFrame(left, text="Primary Actions", padding=8, style="Card.TLabelframe")
-        quick.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        quick.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         quick.columnconfigure(0, weight=1)
+        quick.columnconfigure(1, weight=1)
+        ttk.Label(quick, text="The highest-value actions stay visible here at all times.", style="CardHint.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
+        )
         quick_eic_btn = ttk.Button(quick, text="EIC (new chromatogram)…", command=a._open_sim_dialog)
-        quick_eic_btn.grid(row=0, column=0, sticky="ew")
+        quick_eic_btn.grid(row=1, column=0, columnspan=2, sticky="ew")
         style_success(quick_eic_btn)
         a._register_lcms_action_widget("quick_eic", quick_eic_btn)
         quick_jump_btn = ttk.Button(quick, text="Jump to m/z…", command=a._open_jump_to_mz_dialog)
-        quick_jump_btn.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        quick_jump_btn.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         style_secondary(quick_jump_btn)
         a._register_lcms_action_widget("quick_jump_mz", quick_jump_btn)
         quick_export_btn = ttk.Button(quick, text="Export labels (all scans)…", command=a._export_all_labels_xlsx)
-        quick_export_btn.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        quick_export_btn.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=(6, 0))
         style_secondary(quick_export_btn)
         a._register_lcms_action_widget("quick_export_labels", quick_export_btn)
 
         adv = ttk.LabelFrame(left, text="Workflow & Tools", padding=8, style="Card.TLabelframe")
-        adv.grid(row=2, column=0, sticky="nsew")
+        adv.grid(row=3, column=0, sticky="nsew")
         adv.columnconfigure(0, weight=1)
-        left.rowconfigure(2, weight=1)
+        left.rowconfigure(3, weight=1)
 
         adv_hdr = ttk.Frame(adv)
         adv_hdr.grid(row=0, column=0, sticky="ew")
@@ -4252,7 +4494,7 @@ class LCMSView(ttk.Frame):
             row=2, column=0, sticky="w", pady=(4, 0)
         )
 
-        nb = ttk.Notebook(adv_body)
+        nb = ttk.Notebook(adv_body, style="Content.TNotebook")
         nb.grid(row=3, column=0, sticky="nsew", pady=(10, 0))
         adv_body.rowconfigure(3, weight=1)
         a._sidebar_notebook = nb
@@ -4450,8 +4692,11 @@ class LCMSView(ttk.Frame):
         ann_btn = ttk.Button(more_ann, text="Annotate Peaks…", command=a._open_annotation_settings)
         ann_btn.pack(side=tk.LEFT)
         a._register_lcms_action_widget("annotate_dialog", ann_btn)
+        auto_arrange_btn = ttk.Button(more_ann, text="Auto Arrange Labels", command=a._run_auto_arrange_lcms_labels)
+        auto_arrange_btn.pack(side=tk.LEFT, padx=(8, 0))
         custom_btn = ttk.Button(more_ann, text="Custom Labels…", command=a._open_custom_labels)
         custom_btn.pack(side=tk.LEFT, padx=(8, 0))
+        style_secondary(auto_arrange_btn)
         a._register_lcms_action_widget("custom_labels", custom_btn)
         ToolTip.attach(ann_btn, TOOLTIP_TEXT["annotate_peaks"])
         ToolTip.attach(custom_btn, TOOLTIP_TEXT["custom_labels"])
@@ -4496,14 +4741,37 @@ class LCMSView(ttk.Frame):
             pass
         a._apply_advanced_visibility()
 
-        a._now_view_var = tk.StringVar(value="")
-        now_lbl = ttk.Label(plot, textvariable=a._now_view_var, padding=(6, 6), style="Muted.TLabel")
-        now_lbl.grid(row=0, column=0, sticky="ew")
+        a._now_stage_var = tk.StringVar(value="IDLE")
+        a._now_view_var = tk.StringVar(value="Load an mzML session to begin the LCMS workflow.")
+        stage_hdr = ttk.Frame(plot, style="ShellPanel.TFrame", padding=(16, 14))
+        stage_hdr.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="LCMS Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="Compare chromatograms, inspect spectra, and keep annotation work centered on the plot stage.",
+            style="CardHint.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        stage_meta = ttk.Frame(stage_hdr, style="ShellPanel.TFrame")
+        stage_meta.grid(row=0, column=1, rowspan=2, sticky="e", padx=(16, 0))
+        stage_meta.columnconfigure(0, weight=1)
+        now_lbl = ttk.Label(stage_meta, textvariable=a._now_stage_var, style="CardStatus.TLabel")
+        now_lbl.grid(row=0, column=0, sticky="e")
+        ttk.Label(
+            stage_meta,
+            textvariable=a._now_view_var,
+            style="CardMeta.TLabel",
+            justify="right",
+            wraplength=480,
+        ).grid(row=1, column=0, sticky="e", pady=(6, 0))
 
         # Overlay legend (colors + dataset names)
-        ov_leg = ttk.LabelFrame(plot, text="Overlay legend", padding=(6, 4), style="Card.TLabelframe")
+        ov_leg = ttk.LabelFrame(plot, text="Comparison Set", padding=(6, 4), style="Card.TLabelframe")
         ov_leg.grid(row=1, column=0, sticky="ew", pady=(0, 6))
         ov_leg.columnconfigure(0, weight=1)
+        ttk.Label(ov_leg, text="Active overlay members, their colors, and quick scan context.", style="CardHint.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(0, 6)
+        )
 
         ov_tree = ttk.Treeview(
             ov_leg,
@@ -4522,9 +4790,9 @@ class LCMSView(ttk.Frame):
         ov_tree.column("ms1", width=70, stretch=False, anchor="e")
         ov_tree.column("pol", width=70, stretch=False)
         ov_tree.column("status", width=120, stretch=True)
-        ov_tree.grid(row=0, column=0, sticky="ew")
+        ov_tree.grid(row=1, column=0, sticky="ew")
         ov_sb = ttk.Scrollbar(ov_leg, orient="vertical", command=ov_tree.yview)
-        ov_sb.grid(row=0, column=1, sticky="ns")
+        ov_sb.grid(row=1, column=1, sticky="ns")
         ov_tree.configure(yscrollcommand=ov_sb.set)
         a._overlay_legend_tree = ov_tree
         a._overlay_legend_frame = ov_leg
@@ -4538,8 +4806,32 @@ class LCMSView(ttk.Frame):
         plot_paned = ttk.Panedwindow(plot, orient=tk.VERTICAL)
         plot_paned.grid(row=2, column=0, sticky="nsew")
 
-        fig_card = PlotCard(plot_paned, title="LCMS", show_header=True)
+        fig_card = PlotCard(plot_paned, title="Chromatograms & Spectrum", status_text="Live view", show_header=True)
         fig_frame = fig_card.body
+
+        empty_state = ttk.Frame(fig_frame, style="ShellPanel.TFrame", padding=(24, 22))
+        empty_state.columnconfigure(0, weight=1)
+        title_row = ttk.Frame(empty_state, style="ShellPanel.TFrame")
+        title_row.grid(row=0, column=0, sticky="ew")
+        title_row.columnconfigure(0, weight=1)
+        ttk.Label(title_row, text="No LCMS Session Loaded", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        hide_hint_btn = ttk.Button(title_row, text="Hide hint", command=a._dismiss_lcms_empty_state)
+        hide_hint_btn.grid(row=0, column=1, sticky="e")
+        style_secondary(hide_hint_btn)
+        a._lcms_empty_body_var = tk.StringVar(
+            value="Open an mzML file to populate the TIC, spectrum, and UV stage. Once loaded, you can add UV data, compare overlays, and annotate peaks from one workspace."
+        )
+        ttk.Label(
+            empty_state,
+            textvariable=a._lcms_empty_body_var,
+            style="CardHint.TLabel",
+            wraplength=460,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        empty_primary = ttk.Button(empty_state, text="Open mzML…", command=a._open_mzml)
+        empty_primary.grid(row=2, column=0, sticky="w", pady=(14, 0))
+        style_primary(empty_primary)
+        a._lcms_empty_state = empty_state
 
         diag_frame = ttk.Frame(plot_paned)
         a._build_diagnostics_panel(diag_frame)
@@ -4548,7 +4840,7 @@ class LCMSView(ttk.Frame):
         a._diag_frame = diag_frame
 
         try:
-            plot_paned.add(fig_card, weight=4)
+            plot_paned.add(fig_card, weight=5)
             plot_paned.add(diag_frame, weight=1)
         except Exception:
             plot_paned.add(fig_card)
@@ -4560,22 +4852,41 @@ class LCMSView(ttk.Frame):
             pass
 
         # Figure (axes are created dynamically based on panel visibility)
-        fig = Figure(figsize=(10.5, 8.5), dpi=100)
+        fig = Figure(figsize=(11.4, 9.6), dpi=100)
         canvas = FigureCanvasTkAgg(fig, master=fig_frame)
         canvas.draw()
         canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
-
         try:
-            toolbar_mpl = NavigationToolbar2Tk(canvas, fig_frame, pack_toolbar=False)
+            empty_state.place(relx=0.5, rely=0.42, anchor="center")
+            empty_state.lift()
+        except Exception:
+            pass
+
+        toolbar_row = ttk.Frame(fig_frame, style="Surface.TFrame")
+        toolbar_row.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        toolbar_row.columnconfigure(1, weight=1)
+        toolbar_host = ttk.Frame(toolbar_row, style="Surface.TFrame")
+        toolbar_host.grid(row=0, column=0, sticky="w")
+        try:
+            toolbar_mpl = NavigationToolbar2Tk(canvas, toolbar_host, pack_toolbar=False)
             toolbar_mpl.update()
-            toolbar_mpl.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+            toolbar_mpl.grid(row=0, column=0, sticky="w")
             a._style_mpl_toolbar(toolbar_mpl)
         except Exception:
             toolbar_mpl = None
 
         coord_var = tk.StringVar(value="")
-        coord_lbl = ttk.Label(fig_frame, textvariable=coord_var, anchor="w")
-        coord_lbl.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        coord_lbl = ttk.Label(toolbar_row, textvariable=coord_var, anchor="w", style="Muted.TLabel")
+        coord_lbl.grid(row=0, column=1, sticky="ew", padx=(12, 12))
+
+        quick_tools = ttk.Frame(toolbar_row, style="Surface.TFrame")
+        quick_tools.grid(row=0, column=2, sticky="e")
+        quick_reset = ttk.Button(quick_tools, text="Reset View", command=a._reset_view_all)
+        quick_reset.grid(row=0, column=0, sticky="e")
+        style_secondary(quick_reset)
+        quick_graph = ttk.Button(quick_tools, text="Graph Settings…", command=a._open_graph_settings)
+        quick_graph.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        style_secondary(quick_graph)
 
         a._fig = fig
         a._ax_tic = None
@@ -4838,14 +5149,57 @@ class FTIRView(ttk.Frame):
 
         left.columnconfigure(0, weight=1)
         left.rowconfigure(2, weight=1)
-        left.rowconfigure(4, weight=1)
+        left.rowconfigure(3, weight=2)
+
+        session_card = ttk.Frame(left, style="ShellPanel.TFrame", padding=(14, 12))
+        session_card.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        session_card.columnconfigure(1, weight=1)
+
+        ttk.Label(session_card, text="FTIR studio", style="SectionTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(
+            session_card,
+            text="Keep the active workspace, overlay configuration, and current analysis state visible while you work.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        ttk.Label(session_card, text="Active workspace", style="AppEyebrow.TLabel").grid(row=2, column=0, sticky="w")
+        ttk.Label(session_card, textvariable=self._workspace_select_var).grid(row=2, column=1, sticky="w")
+        ttk.Label(session_card, text="Overlay palette", style="AppEyebrow.TLabel").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, textvariable=self._overlay_color_scheme_var).grid(row=3, column=1, sticky="w", pady=(4, 0))
+        ttk.Label(session_card, text="Axis direction", style="AppEyebrow.TLabel").grid(row=4, column=0, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(
+            session_card,
+            text="Reverse x-axis",
+            variable=self._reverse_x_var,
+            command=self._on_toggle_reverse,
+        ).grid(row=4, column=1, sticky="w", pady=(4, 0))
+
+        ftir_status_shell = ttk.Frame(session_card, style="Surface.TFrame")
+        ftir_status_shell.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        ftir_status_shell.columnconfigure(0, weight=1)
+        ttk.Label(ftir_status_shell, text="Live status", style="AppEyebrow.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            ftir_status_shell,
+            textvariable=self._status_var,
+            style="Muted.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         wsblk = ttk.LabelFrame(left, text="Workspaces", padding=(8, 6, 8, 8))
-        wsblk.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        wsblk.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         wsblk.columnconfigure(1, weight=1)
-        ttk.Label(wsblk, text="Workspace").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            wsblk,
+            text="Switch between FTIR workspaces or create a fresh collection for another experiment.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        ttk.Label(wsblk, text="Workspace").grid(row=1, column=0, sticky="w")
         ws_combo = ttk.Combobox(wsblk, textvariable=self._workspace_select_var, state="readonly")
-        ws_combo.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+        ws_combo.grid(row=1, column=1, sticky="ew", padx=(8, 0))
         self._ws_combo = ws_combo
         try:
             ToolTip.attach(ws_combo, TOOLTIP_TEXT.get("ftir_ws_combo", ""))
@@ -4857,7 +5211,7 @@ class FTIRView(ttk.Frame):
             pass
 
         ws_btns = ttk.Frame(wsblk)
-        ws_btns.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ws_btns.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         b_ws_new = ttk.Button(ws_btns, text="New Workspace", command=self._new_workspace)
         b_ws_ren = ttk.Button(ws_btns, text="Rename", command=self._rename_workspace)
         b_ws_dup = ttk.Button(ws_btns, text="Duplicate", command=self._duplicate_workspace)
@@ -4883,16 +5237,26 @@ class FTIRView(ttk.Frame):
         except Exception:
             pass
 
-        ttk.Label(left, text="FTIR datasets (current workspace)").grid(row=1, column=0, sticky="w", pady=(0, 6))
+        data_blk = ttk.LabelFrame(left, text="Datasets", padding=(8, 6, 8, 8), style="Card.TLabelframe")
+        data_blk.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        data_blk.columnconfigure(0, weight=1)
+        data_blk.rowconfigure(1, weight=1)
+        ttk.Label(
+            data_blk,
+            text="Inspect the current workspace inventory and promote one dataset to the active spectrum.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
 
-        tree = ttk.Treeview(left, columns=("active", "name", "n"), show="headings", selectmode="browse", height=9)
+        tree = ttk.Treeview(data_blk, columns=("active", "name", "n"), show="headings", selectmode="browse", height=9)
         tree.heading("active", text="")
         tree.heading("name", text="Name")
         tree.heading("n", text="Points")
         tree.column("active", width=28, stretch=False, anchor="center")
         tree.column("name", width=240, stretch=True)
         tree.column("n", width=70, stretch=False, anchor="e")
-        tree.grid(row=2, column=0, sticky="nsew")
+        tree.grid(row=1, column=0, sticky="nsew")
         self._tree = tree
 
         try:
@@ -4908,8 +5272,8 @@ class FTIRView(ttk.Frame):
         except Exception:
             pass
 
-        btns = ttk.Frame(left)
-        btns.grid(row=3, column=0, sticky="ew", pady=(8, 10))
+        btns = ttk.Frame(data_blk)
+        btns.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         btn_load = ttk.Button(btns, text="Load FTIR…", command=self.load_ftir_dialog)
         btn_load.pack(side=tk.LEFT)
         style_primary(btn_load)
@@ -4935,7 +5299,7 @@ class FTIRView(ttk.Frame):
 
         # Overlays panel (persistent overlay groups + selection list)
         ov_outer = ttk.Frame(left)
-        ov_outer.grid(row=4, column=0, sticky="nsew")
+        ov_outer.grid(row=3, column=0, sticky="nsew")
         ov_outer.columnconfigure(0, weight=1)
         ov_outer.rowconfigure(0, weight=2)
         ov_outer.rowconfigure(1, weight=2)
@@ -4943,10 +5307,17 @@ class FTIRView(ttk.Frame):
         groups_blk = ttk.LabelFrame(ov_outer, text="Overlays", padding=(8, 6, 8, 8))
         groups_blk.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
         groups_blk.columnconfigure(0, weight=1)
-        groups_blk.rowconfigure(1, weight=1)
-        groups_blk.rowconfigure(5, weight=1)
+        groups_blk.rowconfigure(2, weight=1)
+        groups_blk.rowconfigure(7, weight=1)
 
-        ttk.Label(groups_blk, text="Overlay Groups").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            groups_blk,
+            text="Build reusable comparison sets and control how spectra separate visually on the plot.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        ttk.Label(groups_blk, text="Overlay Groups", style="AppEyebrow.TLabel").grid(row=1, column=0, sticky="w")
         gtree = ttk.Treeview(groups_blk, columns=("name", "count", "ws"), show="headings", selectmode="browse", height=5)
         gtree.heading("name", text="Name")
         gtree.heading("count", text="#")
@@ -4954,7 +5325,7 @@ class FTIRView(ttk.Frame):
         gtree.column("name", width=230, stretch=True)
         gtree.column("count", width=36, stretch=False, anchor="e")
         gtree.column("ws", width=60, stretch=False, anchor="center")
-        gtree.grid(row=1, column=0, sticky="nsew", pady=(4, 8))
+        gtree.grid(row=2, column=0, sticky="nsew", pady=(4, 8))
         self._overlay_groups_tree = gtree
         try:
             ToolTip.attach(gtree, TOOLTIP_TEXT.get("ftir_overlay_groups", ""))
@@ -4967,7 +5338,7 @@ class FTIRView(ttk.Frame):
             pass
 
         gbtns = ttk.Frame(groups_blk)
-        gbtns.grid(row=2, column=0, sticky="ew")
+        gbtns.grid(row=3, column=0, sticky="ew")
         b_ov_new = ttk.Button(gbtns, text="New Overlay from Selection", command=self._new_overlay_group_from_selection)
         b_ov_act = ttk.Button(gbtns, text="Activate Overlay", command=self._activate_selected_overlay_group)
         b_ov_ren = ttk.Button(gbtns, text="Rename…", command=self._rename_selected_overlay_group)
@@ -4992,7 +5363,7 @@ class FTIRView(ttk.Frame):
             pass
 
         colors_row = ttk.Frame(groups_blk)
-        colors_row.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        colors_row.grid(row=4, column=0, sticky="ew", pady=(8, 0))
         ttk.Label(colors_row, text="Overlay colors").pack(side=tk.LEFT)
         ov_colors = ttk.Combobox(
             colors_row,
@@ -5013,7 +5384,7 @@ class FTIRView(ttk.Frame):
             pass
 
         offset_row = ttk.Frame(groups_blk)
-        offset_row.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        offset_row.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         ttk.Label(offset_row, text="Overlay offset").pack(side=tk.LEFT)
         ov_mode = ttk.Combobox(
             offset_row,
@@ -5029,11 +5400,11 @@ class FTIRView(ttk.Frame):
         ov_val.pack(side=tk.LEFT, padx=(4, 0))
         ov_val.bind("<KeyRelease>", lambda _e: self._on_ftir_overlay_offset_changed())
 
-        ttk.Label(groups_blk, text="Members (selected group)").grid(row=5, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(groups_blk, text="Members (selected group)", style="AppEyebrow.TLabel").grid(row=6, column=0, sticky="w", pady=(10, 0))
         mtree = ttk.Treeview(groups_blk, columns=("member",), show="headings", selectmode="browse", height=5)
         mtree.heading("member", text="Workspace :: Dataset")
         mtree.column("member", width=320, stretch=True)
-        mtree.grid(row=6, column=0, sticky="nsew", pady=(4, 8))
+        mtree.grid(row=7, column=0, sticky="nsew", pady=(4, 8))
         self._overlay_members_tree = mtree
 
         try:
@@ -5042,7 +5413,7 @@ class FTIRView(ttk.Frame):
             pass
 
         mbtns = ttk.Frame(groups_blk)
-        mbtns.grid(row=7, column=0, sticky="ew")
+        mbtns.grid(row=8, column=0, sticky="ew")
         b_set_active_member = ttk.Button(
             mbtns,
             text="Set Active = selected member",
@@ -5057,11 +5428,18 @@ class FTIRView(ttk.Frame):
         select_blk = ttk.LabelFrame(ov_outer, text="Selection (for new overlay group)", padding=(8, 6, 8, 8))
         select_blk.grid(row=1, column=0, sticky="nsew")
         select_blk.columnconfigure(0, weight=1)
-        select_blk.rowconfigure(2, weight=1)
+        select_blk.rowconfigure(3, weight=1)
 
-        ttk.Label(select_blk, text="Filter").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            select_blk,
+            text="Choose spectra across workspaces, then form a reusable comparison set.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        ttk.Label(select_blk, text="Filter", style="AppEyebrow.TLabel").grid(row=1, column=0, sticky="w")
         ov_filter = ttk.Entry(select_blk, textvariable=self._overlay_filter_var)
-        ov_filter.grid(row=1, column=0, sticky="ew", pady=(4, 8))
+        ov_filter.grid(row=2, column=0, sticky="ew", pady=(4, 8))
         try:
             self._overlay_filter_var.trace_add("write", lambda *a: self._rebuild_overlay_selection_list())
         except Exception:
@@ -5070,7 +5448,7 @@ class FTIRView(ttk.Frame):
         sel_tree = ttk.Treeview(select_blk, columns=("item",), show="headings", selectmode="extended", height=7)
         sel_tree.heading("item", text="Workspace :: Dataset")
         sel_tree.column("item", width=320, stretch=True)
-        sel_tree.grid(row=2, column=0, sticky="nsew")
+        sel_tree.grid(row=3, column=0, sticky="nsew")
         self._overlay_selection_tree = sel_tree
 
         try:
@@ -5084,26 +5462,37 @@ class FTIRView(ttk.Frame):
         # Right: plot + controls
         right = ttk.Frame(outer, padding=(8, 10, 10, 10))
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(2, weight=1)
+        right.rowconfigure(3, weight=1)
 
-        top = ttk.Frame(right)
+        top = ttk.LabelFrame(right, text="Actions & Display", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        ttk.Label(
+            top,
+            text="Export, annotate, and adjust the current FTIR view without leaving the analysis stage.",
+            style="CardHint.TLabel",
+            wraplength=620,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
         b_save_plot = ttk.Button(top, text="Save FTIR Plot…", command=self.save_plot_dialog)
-        b_save_plot.pack(side=tk.LEFT)
+        b_save_plot.grid(row=1, column=0, sticky="ew")
         style_success(b_save_plot)
         btn_peaks = ttk.Button(top, text="Peaks…", command=self._open_peaks_dialog)
-        btn_peaks.pack(side=tk.LEFT, padx=(8, 0))
+        btn_peaks.grid(row=1, column=1, sticky="ew", padx=(8, 0))
         style_secondary(btn_peaks)
         self._btn_peaks = btn_peaks
         btn_export_peaks = ttk.Button(top, text="Export Peaks…", command=self._export_peaks_dialog)
-        btn_export_peaks.pack(side=tk.LEFT, padx=(8, 0))
+        btn_export_peaks.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         style_success(btn_export_peaks)
         self._btn_export_peaks = btn_export_peaks
         btn_add_bond = ttk.Button(top, text="Add Bond Label…", command=self._open_add_bond_label_dialog)
-        btn_add_bond.pack(side=tk.LEFT, padx=(8, 0))
+        btn_add_bond.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        style_secondary(btn_add_bond)
         self._btn_add_bond_label = btn_add_bond
         cb_reverse = ttk.Checkbutton(top, text="Reverse x-axis (common FTIR)", variable=self._reverse_x_var, command=self._on_toggle_reverse)
-        cb_reverse.pack(side=tk.LEFT, padx=(14, 0))
+        cb_reverse.grid(row=3, column=0, sticky="w", pady=(10, 0))
 
         cb_show_peaks_all = ttk.Checkbutton(
             top,
@@ -5111,7 +5500,7 @@ class FTIRView(ttk.Frame):
             variable=self._show_peaks_all_overlay_var,
             command=self._schedule_redraw,
         )
-        cb_show_peaks_all.pack(side=tk.LEFT, padx=(10, 0))
+        cb_show_peaks_all.grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
         try:
             ToolTip.attach(b_save_plot, TOOLTIP_TEXT.get("ftir_save_plot", ""))
@@ -5124,11 +5513,24 @@ class FTIRView(ttk.Frame):
         except Exception:
             pass
 
-        status = ttk.Label(right, textvariable=self._status_var)
-        status.grid(row=1, column=0, sticky="ew", pady=(8, 6))
+        stage_hdr = ttk.Frame(right, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=1, column=0, sticky="ew", pady=(10, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="FTIR Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="The live spectrum stays central while export and annotation remain one step away.",
+            style="CardHint.TLabel",
+            wraplength=620,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, textvariable=self._workspace_select_var, style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e", padx=(12, 0))
 
-        plot_card = PlotCard(right, title="FTIR", show_header=True)
-        plot_card.grid(row=2, column=0, sticky="nsew")
+        status = ttk.Label(right, textvariable=self._status_var, style="Muted.TLabel", wraplength=760, justify="left")
+        status.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+
+        plot_card = PlotCard(right, title="FTIR Spectrum", status_text="Live view", show_header=True)
+        plot_card.grid(row=3, column=0, sticky="nsew")
         plot = plot_card.body
 
         fig = Figure(figsize=(10.5, 8.5), dpi=100)
@@ -6863,7 +7265,7 @@ class FTIRView(ttk.Frame):
 
         # Whitespace-delimited (common for exported spectra)
         try:
-            df = pd.read_csv(p, delim_whitespace=True, engine="c", **common_kwargs)
+            df = pd.read_csv(p, sep=r"\s+", engine="python", **common_kwargs)
             if int(getattr(df, "shape", (0, 0))[1]) >= 2:
                 return df
         except Exception:
@@ -8021,55 +8423,72 @@ class FTIRView(ttk.Frame):
         w.columnconfigure(0, weight=1)
         w.rowconfigure(0, weight=1)
 
-        ttk.Label(body, text="Applies to the active FTIR dataset.").grid(row=0, column=0, columnspan=4, sticky="w")
+        hdr = ttk.Frame(body, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="FTIR Peaks", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Control peak detection and labeling for the active FTIR dataset or apply the same settings across every workspace.",
+            style="CardHint.TLabel",
+            wraplength=520,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="FTIR", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        ttk.Label(body, text="Applies to the active FTIR dataset.").grid(row=1, column=0, columnspan=4, sticky="w")
         ttk.Label(body, text="Use 'Apply to All' to compute peaks for every dataset in every FTIR workspace.").grid(
-            row=0,
+            row=1,
             column=0,
             columnspan=4,
             sticky="e",
         )
 
         enabled = ttk.Checkbutton(body, text="Enable peak labels/markers", variable=self._peaks_enabled_var)
-        enabled.grid(row=1, column=0, columnspan=4, sticky="w", pady=(8, 10))
+        enabled.grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 10))
         try:
             ToolTip.attach(enabled, TOOLTIP_TEXT.get("ftir_peaks_enable", ""))
         except Exception:
             pass
 
-        ttk.Label(body, text="Min prominence").grid(row=2, column=0, sticky="w")
+        ttk.Label(body, text="Min prominence").grid(row=3, column=0, sticky="w")
         ent_prom = ttk.Entry(body, textvariable=self._peaks_min_prom_var, width=12)
-        ent_prom.grid(row=2, column=1, sticky="w")
+        ent_prom.grid(row=3, column=1, sticky="w")
         try:
             ToolTip.attach(ent_prom, TOOLTIP_TEXT.get("ftir_peaks_min_prom", ""))
         except Exception:
             pass
 
-        ttk.Label(body, text="Min distance (cm⁻¹)").grid(row=2, column=2, sticky="w", padx=(16, 0))
+        ttk.Label(body, text="Min distance (cm⁻¹)").grid(row=3, column=2, sticky="w", padx=(16, 0))
         ent_dist = ttk.Entry(body, textvariable=self._peaks_min_dist_var, width=12)
-        ent_dist.grid(row=2, column=3, sticky="w")
+        ent_dist.grid(row=3, column=3, sticky="w")
         try:
             ToolTip.attach(ent_dist, TOOLTIP_TEXT.get("ftir_peaks_min_dist", ""))
         except Exception:
             pass
 
-        ttk.Label(body, text="Label format").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(body, text="Label format").grid(row=4, column=0, sticky="w", pady=(6, 0))
         ent_fmt = ttk.Entry(body, textvariable=self._peaks_label_fmt_var, width=26)
-        ent_fmt.grid(row=3, column=1, columnspan=3, sticky="w", pady=(6, 0))
+        ent_fmt.grid(row=4, column=1, columnspan=3, sticky="w", pady=(6, 0))
         try:
             ToolTip.attach(ent_fmt, TOOLTIP_TEXT.get("ftir_peaks_label_fmt", ""))
         except Exception:
             pass
 
         btns = ttk.Frame(body)
-        btns.grid(row=4, column=0, columnspan=4, sticky="e", pady=(14, 0))
-        b_unhide = ttk.Button(btns, text="Unhide All", command=self._unhide_all_peaks, style="Secondary.TButton")
+        btns.grid(row=5, column=0, columnspan=4, sticky="e", pady=(14, 0))
+        b_unhide = ttk.Button(btns, text="Unhide All", command=self._unhide_all_peaks)
         b_unhide.pack(side=tk.LEFT)
-        b_apply = ttk.Button(btns, text="Apply", command=self._apply_peaks_dialog, style="Primary.TButton")
+        style_secondary(b_unhide)
+        b_apply = ttk.Button(btns, text="Apply", command=self._apply_peaks_dialog)
         b_apply.pack(side=tk.LEFT)
-        b_apply_all = ttk.Button(btns, text="Apply to All", command=self._apply_peaks_dialog_all, style="Primary.TButton")
+        style_success(b_apply)
+        b_apply_all = ttk.Button(btns, text="Apply to All", command=self._apply_peaks_dialog_all)
         b_apply_all.pack(side=tk.LEFT, padx=(8, 0))
-        b_close = ttk.Button(btns, text="Close", command=_on_close, style="Secondary.TButton")
+        style_success(b_apply_all)
+        b_close = ttk.Button(btns, text="Close", command=_on_close)
         b_close.pack(side=tk.LEFT, padx=(8, 0))
+        style_secondary(b_close)
 
         try:
             ToolTip.attach(b_unhide, TOOLTIP_TEXT.get("ftir_peaks_unhide", ""))
@@ -8125,7 +8544,18 @@ class FTIRView(ttk.Frame):
         win.columnconfigure(0, weight=1)
         win.rowconfigure(0, weight=1)
 
-        ttk.Label(root, text="FTIR Peaks Export").grid(row=0, column=0, sticky="w")
+        hdr = ttk.Frame(root, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="FTIR Peaks Export", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Choose whether to export only the active dataset or collect peaks from every FTIR dataset into one workbook.",
+            style="CardHint.TLabel",
+            wraplength=420,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="EXPORT", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
         chk = ttk.Checkbutton(
             root,
@@ -8157,14 +8587,20 @@ class FTIRView(ttk.Frame):
             _close()
             self._export_all_peaks_excel(include_candidates=include)
 
-        ttk.Button(btns, text="Active dataset → CSV…", command=_do_active_csv, style="Secondary.TButton").grid(
+        active_btn = ttk.Button(btns, text="Active dataset → CSV…", command=_do_active_csv)
+        active_btn.grid(
             row=0, column=0, sticky="ew", padx=(0, 6)
         )
-        ttk.Button(btns, text="All datasets → Excel workbook…", command=_do_all_excel, style="Secondary.TButton").grid(
+        style_secondary(active_btn)
+        all_btn = ttk.Button(btns, text="All datasets → Excel workbook…", command=_do_all_excel)
+        all_btn.grid(
             row=0, column=1, sticky="ew", padx=(6, 0)
         )
+        style_success(all_btn)
 
-        ttk.Button(root, text="Close", command=_close).grid(row=3, column=0, sticky="e", pady=(10, 0))
+        close_btn = ttk.Button(root, text="Close", command=_close)
+        close_btn.grid(row=3, column=0, sticky="e", pady=(10, 0))
+        style_secondary(close_btn)
 
         try:
             win.protocol("WM_DELETE_WINDOW", _close)
@@ -8372,24 +8808,37 @@ class FTIRView(ttk.Frame):
         win.columnconfigure(0, weight=1)
         win.rowconfigure(0, weight=1)
 
-        ttk.Label(root, text="Bond preset").grid(row=0, column=0, sticky="w")
+        hdr = ttk.Frame(root, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Add Bond Label", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Choose a preset or custom text, then place the annotation manually or auto-anchor it to the nearest FTIR peak.",
+            style="CardHint.TLabel",
+            wraplength=420,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="FTIR", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        ttk.Label(root, text="Bond preset").grid(row=1, column=0, sticky="w")
         combo = ttk.Combobox(root, textvariable=preset_var, state="readonly")
-        combo.grid(row=1, column=0, sticky="ew")
+        combo.grid(row=2, column=0, sticky="ew")
         root.columnconfigure(0, weight=1)
 
         ttk.Checkbutton(root, text="Range filter (only presets in view)", variable=range_filter_var, command=_refresh_presets).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
+            row=3, column=0, sticky="w", pady=(6, 0)
         )
 
-        ttk.Label(root, text="Custom text (optional)").grid(row=3, column=0, sticky="w", pady=(10, 0))
-        ttk.Entry(root, textvariable=custom_text_var).grid(row=4, column=0, sticky="ew")
+        ttk.Label(root, text="Custom text (optional)").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(root, textvariable=custom_text_var).grid(row=5, column=0, sticky="ew")
 
         mode_box = ttk.Labelframe(root, text="Default position mode", padding=(8, 6))
-        mode_box.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        mode_box.grid(row=6, column=0, sticky="ew", pady=(10, 0))
         ttk.Radiobutton(mode_box, text="Click to place", value="click", variable=mode_var).pack(anchor="w")
         ttk.Radiobutton(mode_box, text="Auto place at nearest peak in range", value="auto", variable=mode_var).pack(anchor="w")
 
-        ttk.Checkbutton(root, text="Show vertical guide line", variable=vline_var).grid(row=6, column=0, sticky="w", pady=(8, 0))
+        ttk.Checkbutton(root, text="Show vertical guide line", variable=vline_var).grid(row=7, column=0, sticky="w", pady=(8, 0))
 
         def _pick(var: tk.StringVar, title: str) -> None:
             try:
@@ -8400,23 +8849,27 @@ class FTIRView(ttk.Frame):
                 return
 
         colors = ttk.Frame(root)
-        colors.grid(row=7, column=0, sticky="ew", pady=(10, 0))
+        colors.grid(row=8, column=0, sticky="ew", pady=(10, 0))
         ttk.Label(colors, text="Label color").pack(side=tk.LEFT)
         ttk.Entry(colors, textvariable=text_color_var, width=12).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(colors, text="Pick…", command=lambda: _pick(text_color_var, "Pick label color")).pack(side=tk.LEFT, padx=(6, 0))
+        pick_label_btn = ttk.Button(colors, text="Pick…", command=lambda: _pick(text_color_var, "Pick label color"))
+        pick_label_btn.pack(side=tk.LEFT, padx=(6, 0))
+        style_secondary(pick_label_btn)
         ttk.Label(colors, text="Line color").pack(side=tk.LEFT, padx=(14, 0))
         ttk.Entry(colors, textvariable=line_color_var, width=12).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(colors, text="Pick…", command=lambda: _pick(line_color_var, "Pick line color")).pack(side=tk.LEFT, padx=(6, 0))
+        pick_line_btn = ttk.Button(colors, text="Pick…", command=lambda: _pick(line_color_var, "Pick line color"))
+        pick_line_btn.pack(side=tk.LEFT, padx=(6, 0))
+        style_secondary(pick_line_btn)
 
         fr = ttk.Frame(root)
-        fr.grid(row=8, column=0, sticky="ew", pady=(10, 0))
+        fr.grid(row=9, column=0, sticky="ew", pady=(10, 0))
         ttk.Label(fr, text="Font size").pack(side=tk.LEFT)
         ttk.Spinbox(fr, from_=6, to=30, textvariable=fontsize_var, width=6).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Label(fr, text="Rotation").pack(side=tk.LEFT, padx=(14, 0))
         ttk.Spinbox(fr, from_=-180, to=180, textvariable=rotation_var, width=6).pack(side=tk.LEFT, padx=(8, 0))
 
         attach = ttk.Labelframe(root, text="Attach to overlay dataset", padding=(8, 6))
-        attach.grid(row=9, column=0, sticky="ew", pady=(10, 0))
+        attach.grid(row=10, column=0, sticky="ew", pady=(10, 0))
         ttk.Radiobutton(attach, text="Active only", value="Active only", variable=attach_var).pack(anchor="w")
         ttk.Radiobutton(attach, text="All overlayed", value="All overlayed", variable=attach_var).pack(anchor="w")
         ttk.Radiobutton(attach, text="Choose dataset", value="Choose dataset", variable=attach_var).pack(anchor="w")
@@ -8488,9 +8941,13 @@ class FTIRView(ttk.Frame):
             self._bond_begin_placement(opts)
 
         btns = ttk.Frame(root)
-        btns.grid(row=10, column=0, sticky="e", pady=(12, 0))
-        ttk.Button(btns, text="Place label", command=_place, style="Primary.TButton").pack(side=tk.LEFT)
-        ttk.Button(btns, text="Cancel", command=_close, style="Secondary.TButton").pack(side=tk.LEFT, padx=(8, 0))
+        btns.grid(row=11, column=0, sticky="e", pady=(12, 0))
+        place_btn = ttk.Button(btns, text="Place label", command=_place)
+        place_btn.pack(side=tk.LEFT)
+        style_success(place_btn)
+        cancel_btn = ttk.Button(btns, text="Cancel", command=_close)
+        cancel_btn.pack(side=tk.LEFT, padx=(8, 0))
+        style_secondary(cancel_btn)
 
         _refresh_presets()
 
@@ -10848,6 +11305,7 @@ class App(tb.Window):
 
         # Module views (tabs)
         self._module_notebook: Optional[ttk_native.Notebook] = None
+        self._app_chrome: Optional[Any] = None
         self._lcms_view: Optional[LCMSView] = None
         self._ftir_view: Optional[FTIRView] = None
         self._microscopy_view: Optional[MicroscopyView] = None
@@ -10859,6 +11317,10 @@ class App(tb.Window):
 
         # Dynamically attached UI helpers (set by view builders).
         self._now_view_var: Optional[tk.StringVar] = None
+        self._now_stage_var: Optional[tk.StringVar] = None
+        self._lcms_empty_body_var: Optional[tk.StringVar] = None
+        self._lcms_empty_state: Optional[ttk_native.Frame] = None
+        self._lcms_empty_state_dismissed: bool = False
         self._plot_coord_var: Optional[tk.StringVar] = None
         self._plot_coord_label: Optional[ttk_native.Label] = None
         self._mpl_nav: Optional[MatplotlibNavigator] = None
@@ -11005,7 +11467,8 @@ class App(tb.Window):
         self.title_fontsize_var = tk.IntVar(value=12)
         self.label_fontsize_var = tk.IntVar(value=10)
         self.tick_fontsize_var = tk.IntVar(value=9)
-        self._matplotlib_bg_var = tk.StringVar(value="#f5f5f5")
+        self._matplotlib_bg_var = tk.StringVar(value="#ffffff")
+        self._fill_under_curves_var = tk.BooleanVar(value=True)
 
         # Axis limits (blank = auto)
         self.tic_xlim_min_var = tk.StringVar(value="")
@@ -11090,6 +11553,7 @@ class App(tb.Window):
         # Persistent overrides/suppression for auto/poly labels per spectrum
         # value None => suppressed; otherwise override text
         self._spec_label_overrides: Dict[str, Dict[Tuple[str, float], Optional[str]]] = {}
+        self._spec_label_positions: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
         # Navigation controls
         self._rt_jump_var = tk.StringVar(value="")
@@ -11272,6 +11736,7 @@ class App(tb.Window):
         # Watermark background (behind all other widgets)
         try:
             bg = tk.Canvas(self, highlightthickness=0, bd=0)
+            bg.configure(background="#E9EFEC")
             bg.place(x=0, y=0, relwidth=1, relheight=1)
             # Some tkinter stubs expose Canvas.lower(tagOrId, belowThis) rather than the widget stacking method.
             # Use a raw tk call to avoid stub mismatches while keeping runtime behavior.
@@ -11286,30 +11751,25 @@ class App(tb.Window):
 
         self._build_menu()
 
-        # Root layout: chrome (row 0) / content (row 1) / status (row 2)
+        # Root layout: content (row 0) / status (row 1)
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=0)  # top bar – fixed height
-        self.rowconfigure(1, weight=1)  # content – stretches
-        self.rowconfigure(2, weight=0)  # status bar – fixed height
-
-        # --- App chrome (top bar) ---
-        self._app_chrome = AppChrome(self)
-        self._app_chrome.grid(row=0, column=0, sticky="ew")
+        self.rowconfigure(0, weight=1)  # content – stretches
+        self.rowconfigure(1, weight=0)  # status bar – fixed height
 
         # --- Main content area (unchanged tab layout) ---
-        content = ttk.Frame(self, padding=(14, 10, 14, 10))
-        content.grid(row=1, column=0, sticky="nsew")
+        content = ttk.Frame(self, padding=(12, 8, 12, 14), style="AppContent.TFrame")
+        content.grid(row=0, column=0, sticky="nsew")
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
-        nb = ttk.Notebook(content)
+        nb = ttk.Notebook(content, style="Content.TNotebook")
         nb.grid(row=0, column=0, sticky="nsew")
         self._module_notebook = nb
 
-        lcms_tab = ttk.Frame(nb)
-        ftir_tab = ttk.Frame(nb)
-        plate_reader_tab = ttk.Frame(nb)
-        data_studio_tab = ttk.Frame(nb)
+        lcms_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
+        ftir_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
+        plate_reader_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
+        data_studio_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
         nb.add(lcms_tab, text="LCMS")
         nb.add(ftir_tab, text="FTIR")
         nb.add(plate_reader_tab, text="Plate Reader")
@@ -11339,7 +11799,7 @@ class App(tb.Window):
             anchor="w",
             style="StatusBar.TLabel",
         )
-        status.grid(row=2, column=0, sticky="ew")
+        status.grid(row=1, column=0, sticky="ew")
         self._status = status
 
         # Shortcuts remain global, but route to active tab where appropriate.
@@ -11688,6 +12148,7 @@ class App(tb.Window):
                 sessions[str(sid)] = {
                     "custom_labels_by_spectrum": copy.deepcopy(getattr(sess, "custom_labels_by_spectrum", {}) or {}),
                     "spec_label_overrides": copy.deepcopy(getattr(sess, "spec_label_overrides", {}) or {}),
+                    "spec_label_positions": copy.deepcopy(getattr(sess, "spec_label_positions", {}) or {}),
                     "uv_labels_by_uv_id": copy.deepcopy(getattr(sess, "uv_labels_by_uv_id", {}) or {}),
                 }
             except Exception:
@@ -11730,6 +12191,7 @@ class App(tb.Window):
                 try:
                     sess.custom_labels_by_spectrum = copy.deepcopy(payload.get("custom_labels_by_spectrum") or {})
                     sess.spec_label_overrides = copy.deepcopy(payload.get("spec_label_overrides") or {})
+                    sess.spec_label_positions = copy.deepcopy(payload.get("spec_label_positions") or {})
                     sess.uv_labels_by_uv_id = copy.deepcopy(payload.get("uv_labels_by_uv_id") or {})
                 except Exception:
                     continue
@@ -11739,6 +12201,7 @@ class App(tb.Window):
             try:
                 self._custom_labels_by_spectrum = self._sessions[active_sid].custom_labels_by_spectrum
                 self._spec_label_overrides = self._sessions[active_sid].spec_label_overrides
+                self._spec_label_positions = self._sessions[active_sid].spec_label_positions
                 self._active_session_id = active_sid
             except Exception:
                 pass
@@ -13153,18 +13616,31 @@ class App(tb.Window):
         frm.grid(row=0, column=0, sticky="nsew")
         frm.columnconfigure(1, weight=1)
 
-        ttk.Label(frm, text="m/z").grid(row=0, column=0, sticky="w")
-        mz_ent = ttk.Entry(frm, textvariable=self._mz_find_mz_var, width=14)
-        mz_ent.grid(row=0, column=1, sticky="w", padx=(10, 0))
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Jump to m/z", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Jump directly to the nearest scan for a target mass without opening the full search workflow.",
+            style="CardHint.TLabel",
+            wraplength=380,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="LCMS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
-        ttk.Label(frm, text="Tolerance").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="m/z").grid(row=1, column=0, sticky="w")
+        mz_ent = ttk.Entry(frm, textvariable=self._mz_find_mz_var, width=14)
+        mz_ent.grid(row=1, column=1, sticky="w", padx=(10, 0))
+
+        ttk.Label(frm, text="Tolerance").grid(row=2, column=0, sticky="w", pady=(8, 0))
         tol_ent = ttk.Entry(frm, textvariable=self._mz_find_tol_var, width=14)
-        tol_ent.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(8, 0))
+        tol_ent.grid(row=2, column=1, sticky="w", padx=(10, 0), pady=(8, 0))
         unit = ttk.Combobox(frm, textvariable=self._mz_find_unit_var, values=["ppm", "Da"], state="readonly", width=8)
-        unit.grid(row=1, column=2, sticky="w", padx=(10, 0), pady=(8, 0))
+        unit.grid(row=2, column=2, sticky="w", padx=(10, 0), pady=(8, 0))
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=2, column=0, columnspan=3, sticky="e", pady=(14, 0))
+        buttons.grid(row=3, column=0, columnspan=3, sticky="e", pady=(14, 0))
 
         def do_jump() -> None:
             try:
@@ -13178,6 +13654,8 @@ class App(tb.Window):
         jump_btn.grid(row=0, column=0, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
         close_btn.grid(row=0, column=1)
+        style_success(jump_btn)
+        style_secondary(close_btn)
 
         try:
             mz_ent.focus_set()
@@ -13479,6 +13957,31 @@ class App(tb.Window):
                 out[str(spec_id)] = items
             return out
 
+        def _encode_positions(positions: Dict[str, Any]) -> Dict[str, Any]:
+            out: Dict[str, Any] = {}
+            for spec_id, items in (positions or {}).items():
+                rows: List[Dict[str, Any]] = []
+                if not isinstance(items, dict):
+                    continue
+                for key, payload in items.items():
+                    if not isinstance(payload, dict):
+                        continue
+                    xy = payload.get("xytext")
+                    if not isinstance(xy, (list, tuple)) or len(xy) != 2:
+                        continue
+                    try:
+                        rows.append(
+                            {
+                                "key": str(key),
+                                "xytext": [float(xy[0]), float(xy[1])],
+                                "locked": bool(payload.get("locked", False)),
+                            }
+                        )
+                    except Exception:
+                        continue
+                out[str(spec_id)] = rows
+            return out
+
         def _encode_uv_labels_by_uv_id(uv_labels_by_uv_id: Dict[str, Any]) -> Dict[str, Any]:
             # Convert UV-id keys to UV-path keys so restoration survives new UUIDs.
             out: Dict[str, Any] = {}
@@ -13506,6 +14009,7 @@ class App(tb.Window):
                                         "rt_delta_min": float(getattr(st, "rt_delta_min", 0.0) or 0.0),
                                         "uv_peak_score": float(getattr(st, "uv_peak_score", 0.0) or 0.0),
                                         "tic_peak_score": float(getattr(st, "tic_peak_score", 0.0) or 0.0),
+                                        "locked": bool(getattr(st, "locked", False)),
                                     }
                                 )
                             except Exception:
@@ -13546,6 +14050,7 @@ class App(tb.Window):
                     "last_polarity_filter": (None if sess.last_polarity_filter is None else str(sess.last_polarity_filter)),
                     "custom_labels_by_spectrum": _encode_custom_labels(getattr(sess, "custom_labels_by_spectrum", {}) or {}),
                     "spec_label_overrides": _encode_overrides(getattr(sess, "spec_label_overrides", {}) or {}),
+                    "spec_label_positions": _encode_positions(getattr(sess, "spec_label_positions", {}) or {}),
                     "linked_uv_path": linked_uv_path,
                     "uv_labels_by_uv_path": _encode_uv_labels_by_uv_id(getattr(sess, "uv_labels_by_uv_id", {}) or {}),
                 }
@@ -13888,6 +14393,7 @@ class App(tb.Window):
 
         self._custom_labels_by_spectrum = {}
         self._spec_label_overrides = {}
+        self._spec_label_positions = {}
 
         self._filtered_meta = []
         self._filtered_rts = None
@@ -13976,6 +14482,7 @@ class App(tb.Window):
 
         self._custom_labels_by_spectrum = {}
         self._spec_label_overrides = {}
+        self._spec_label_positions = {}
 
         self._filtered_meta = []
         self._filtered_rts = None
@@ -14429,6 +14936,30 @@ class App(tb.Window):
                 out[str(spec_id)] = m
             return out
 
+        def _decode_positions(payload: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
+            out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            if not isinstance(payload, dict):
+                return out
+            for spec_id, items in payload.items():
+                rows: Dict[str, Dict[str, Any]] = {}
+                if isinstance(items, list):
+                    for it in items:
+                        if not isinstance(it, dict):
+                            continue
+                        key = str(it.get("key") or "").strip()
+                        xy = it.get("xytext")
+                        if not key or not isinstance(xy, (list, tuple)) or len(xy) != 2:
+                            continue
+                        try:
+                            rows[key] = {
+                                "xytext": [float(xy[0]), float(xy[1])],
+                                "locked": bool(it.get("locked", False)),
+                            }
+                        except Exception:
+                            continue
+                out[str(spec_id)] = rows
+            return out
+
         def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
             out: Dict[float, List[UVLabelState]] = {}
             if not isinstance(payload, list):
@@ -14457,6 +14988,7 @@ class App(tb.Window):
                                 rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
                                 uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
                                 tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
+                                locked=bool(st.get("locked", False)),
                             )
                         )
                     except Exception:
@@ -14569,6 +15101,7 @@ class App(tb.Window):
 
             sess.custom_labels_by_spectrum = _decode_custom_labels(saved.get("custom_labels_by_spectrum"))
             sess.spec_label_overrides = _decode_overrides(saved.get("spec_label_overrides"))
+            sess.spec_label_positions = _decode_positions(saved.get("spec_label_positions"))
 
             # Linked UV
             linked_uv_path = saved.get("linked_uv_path")
@@ -14764,6 +15297,30 @@ class App(tb.Window):
                     overrides_out[str(spec_id)] = override_rows
             return custom_out, overrides_out
 
+        def _decode_positions(payload: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
+            out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            if not isinstance(payload, dict):
+                return out
+            for spec_id, items in payload.items():
+                rows: Dict[str, Dict[str, Any]] = {}
+                if isinstance(items, list):
+                    for it in items:
+                        if not isinstance(it, dict):
+                            continue
+                        key = str(it.get("key") or "").strip()
+                        xy = it.get("xytext")
+                        if not key or not isinstance(xy, (list, tuple)) or len(xy) != 2:
+                            continue
+                        try:
+                            rows[key] = {
+                                "xytext": [float(xy[0]), float(xy[1])],
+                                "locked": bool(it.get("locked", False)),
+                            }
+                        except Exception:
+                            continue
+                out[str(spec_id)] = rows
+            return out
+
         # Apply per-session saved fields now that UV sessions are loaded
         for sid, sess in list(self._sessions.items()):
             path_key = str(sess.path)
@@ -14792,6 +15349,8 @@ class App(tb.Window):
                 sess.custom_labels_by_spectrum = custom_labels
             if overrides:
                 sess.spec_label_overrides = overrides
+            if isinstance(saved.get("spec_label_positions"), dict):
+                sess.spec_label_positions = _decode_positions(saved.get("spec_label_positions"))
 
             # Restore linked UV per session (if saved)
             try:
@@ -15607,10 +16166,12 @@ class App(tb.Window):
 
     def _update_now_viewing_header(self) -> None:
         try:
-            var = getattr(self, "_now_view_var", None)
+            detail_var = getattr(self, "_now_view_var", None)
+            stage_var = getattr(self, "_now_stage_var", None)
         except Exception:
-            var = None
-        if var is None:
+            detail_var = None
+            stage_var = None
+        if detail_var is None and stage_var is None:
             return
         mzml = self._active_session_display_name() if getattr(self, "_active_session_id", None) else (self.mzml_path.name if self.mzml_path else "(no mzML)")
         uv_sess = self._active_uv_session()
@@ -15619,11 +16180,17 @@ class App(tb.Window):
         off = float(self._uv_ms_rt_offset_min)
         align = "auto-align ON" if (bool(self.uv_ms_align_enabled_var.get()) and self._uv_ms_align_uv_rts is not None) else "auto-align off"
         if self._current_spectrum_meta is None:
-            var.set(f"Ready • {mzml} • {uv} • polarity={pol} • offset={off:.3f} min • {align}")
+            if stage_var is not None:
+                stage_var.set("READY" if getattr(self, "_active_session_id", None) else "IDLE")
+            if detail_var is not None:
+                detail_var.set(f"{mzml} • {uv} • polarity={pol} • offset={off:.3f} min • {align}")
             self._update_current_context_panel()
             return
         meta = self._current_spectrum_meta
-        var.set(f"{mzml} • RT={float(meta.rt_min):.4f} min • {meta.polarity or 'unknown'} • {uv}")
+        if stage_var is not None:
+            stage_var.set("SPECTRUM")
+        if detail_var is not None:
+            detail_var.set(f"{mzml} • RT={float(meta.rt_min):.4f} min • {meta.polarity or 'unknown'} • {uv}")
         self._update_current_context_panel()
 
     def _apply_quick_annotate_settings(self) -> None:
@@ -15843,6 +16410,7 @@ class App(tb.Window):
             display_name=mzml_path.stem,
             custom_labels_by_spectrum={},
             spec_label_overrides={},
+            spec_label_positions={},
             ms1_count=int(ms1_count),
             rt_min=rt_min,
             rt_max=rt_max,
@@ -15926,6 +16494,7 @@ class App(tb.Window):
         # Store active per-session label dicts
         sess.custom_labels_by_spectrum = self._custom_labels_by_spectrum
         sess.spec_label_overrides = self._spec_label_overrides
+        sess.spec_label_positions = self._spec_label_positions
 
     def _set_active_session(self, session_id: str) -> None:
         if not session_id or session_id not in self._sessions:
@@ -15976,6 +16545,7 @@ class App(tb.Window):
         # Swap per-session label state
         self._custom_labels_by_spectrum = sess.custom_labels_by_spectrum
         self._spec_label_overrides = sess.spec_label_overrides
+        self._spec_label_positions = sess.spec_label_positions
 
         # Restore per-session polarity (optional)
         if sess.last_polarity_filter in ("all", "positive", "negative"):
@@ -16140,6 +16710,7 @@ class App(tb.Window):
             self._current_spectrum_int = None
             self._custom_labels_by_spectrum = {}
             self._spec_label_overrides = {}
+            self._spec_label_positions = {}
             self._active_uv_id = None
             self._tic_line = None
             self._tic_marker = None
@@ -17208,8 +17779,8 @@ class App(tb.Window):
         n = len(visible)
         # Stacked layout: top-to-bottom, stretch to fill.
         try:
-            hspace = 0.16 if n <= 1 else (0.28 if n == 2 else 0.44)
-            bottom = 0.10 if n >= 2 else 0.12
+            hspace = 0.18 if n <= 1 else (0.30 if n == 2 else 0.46)
+            bottom = 0.16 if n >= 2 else 0.14
             self._fig.subplots_adjust(left=0.09, right=0.985, bottom=bottom, top=0.955, hspace=hspace)
         except Exception:
             pass
@@ -17238,6 +17809,7 @@ class App(tb.Window):
 
         self._apply_plot_style()
         self._draw_mpl_watermark()
+        self._update_lcms_empty_state()
         try:
             self._canvas.draw_idle()
         except Exception:
@@ -17925,6 +18497,19 @@ class App(tb.Window):
         frm = ttk.Frame(dlg, padding=pad)
         frm.grid(row=0, column=0)
 
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Extracted Ion Chromatogram", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Define a target m/z and tolerance to build a linked chromatogram against the active session.",
+            style="CardHint.TLabel",
+            wraplength=420,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="EIC", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         # Defaults
         last = self._sim_last_params
         default_target = ""
@@ -17949,19 +18534,19 @@ class App(tb.Window):
             except Exception:
                 default_use_pol = True
 
-        ttk.Label(frm, text="Target m/z").grid(row=0, column=0, sticky="w")
+        ttk.Label(frm, text="Target m/z").grid(row=1, column=0, sticky="w")
         target_var = tk.StringVar(value=default_target)
         target_ent = ttk.Entry(frm, textvariable=target_var, width=14)
-        target_ent.grid(row=0, column=1, sticky="w", padx=(10, 0))
+        target_ent.grid(row=1, column=1, sticky="w", padx=(10, 0))
 
-        ttk.Label(frm, text="Tolerance").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="Tolerance").grid(row=2, column=0, sticky="w", pady=(8, 0))
         tol_var = tk.StringVar(value=default_tol)
         tol_ent = ttk.Entry(frm, textvariable=tol_var, width=14)
-        tol_ent.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(8, 0))
+        tol_ent.grid(row=2, column=1, sticky="w", padx=(10, 0), pady=(8, 0))
 
         unit_var = tk.StringVar(value=default_unit)
         unit_frame = ttk.Frame(frm)
-        unit_frame.grid(row=2, column=1, sticky="w", padx=(10, 0), pady=(4, 0))
+        unit_frame.grid(row=3, column=1, sticky="w", padx=(10, 0), pady=(4, 0))
         unit_ppm = ttk.Radiobutton(unit_frame, text="ppm", value="ppm", variable=unit_var)
         unit_da = ttk.Radiobutton(unit_frame, text="Da", value="Da", variable=unit_var)
         unit_ppm.pack(side=tk.LEFT)
@@ -17969,14 +18554,16 @@ class App(tb.Window):
 
         use_pol_var = tk.BooleanVar(value=bool(default_use_pol))
         use_pol_cb = ttk.Checkbutton(frm, text="Use current polarity filter", variable=use_pol_var)
-        use_pol_cb.grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        use_pol_cb.grid(row=4, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
         btns = ttk.Frame(frm)
-        btns.grid(row=4, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        btns.grid(row=5, column=0, columnspan=2, sticky="e", pady=(12, 0))
         run_btn = ttk.Button(btns, text="Run", command=lambda: on_run())
         cancel_btn = ttk.Button(btns, text="Cancel", command=dlg.destroy)
         run_btn.grid(row=0, column=0, padx=(0, 8))
         cancel_btn.grid(row=0, column=1)
+        style_success(run_btn)
+        style_secondary(cancel_btn)
 
         def on_run() -> None:
             try:
@@ -19215,6 +19802,11 @@ class App(tb.Window):
         try:
             for child in toolbar.winfo_children():
                 try:
+                    if str(child.winfo_class()) == "Label":
+                        child.configure(padx=4)
+                except Exception:
+                    pass
+                try:
                     child.configure(relief="flat", bd=0, highlightthickness=0)
                 except Exception:
                     pass
@@ -19222,6 +19814,57 @@ class App(tb.Window):
                     child.configure(background="#F4F8F7", activebackground="#E6F1EE")
                 except Exception:
                     pass
+                try:
+                    child.configure(font=("Segoe UI", 9), padx=4, pady=3)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _update_lcms_empty_state(self) -> None:
+        try:
+            panel = getattr(self, "_lcms_empty_state", None)
+        except Exception:
+            panel = None
+        if panel is None:
+            return
+
+        has_active_session = bool(
+            getattr(self, "_active_session_id", None)
+            and getattr(self, "_active_session_id", None) in (self._sessions or {})
+            and self._index is not None
+        )
+        try:
+            if has_active_session:
+                panel.place_forget()
+                return
+        except Exception:
+            pass
+
+        try:
+            if bool(getattr(self, "_lcms_empty_state_dismissed", False)):
+                panel.place_forget()
+                return
+        except Exception:
+            pass
+
+        body_var = getattr(self, "_lcms_empty_body_var", None)
+        if body_var is not None:
+            body_var.set(
+                "Open an mzML file to populate the TIC, spectrum, and UV stage. Once loaded, you can add UV data, compare overlays, and annotate peaks from one workspace."
+            )
+        try:
+            panel.place(relx=0.5, rely=0.42, anchor="center")
+            panel.lift()
+        except Exception:
+            pass
+
+    def _dismiss_lcms_empty_state(self) -> None:
+        self._lcms_empty_state_dismissed = True
+        try:
+            panel = getattr(self, "_lcms_empty_state", None)
+            if panel is not None:
+                panel.place_forget()
         except Exception:
             pass
 
@@ -19267,10 +19910,10 @@ class App(tb.Window):
         bg = (self._matplotlib_bg_var.get() or "").strip()
         try:
             if not bg:
-                bg = "#F4F7F7"
+                bg = "#FFFFFF"
             mcolors.to_rgba(bg)
         except Exception:
-            bg = "#F4F7F7"
+            bg = "#FFFFFF"
 
         # Figure background
         try:
@@ -19285,7 +19928,7 @@ class App(tb.Window):
 
         for ax in [a for a in axes if a is not None]:
             try:
-                ax.set_facecolor("#FCFEFE")
+                ax.set_facecolor("#FFFFFF")
                 ax.set_axisbelow(True)
                 ax.margins(x=0.01)
             except Exception:
@@ -19492,8 +20135,21 @@ class App(tb.Window):
         frm = ttk.Frame(dlg, padding=pad)
         frm.grid(row=0, column=0)
 
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Graph Settings", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Control titles, fonts, and axis limits for the active LCMS plots from one focused settings surface.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="LCMS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         labels = ttk.LabelFrame(frm, text="Titles & axis labels", padding=pad)
-        labels.grid(row=0, column=0, sticky="ew")
+        labels.grid(row=1, column=0, sticky="ew")
 
         ttk.Label(labels, text="TIC title").grid(row=0, column=0, sticky="w")
         tic_title_ent = ttk.Entry(labels, textvariable=self.tic_title_var, width=34)
@@ -19526,7 +20182,7 @@ class App(tb.Window):
         uv_y_ent.grid(row=2, column=5, padx=(8, 0), pady=(6, 0))
 
         fonts = ttk.LabelFrame(frm, text="Fonts", padding=pad)
-        fonts.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        fonts.grid(row=2, column=0, sticky="ew", pady=(10, 0))
 
         ttk.Label(fonts, text="Title font size").grid(row=0, column=0, sticky="w")
         title_fs = ttk.Spinbox(fonts, from_=6, to=30, textvariable=self.title_fontsize_var, width=6)
@@ -19540,8 +20196,36 @@ class App(tb.Window):
         tick_fs = ttk.Spinbox(fonts, from_=6, to=30, textvariable=self.tick_fontsize_var, width=6)
         tick_fs.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
 
+        appearance = ttk.LabelFrame(frm, text="Appearance", padding=pad)
+        appearance.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        appearance.columnconfigure(1, weight=1)
+
+        ttk.Label(appearance, text="Plot background").grid(row=0, column=0, sticky="w")
+        bg_ent = ttk.Entry(appearance, textvariable=self._matplotlib_bg_var, width=16)
+        bg_ent.grid(row=0, column=1, sticky="w", padx=(8, 0))
+
+        def _pick_plot_bg() -> None:
+            try:
+                current = (self._matplotlib_bg_var.get() or "").strip() or "#ffffff"
+                picked = colorchooser.askcolor(color=current, title="Pick plot background", parent=dlg)[1]
+                if picked:
+                    self._matplotlib_bg_var.set(str(picked))
+            except Exception:
+                pass
+
+        bg_pick_btn = ttk.Button(appearance, text="Pick…", command=_pick_plot_bg)
+        bg_pick_btn.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        style_secondary(bg_pick_btn)
+
+        fill_cb = ttk.Checkbutton(
+            appearance,
+            text="Fill area under TIC and UV curves",
+            variable=self._fill_under_curves_var,
+        )
+        fill_cb.grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
         limits = ttk.LabelFrame(frm, text="Axis ranges (leave blank = auto)", padding=pad)
-        limits.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        limits.grid(row=4, column=0, sticky="ew", pady=(10, 0))
 
         # TIC limits
         ttk.Label(limits, text="TIC x(min,max)").grid(row=0, column=0, sticky="w")
@@ -19586,6 +20270,8 @@ class App(tb.Window):
             self.title_fontsize_var.set(12)
             self.label_fontsize_var.set(10)
             self.tick_fontsize_var.set(9)
+            self._matplotlib_bg_var.set("#ffffff")
+            self._fill_under_curves_var.set(True)
 
             self.tic_title_var.set("TIC (MS1)")
             self.tic_xlabel_var.set("Retention time (min)")
@@ -19647,13 +20333,16 @@ class App(tb.Window):
             self._redraw_all()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=3, column=0, sticky="e", pady=(10, 0))
+        buttons.grid(row=5, column=0, sticky="e", pady=(10, 0))
         apply_btn = ttk.Button(buttons, text="Apply", command=on_apply)
         apply_btn.grid(row=0, column=0, padx=(0, 8))
         reset_btn = ttk.Button(buttons, text="Reset", command=on_reset)
         reset_btn.grid(row=0, column=1, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
         close_btn.grid(row=0, column=2)
+        style_success(apply_btn)
+        style_secondary(reset_btn)
+        style_secondary(close_btn)
 
         # Tooltips
         ToolTip.attach(tic_title_ent, TOOLTIP_TEXT["gs_tic_title"])
@@ -19669,6 +20358,8 @@ class App(tb.Window):
         ToolTip.attach(title_fs, TOOLTIP_TEXT["gs_title_fs"])
         ToolTip.attach(label_fs, TOOLTIP_TEXT["gs_label_fs"])
         ToolTip.attach(tick_fs, TOOLTIP_TEXT["gs_tick_fs"])
+        ToolTip.attach(bg_ent, "Background color used for the LCMS matplotlib figure and axes.")
+        ToolTip.attach(fill_cb, "Toggle the shaded area under the TIC and UV traces.")
 
         for wdg in [
             tic_xmin,
@@ -19700,30 +20391,43 @@ class App(tb.Window):
         frm = ttk.Frame(dlg, padding=pad)
         frm.grid(row=0, column=0)
 
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Peak Annotations", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Configure spectrum labels, UV label transfer, and annotation behavior for the active LCMS workflow.",
+            style="CardHint.TLabel",
+            wraplength=520,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="LCMS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         cb_annot = ttk.Checkbutton(frm, text="Annotate spectrum peaks with m/z", variable=self.annotate_peaks_var)
-        cb_annot.grid(row=0, column=0, columnspan=2, sticky="w")
+        cb_annot.grid(row=1, column=0, columnspan=2, sticky="w")
 
-        ttk.Label(frm, text="Top N peaks:").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="Top N peaks:").grid(row=2, column=0, sticky="w", pady=(8, 0))
         topn = ttk.Spinbox(frm, from_=0, to=200, textvariable=self.annotate_top_n_var, width=8)
-        topn.grid(row=1, column=1, sticky="w", pady=(8, 0))
+        topn.grid(row=2, column=1, sticky="w", pady=(8, 0))
 
-        ttk.Label(frm, text="Min intensity (fraction of max):").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="Min intensity (fraction of max):").grid(row=3, column=0, sticky="w", pady=(8, 0))
         minrel = ttk.Entry(frm, textvariable=self.annotate_min_rel_var, width=10)
-        minrel.grid(row=2, column=1, sticky="w", pady=(8, 0))
+        minrel.grid(row=3, column=1, sticky="w", pady=(8, 0))
 
         cb_drag = ttk.Checkbutton(frm, text="Enable dragging labels with mouse", variable=self.drag_annotations_var)
-        cb_drag.grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        cb_drag.grid(row=4, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
-        ttk.Separator(frm, orient="horizontal").grid(row=4, column=0, columnspan=2, sticky="ew", pady=(10, 6))
+        ttk.Separator(frm, orient="horizontal").grid(row=5, column=0, columnspan=2, sticky="ew", pady=(10, 6))
 
         cb_uv = ttk.Checkbutton(
             frm,
             text="Transfer top MS peaks to UV labels at selected RT",
             variable=self.uv_label_from_ms_var,
         )
-        cb_uv.grid(row=5, column=0, columnspan=2, sticky="w")
+        cb_uv.grid(row=6, column=0, columnspan=2, sticky="w")
 
-        ttk.Label(frm, text="How many peaks (2–3):").grid(row=6, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="How many peaks (2–3):").grid(row=7, column=0, sticky="w", pady=(8, 0))
         uvn = ttk.Combobox(
             frm,
             textvariable=self.uv_label_from_ms_top_n_var,
@@ -19731,14 +20435,14 @@ class App(tb.Window):
             state="readonly",
             width=6,
         )
-        uvn.grid(row=6, column=1, sticky="w", pady=(8, 0))
+        uvn.grid(row=7, column=1, sticky="w", pady=(8, 0))
 
-        ttk.Label(frm, text="Min UV label confidence (%):").grid(row=7, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="Min UV label confidence (%):").grid(row=8, column=0, sticky="w", pady=(8, 0))
         uvconf = ttk.Spinbox(frm, from_=0, to=100, increment=1, textvariable=self.uv_label_min_conf_var, width=8)
-        uvconf.grid(row=7, column=1, sticky="w", pady=(8, 0))
+        uvconf.grid(row=8, column=1, sticky="w", pady=(8, 0))
 
         show_conf = ttk.Checkbutton(frm, text="Show confidence % in UV labels", variable=self.uv_label_show_conf_var, command=self._plot_uv)
-        show_conf.grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        show_conf.grid(row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         def on_apply() -> None:
             try:
@@ -19766,13 +20470,19 @@ class App(tb.Window):
             self._plot_uv()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=9, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        buttons.grid(row=10, column=0, columnspan=2, sticky="e", pady=(10, 0))
         pick_btn = ttk.Button(buttons, text="Label selected RT", command=self._apply_uv_ms_labels_to_selected_rt)
         pick_btn.grid(row=0, column=0, padx=(0, 8))
+        auto_btn = ttk.Button(buttons, text="Auto Arrange Labels", command=self._run_auto_arrange_lcms_labels)
+        auto_btn.grid(row=0, column=1, padx=(0, 8))
         apply_btn = ttk.Button(buttons, text="Apply", command=on_apply)
-        apply_btn.grid(row=0, column=1, padx=(0, 8))
+        apply_btn.grid(row=0, column=2, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
-        close_btn.grid(row=0, column=2)
+        close_btn.grid(row=0, column=3)
+        style_secondary(pick_btn)
+        style_secondary(auto_btn)
+        style_success(apply_btn)
+        style_secondary(close_btn)
 
         ToolTip.attach(cb_annot, TOOLTIP_TEXT["annotate_enable"])
         ToolTip.attach(topn, TOOLTIP_TEXT["annotate_top_n"])
@@ -19795,12 +20505,25 @@ class App(tb.Window):
         frm = ttk.Frame(dlg, padding=pad)
         frm.grid(row=0, column=0)
 
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Custom Labels", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Create, remove, and manage manual labels for the currently displayed spectrum.",
+            style="CardHint.TLabel",
+            wraplength=520,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="LCMS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         ttk.Label(frm, text="Labels are drawn only on the currently displayed spectrum.").grid(
-            row=0, column=0, columnspan=4, sticky="w"
+            row=1, column=0, columnspan=4, sticky="w"
         )
 
         lst = tk.Listbox(frm, height=7, width=62)
-        lst.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        lst.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(8, 0))
 
         def _current_spectrum_key() -> str:
             meta = self._current_spectrum_meta
@@ -19816,19 +20539,19 @@ class App(tb.Window):
 
         refresh_list()
 
-        ttk.Label(frm, text="Label").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(frm, text="Label").grid(row=3, column=0, sticky="w", pady=(10, 0))
         label_var = tk.StringVar(value="")
         label_ent = ttk.Entry(frm, textvariable=label_var, width=28)
-        label_ent.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        label_ent.grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
-        ttk.Label(frm, text="m/z").grid(row=2, column=2, sticky="e", padx=(12, 0), pady=(10, 0))
+        ttk.Label(frm, text="m/z").grid(row=3, column=2, sticky="e", padx=(12, 0), pady=(10, 0))
         mz_var = tk.StringVar(value="")
         mz_ent = ttk.Entry(frm, textvariable=mz_var, width=12)
-        mz_ent.grid(row=2, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
+        mz_ent.grid(row=3, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
 
         snap_var = tk.BooleanVar(value=True)
         snap_cb = ttk.Checkbutton(frm, text="Snap to nearest peak", variable=snap_var)
-        snap_cb.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        snap_cb.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def on_add() -> None:
             label = (label_var.get() or "").strip()
@@ -19859,6 +20582,7 @@ class App(tb.Window):
             if 0 <= idx < len(items):
                 self._push_lcms_undo_state("Remove custom label")
                 items.pop(idx)
+                self._shift_custom_label_positions_after_delete(key, idx)
                 if not items:
                     self._custom_labels_by_spectrum.pop(key, None)
                 refresh_list()
@@ -19869,13 +20593,19 @@ class App(tb.Window):
             if not self._custom_labels_by_spectrum.get(_current_spectrum_key()):
                 return
             self._push_lcms_undo_state("Clear custom labels")
-            self._custom_labels_by_spectrum.pop(_current_spectrum_key(), None)
+            spec_id = _current_spectrum_key()
+            self._custom_labels_by_spectrum.pop(spec_id, None)
+            rows = self._spec_label_positions.get(spec_id)
+            if isinstance(rows, dict):
+                self._spec_label_positions[spec_id] = {k: v for k, v in rows.items() if not str(k).startswith("custom|")}
+                if not self._spec_label_positions[spec_id]:
+                    self._spec_label_positions.pop(spec_id, None)
             refresh_list()
             self._redraw_spectrum_only()
             self._update_current_context_panel()
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=4, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        buttons.grid(row=5, column=0, columnspan=4, sticky="e", pady=(12, 0))
         add_btn = ttk.Button(buttons, text="Add", command=on_add)
         add_btn.grid(row=0, column=0, padx=(0, 8))
         rm_btn = ttk.Button(buttons, text="Remove", command=on_remove)
@@ -19884,6 +20614,10 @@ class App(tb.Window):
         clear_btn.grid(row=0, column=2, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
         close_btn.grid(row=0, column=3)
+        style_success(add_btn)
+        style_danger(rm_btn)
+        style_danger(clear_btn)
+        style_secondary(close_btn)
 
         ToolTip.attach(lst, TOOLTIP_TEXT["cl_list"])
         ToolTip.attach(label_ent, TOOLTIP_TEXT["cl_label"])
@@ -19904,12 +20638,25 @@ class App(tb.Window):
         frm = ttk.Frame(dlg, padding=pad)
         frm.grid(row=0, column=0)
 
-        pm_enable = ttk.Checkbutton(frm, text="Enable polymer/reaction matching on spectrum", variable=self.poly_enabled_var)
-        pm_enable.grid(row=0, column=0, columnspan=4, sticky="w")
+        hdr = ttk.Frame(frm, style="ShellPanel.TFrame", padding=(14, 12))
+        hdr.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 10))
+        hdr.columnconfigure(0, weight=1)
+        ttk.Label(hdr, text="Polymer / Reaction Match", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hdr,
+            text="Configure polymer rules, adduct handling, and tolerances for the current spectrum or selected TIC region.",
+            style="CardHint.TLabel",
+            wraplength=560,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(hdr, text="LCMS", style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
-        ttk.Label(frm, text="Monomers (one per line: name,mass or name mass or mass)").grid(row=1, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        pm_enable = ttk.Checkbutton(frm, text="Enable polymer/reaction matching on spectrum", variable=self.poly_enabled_var)
+        pm_enable.grid(row=1, column=0, columnspan=4, sticky="w")
+
+        ttk.Label(frm, text="Monomers (one per line: name,mass or name mass or mass)").grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 0))
         txt = tk.Text(frm, width=62, height=5)
-        txt.grid(row=2, column=0, columnspan=4, sticky="ew")
+        txt.grid(row=3, column=0, columnspan=4, sticky="ew")
         txt.insert("1.0", self.poly_monomers_text_var.get())
 
         presets = {
@@ -19922,34 +20669,34 @@ class App(tb.Window):
             "Dehydration (-H2O)": -18.010565,
         }
 
-        ttk.Label(frm, text="Per-bond delta (polymerization)").grid(row=3, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(frm, text="Per-bond delta (polymerization)").grid(row=4, column=0, sticky="w", pady=(10, 0))
         bond_choice = tk.StringVar(value="Dehydration (-H2O)")
         bond_combo = ttk.Combobox(frm, textvariable=bond_choice, values=list(presets.keys()) + ["Custom"], state="readonly", width=24)
-        bond_combo.grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
-        ttk.Label(frm, text="Custom (Da)").grid(row=3, column=2, sticky="e", padx=(12, 0), pady=(10, 0))
+        bond_combo.grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        ttk.Label(frm, text="Custom (Da)").grid(row=4, column=2, sticky="e", padx=(12, 0), pady=(10, 0))
         bond_custom = tk.StringVar(value=str(self.poly_bond_delta_var.get()))
         bond_entry = ttk.Entry(frm, textvariable=bond_custom, width=12)
-        bond_entry.grid(row=3, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
+        bond_entry.grid(row=4, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
 
-        ttk.Label(frm, text="Extra delta (once per chain)").grid(row=4, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(frm, text="Extra delta (once per chain)").grid(row=5, column=0, sticky="w", pady=(6, 0))
         extra_choice = tk.StringVar(value="None (0)")
         extra_combo = ttk.Combobox(frm, textvariable=extra_choice, values=list(extra_presets.keys()) + ["Custom"], state="readonly", width=24)
-        extra_combo.grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
-        ttk.Label(frm, text="Custom (Da)").grid(row=4, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
+        extra_combo.grid(row=5, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
+        ttk.Label(frm, text="Custom (Da)").grid(row=5, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
         extra_custom = tk.StringVar(value=str(self.poly_extra_delta_var.get()))
         extra_entry = ttk.Entry(frm, textvariable=extra_custom, width=12)
-        extra_entry.grid(row=4, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
+        extra_entry.grid(row=5, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
 
         pol = self._current_spectrum_meta.polarity if self._current_spectrum_meta is not None else None
 
-        ttk.Label(frm, text="H adduct mass (Da)").grid(row=5, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(frm, text="H adduct mass (Da)").grid(row=6, column=0, sticky="w", pady=(10, 0))
         adduct_var = tk.StringVar(value=str(self.poly_adduct_mass_var.get()))
         adduct_ent = ttk.Entry(frm, textvariable=adduct_var, width=12)
-        adduct_ent.grid(row=5, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        adduct_ent.grid(row=6, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
         # Extra adducts to match in addition to H
         extra_frame = ttk.Frame(frm)
-        extra_frame.grid(row=5, column=2, columnspan=2, sticky="w", padx=(12, 0), pady=(10, 0))
+        extra_frame.grid(row=6, column=2, columnspan=2, sticky="w", padx=(12, 0), pady=(10, 0))
         ttk.Label(extra_frame, text="Also match:").pack(side=tk.LEFT)
         if pol == "negative":
             cb_cl = ttk.Checkbutton(extra_frame, text="+Cl", variable=self.poly_adduct_cl_var)
@@ -19963,11 +20710,11 @@ class App(tb.Window):
             cb_na.pack(side=tk.LEFT, padx=(10, 0))
             cb_k = ttk.Checkbutton(extra_frame, text="+K", variable=self.poly_adduct_k_var)
             cb_k.pack(side=tk.LEFT, padx=(10, 0))
-        ttk.Label(frm, text="Charges (comma-separated)").grid(row=6, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
+        ttk.Label(frm, text="Charges (comma-separated)").grid(row=7, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
         charges_ent = ttk.Entry(frm, textvariable=self.poly_charges_var, width=12)
-        charges_ent.grid(row=6, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
+        charges_ent.grid(row=7, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
 
-        ttk.Separator(frm, orient="horizontal").grid(row=7, column=0, columnspan=4, sticky="ew", pady=10)
+        ttk.Separator(frm, orient="horizontal").grid(row=8, column=0, columnspan=4, sticky="ew", pady=10)
 
         cluster_adduct_var = tk.StringVar(value=str(self.poly_cluster_adduct_mass_var.get()))
         decarb_cb = ttk.Checkbutton(
@@ -19975,40 +20722,40 @@ class App(tb.Window):
             text="Also match decarboxylation products (−CO2)",
             variable=self.poly_decarb_enabled_var,
         )
-        decarb_cb.grid(row=8, column=0, columnspan=3, sticky="w")
+        decarb_cb.grid(row=9, column=0, columnspan=3, sticky="w")
 
         oxid_cb = ttk.Checkbutton(
             frm,
             text="Also match oxidation products (+O)",
             variable=self.poly_oxid_enabled_var,
         )
-        oxid_cb.grid(row=9, column=0, columnspan=3, sticky="w")
+        oxid_cb.grid(row=10, column=0, columnspan=3, sticky="w")
 
         cluster_cb = ttk.Checkbutton(frm, text="Enable noncovalent polymer dimers (2M−H)", variable=self.poly_cluster_enabled_var)
-        cluster_cb.grid(row=10, column=0, columnspan=3, sticky="w")
+        cluster_cb.grid(row=11, column=0, columnspan=3, sticky="w")
 
-        ttk.Label(frm, text="Cluster H adduct mass (Da)").grid(row=11, column=0, sticky="w")
+        ttk.Label(frm, text="Cluster H adduct mass (Da)").grid(row=12, column=0, sticky="w")
         cluster_adduct_ent = ttk.Entry(frm, textvariable=cluster_adduct_var, width=12)
-        cluster_adduct_ent.grid(row=11, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(frm, text="(uses the same extra adducts as above)").grid(row=11, column=2, columnspan=2, sticky="w", padx=(12, 0))
+        cluster_adduct_ent.grid(row=12, column=1, sticky="w", padx=(8, 0))
+        ttk.Label(frm, text="(uses the same extra adducts as above)").grid(row=12, column=2, columnspan=2, sticky="w", padx=(12, 0))
 
-        ttk.Label(frm, text="Max total monomers (DP)").grid(row=12, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(frm, text="Max total monomers (DP)").grid(row=13, column=0, sticky="w", pady=(6, 0))
         dp_spin = ttk.Spinbox(frm, from_=1, to=200, textvariable=self.poly_max_dp_var, width=8)
-        dp_spin.grid(row=12, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
+        dp_spin.grid(row=13, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
 
-        ttk.Label(frm, text="Tolerance").grid(row=12, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
+        ttk.Label(frm, text="Tolerance").grid(row=13, column=2, sticky="e", padx=(12, 0), pady=(6, 0))
         tol_val = tk.StringVar(value=str(self.poly_tol_value_var.get()))
         tol_ent = ttk.Entry(frm, textvariable=tol_val, width=10)
-        tol_ent.grid(row=12, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
+        tol_ent.grid(row=13, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
         tol_da_rb = ttk.Radiobutton(frm, text="Da", value="Da", variable=self.poly_tol_unit_var)
-        tol_da_rb.grid(row=13, column=3, sticky="w")
+        tol_da_rb.grid(row=14, column=3, sticky="w")
         tol_ppm_rb = ttk.Radiobutton(frm, text="ppm", value="ppm", variable=self.poly_tol_unit_var)
-        tol_ppm_rb.grid(row=13, column=3, sticky="e")
+        tol_ppm_rb.grid(row=14, column=3, sticky="e")
 
-        ttk.Label(frm, text="Min peak intensity (fraction of max)").grid(row=14, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(frm, text="Min peak intensity (fraction of max)").grid(row=15, column=0, sticky="w", pady=(10, 0))
         minrel = tk.StringVar(value=str(self.poly_min_rel_int_var.get()))
         minrel_ent = ttk.Entry(frm, textvariable=minrel, width=12)
-        minrel_ent.grid(row=14, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        minrel_ent.grid(row=15, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
         def sync_bond(*_) -> None:
             choice = bond_choice.get()
@@ -20082,7 +20829,7 @@ class App(tb.Window):
             self._compute_region_summed_spectrum(float(a), float(b))
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=15, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        buttons.grid(row=16, column=0, columnspan=4, sticky="e", pady=(12, 0))
         apply_btn = ttk.Button(buttons, text="Apply", command=on_apply)
         apply_btn.grid(row=0, column=0, padx=(0, 8))
         region_btn = ttk.Button(buttons, text="Match Region", command=on_match_region)
@@ -20091,6 +20838,10 @@ class App(tb.Window):
         reset_btn.grid(row=0, column=2, padx=(0, 8))
         close_btn = ttk.Button(buttons, text="Close", command=dlg.destroy)
         close_btn.grid(row=0, column=3)
+        style_success(apply_btn)
+        style_secondary(region_btn)
+        style_secondary(reset_btn)
+        style_secondary(close_btn)
 
         # Tooltips
         ToolTip.attach(pm_enable, TOOLTIP_TEXT["pm_enable"])
@@ -20201,10 +20952,11 @@ class App(tb.Window):
             return
 
         self._ax_uv.plot(x, y, linewidth=1.65, color=PLOT_UV, alpha=0.98, solid_capstyle="round")
-        try:
-            self._ax_uv.fill_between(x, y, 0.0, color=PLOT_UV_FILL, alpha=0.28, linewidth=0)
-        except Exception:
-            pass
+        if bool(self._fill_under_curves_var.get()):
+            try:
+                self._ax_uv.fill_between(x, y, 0.0, color=PLOT_UV_FILL, alpha=0.28, linewidth=0)
+            except Exception:
+                pass
 
         # Selected RT marker (if available)
         if self._selected_rt_min is not None:
@@ -20227,6 +20979,7 @@ class App(tb.Window):
             self._draw_uv_ms_peak_labels()
 
         self._apply_plot_style()
+        self._update_lcms_empty_state()
         self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
@@ -20954,12 +21707,14 @@ class App(tb.Window):
         # Temporarily swap session label state
         prev_custom = self._custom_labels_by_spectrum
         prev_overrides = self._spec_label_overrides
+        prev_positions = self._spec_label_positions
         prev_meta = self._current_spectrum_meta
         prev_mz = self._current_spectrum_mz
         prev_int = self._current_spectrum_int
         try:
             self._custom_labels_by_spectrum = sess.custom_labels_by_spectrum
             self._spec_label_overrides = sess.spec_label_overrides
+            self._spec_label_positions = sess.spec_label_positions
             self._current_spectrum_meta = meta
             self._current_spectrum_mz = mz_vals
             self._current_spectrum_int = int_vals
@@ -20970,6 +21725,7 @@ class App(tb.Window):
         finally:
             self._custom_labels_by_spectrum = prev_custom
             self._spec_label_overrides = prev_overrides
+            self._spec_label_positions = prev_positions
             self._current_spectrum_meta = prev_meta
             self._current_spectrum_mz = prev_mz
             self._current_spectrum_int = prev_int
@@ -21019,6 +21775,7 @@ class App(tb.Window):
                 self._overlay_selected_ms_rt = float(self._current_spectrum_meta.rt_min)
             except Exception:
                 self._overlay_selected_ms_rt = None
+            self._update_lcms_empty_state()
         self._refresh_overlay_view()
         self._log("INFO", f"Overlay started with {len(ids)} datasets")
 
@@ -21047,6 +21804,7 @@ class App(tb.Window):
         else:
             self._refresh_tic()
             self._plot_uv()
+        self._update_lcms_empty_state()
         self._log("INFO", "Overlay cleared")
 
     def _refresh_tic(self) -> None:
@@ -21112,10 +21870,11 @@ class App(tb.Window):
             tics = np.asarray(self._filtered_tics, dtype=float)
             (line,) = self._ax_tic.plot(rts, tics, linewidth=1.8, color=PLOT_TIC, alpha=0.99, solid_capstyle="round")
             self._tic_line = line
-            try:
-                self._ax_tic.fill_between(rts, tics, 0.0, color=PLOT_TIC_FILL, alpha=0.24, linewidth=0)
-            except Exception:
-                pass
+            if bool(self._fill_under_curves_var.get()):
+                try:
+                    self._ax_tic.fill_between(rts, tics, 0.0, color=PLOT_TIC_FILL, alpha=0.24, linewidth=0)
+                except Exception:
+                    pass
 
             # Reset marker
             if self._tic_marker is not None:
@@ -21248,6 +22007,9 @@ class App(tb.Window):
                 except Exception:
                     contains = False
                 if contains:
+                    if not bool(self._lcms_drag_undo_armed):
+                        self._push_lcms_undo_state("Move label")
+                        self._lcms_drag_undo_armed = True
                     self._active_annotation = ann
                     self._active_annotation_ax = self._ax_spec
                     return
@@ -21265,6 +22027,9 @@ class App(tb.Window):
                 except Exception:
                     contains = False
                 if contains:
+                    if not bool(self._lcms_drag_undo_armed):
+                        self._push_lcms_undo_state("Move label")
+                        self._lcms_drag_undo_armed = True
                     self._active_annotation = ann
                     self._active_annotation_ax = self._ax_uv
                     return
@@ -21399,6 +22164,7 @@ class App(tb.Window):
                     except Exception:
                         pass
                     items[int(j)].xytext = (float(event.xdata), float(y_base))
+                    items[int(j)].locked = True
         if self._canvas is not None:
             self._canvas.draw_idle()
 
@@ -21433,8 +22199,18 @@ class App(tb.Window):
             self._compute_region_summed_spectrum(float(a), float(b))
             return
 
+        try:
+            if self._active_annotation is not None and self._active_annotation_ax == self._ax_spec:
+                spec_key = self._spec_ann_key_by_objid.get(id(self._active_annotation))
+                if spec_key is not None and len(spec_key) >= 2:
+                    xy = self._active_annotation.get_position()
+                    self._store_spec_label_xytext(str(spec_key[1]), spec_key, (float(xy[0]), float(xy[1])), locked=True)
+        except Exception:
+            pass
+
         self._active_annotation = None
         self._active_annotation_ax = None
+        self._lcms_drag_undo_armed = False
 
     def _on_tic_region_select_changed(self) -> None:
         # If the user turns off the mode mid-drag, cancel the drag.
@@ -21662,6 +22438,621 @@ class App(tb.Window):
         except Exception:
             return float(mz)
 
+    def _spec_label_storage_key(self, spec_key: Tuple[Any, ...]) -> Optional[str]:
+        if not isinstance(spec_key, tuple) or not spec_key:
+            return None
+        kind = str(spec_key[0])
+        try:
+            if kind == "custom" and len(spec_key) >= 3:
+                return f"custom|{int(spec_key[2])}"
+            if kind == "auto" and len(spec_key) >= 3:
+                return f"auto|{float(spec_key[2]):.4f}"
+            if kind == "poly" and len(spec_key) >= 4:
+                return f"poly|{str(spec_key[2])}|{float(spec_key[3]):.4f}"
+        except Exception:
+            return None
+        return None
+
+    def _get_spec_label_position_entry(self, spectrum_id: str, spec_key: Tuple[Any, ...]) -> Optional[Dict[str, Any]]:
+        store_key = self._spec_label_storage_key(spec_key)
+        if not store_key:
+            return None
+        rows = self._spec_label_positions.get(str(spectrum_id), {})
+        entry = rows.get(store_key)
+        if not isinstance(entry, dict):
+            return None
+        xy = entry.get("xytext")
+        if not isinstance(xy, (list, tuple)) or len(xy) != 2:
+            return None
+        try:
+            return {
+                "xytext": [float(xy[0]), float(xy[1])],
+                "locked": bool(entry.get("locked", False)),
+            }
+        except Exception:
+            return None
+
+    def _get_spec_label_xytext(self, spectrum_id: str, spec_key: Tuple[Any, ...], default_xytext: Tuple[float, float]) -> Tuple[float, float]:
+        entry = self._get_spec_label_position_entry(spectrum_id, spec_key)
+        if entry is None:
+            return float(default_xytext[0]), float(default_xytext[1])
+        xy = entry.get("xytext") or default_xytext
+        return float(xy[0]), float(xy[1])
+
+    def _store_spec_label_xytext(self, spectrum_id: str, spec_key: Tuple[Any, ...], xytext: Tuple[float, float], *, locked: bool) -> None:
+        store_key = self._spec_label_storage_key(spec_key)
+        if not store_key:
+            return
+        self._spec_label_positions.setdefault(str(spectrum_id), {})[store_key] = {
+            "xytext": [float(xytext[0]), float(xytext[1])],
+            "locked": bool(locked),
+        }
+
+    def _remove_spec_label_position(self, spectrum_id: str, spec_key: Tuple[Any, ...]) -> None:
+        store_key = self._spec_label_storage_key(spec_key)
+        if not store_key:
+            return
+        rows = self._spec_label_positions.get(str(spectrum_id))
+        if not isinstance(rows, dict):
+            return
+        rows.pop(store_key, None)
+        if not rows:
+            self._spec_label_positions.pop(str(spectrum_id), None)
+
+    def _shift_custom_label_positions_after_delete(self, spectrum_id: str, deleted_idx: int) -> None:
+        rows = self._spec_label_positions.get(str(spectrum_id))
+        if not isinstance(rows, dict) or not rows:
+            return
+        updated: Dict[str, Dict[str, Any]] = {}
+        for key, payload in rows.items():
+            if not str(key).startswith("custom|"):
+                updated[str(key)] = payload
+                continue
+            try:
+                idx = int(str(key).split("|", 1)[1])
+            except Exception:
+                updated[str(key)] = payload
+                continue
+            if idx == int(deleted_idx):
+                continue
+            if idx > int(deleted_idx):
+                updated[f"custom|{idx - 1}"] = payload
+            else:
+                updated[str(key)] = payload
+        if updated:
+            self._spec_label_positions[str(spectrum_id)] = updated
+        else:
+            self._spec_label_positions.pop(str(spectrum_id), None)
+
+    def _annotation_overlap_area(self, bbox_a: Bbox, bbox_b: Bbox) -> float:
+        x0 = max(float(bbox_a.x0), float(bbox_b.x0))
+        y0 = max(float(bbox_a.y0), float(bbox_b.y0))
+        x1 = min(float(bbox_a.x1), float(bbox_b.x1))
+        y1 = min(float(bbox_a.y1), float(bbox_b.y1))
+        if x1 <= x0 or y1 <= y0:
+            return 0.0
+        return float((x1 - x0) * (y1 - y0))
+
+    def _line_segments_intersect(
+        self,
+        a0: Tuple[float, float],
+        a1: Tuple[float, float],
+        b0: Tuple[float, float],
+        b1: Tuple[float, float],
+    ) -> bool:
+        def _orient(p: Tuple[float, float], q: Tuple[float, float], r: Tuple[float, float]) -> float:
+            return ((q[0] - p[0]) * (r[1] - p[1])) - ((q[1] - p[1]) * (r[0] - p[0]))
+
+        o1 = _orient(a0, a1, b0)
+        o2 = _orient(a0, a1, b1)
+        o3 = _orient(b0, b1, a0)
+        o4 = _orient(b0, b1, a1)
+        return bool((o1 == 0.0 and o2 == 0.0 and o3 == 0.0 and o4 == 0.0) or ((o1 <= 0.0 <= o2 or o2 <= 0.0 <= o1) and (o3 <= 0.0 <= o4 or o4 <= 0.0 <= o3)))
+
+    def _debug_auto_arrange(self, message: str) -> None:
+        if not bool(str(os.environ.get("LAB_GUI_DEBUG_AUTO_ARRANGE", "")).strip()):
+            return
+        try:
+            self._log("INFO", f"[auto-arrange] {message}")
+        except Exception:
+            pass
+
+    def _auto_arrange_x_shift(self, ax: Any) -> Tuple[float, float]:
+        try:
+            x0, x1 = ax.get_xlim()
+            span = max(1e-9, abs(float(x1) - float(x0)))
+        except Exception:
+            return 0.5, 3.0
+
+        is_rt_axis = bool(span <= 120.0)
+        if is_rt_axis:
+            max_shift = min(3.0, max(0.6, span * 0.12))
+            dx = min(max(0.3, span * 0.018), 0.4, max_shift)
+        else:
+            max_shift = max(span * 0.08, 1.0)
+            dx = min(max(span * 0.015, 0.25), max_shift)
+        return float(dx), float(max_shift)
+
+    def _auto_arrange_cluster_config(self, ax: Any) -> Dict[str, float]:
+        lane_dx, max_shift = self._auto_arrange_x_shift(ax)
+        try:
+            x0, x1 = ax.get_xlim()
+            span = max(1e-9, abs(float(x1) - float(x0)))
+        except Exception:
+            span = 10.0
+
+        is_rt_axis = bool(span <= 120.0)
+        if is_rt_axis:
+            cluster_gap = min(0.75, max(0.4, lane_dx * 1.25))
+            lane_dx = min(max(0.25, lane_dx), 0.5)
+        else:
+            cluster_gap = max(span * 0.01, lane_dx * 1.2)
+
+        return {
+            "cluster_gap": float(cluster_gap),
+            "lane_dx": float(lane_dx),
+            "max_shift": float(max_shift),
+            "max_rows": 4.0,
+        }
+
+    def _auto_arrange_lane_pattern(self, count: int) -> List[int]:
+        lanes: List[int] = []
+        lane = 0
+        while len(lanes) < max(0, int(count)):
+            if lane == 0:
+                lanes.append(0)
+                lane = 1
+                continue
+            lanes.append(-lane)
+            if len(lanes) < int(count):
+                lanes.append(lane)
+            lane += 1
+        return lanes[: max(0, int(count))]
+
+    def _cluster_annotation_items(self, items: List[Dict[str, Any]], cluster_gap: float) -> List[List[Dict[str, Any]]]:
+        sorted_items = sorted(
+            items,
+            key=lambda item: (
+                float(item.get("anchor_xy", (0.0, 0.0))[0]),
+                -float(item.get("priority", 0.0)),
+            ),
+        )
+        clusters: List[List[Dict[str, Any]]] = []
+        current: List[Dict[str, Any]] = []
+        prev_x: Optional[float] = None
+        for item in sorted_items:
+            anchor_xy = item.get("anchor_xy")
+            if not isinstance(anchor_xy, (list, tuple)) or len(anchor_xy) != 2:
+                continue
+            x_value = float(anchor_xy[0])
+            if not current or prev_x is None or abs(float(x_value) - float(prev_x)) <= float(cluster_gap):
+                current.append(item)
+            else:
+                clusters.append(current)
+                current = [item]
+            prev_x = float(x_value)
+        if current:
+            clusters.append(current)
+        return clusters
+
+    def _auto_arrange_cluster_lane_dx(self, base_lane_dx: float, max_shift: float, cluster_size: int) -> float:
+        if int(cluster_size) <= 1:
+            return float(base_lane_dx)
+        widen_factor = min(2.4, 1.0 + (max(0, int(cluster_size) - 2) * 0.16))
+        return float(min(float(max_shift), float(base_lane_dx) * widen_factor))
+
+    def _auto_arrange_cluster_row_count(self, base_rows: int, cluster_size: int) -> int:
+        extra_rows = 0
+        if int(cluster_size) >= 6:
+            extra_rows += 1
+        if int(cluster_size) >= 10:
+            extra_rows += 1
+        return max(1, min(6, int(base_rows) + int(extra_rows)))
+
+    def _auto_arrange_pair_length_score(self, *, ax: Any, left: Dict[str, Any], right: Dict[str, Any], left_y: float, right_y: float) -> float:
+        data_to_disp = ax.transData.transform
+        left_anchor = left.get("anchor_xy", (0.0, 0.0))
+        right_anchor = right.get("anchor_xy", (0.0, 0.0))
+        left_target = (float(left.get("target_x", left_anchor[0])), float(left_y))
+        right_target = (float(right.get("target_x", right_anchor[0])), float(right_y))
+        left_disp_anchor = data_to_disp((float(left_anchor[0]), float(left_anchor[1])))
+        right_disp_anchor = data_to_disp((float(right_anchor[0]), float(right_anchor[1])))
+        left_disp_target = data_to_disp(left_target)
+        right_disp_target = data_to_disp(right_target)
+        score = math.hypot(float(left_disp_target[0]) - float(left_disp_anchor[0]), float(left_disp_target[1]) - float(left_disp_anchor[1]))
+        score += math.hypot(float(right_disp_target[0]) - float(right_disp_anchor[0]), float(right_disp_target[1]) - float(right_disp_anchor[1]))
+        try:
+            if self._line_segments_intersect(tuple(left_disp_anchor), tuple(left_disp_target), tuple(right_disp_anchor), tuple(right_disp_target)):
+                score += 650.0
+        except Exception:
+            pass
+        return float(score)
+
+    def _auto_arrange_annotation_artists(self, *, canvas: Any, ax: Any, items: List[Dict[str, Any]], full_reflow: bool = False) -> Dict[str, Any]:
+        stats: Dict[str, Any] = {
+            "changed": False,
+            "renderer_ready": False,
+            "total": 0,
+            "locked": 0,
+            "movable": 0,
+            "moved": 0,
+            "crowded": 0,
+        }
+        if ax is None or canvas is None or not items:
+            return stats
+        try:
+            canvas.draw()
+        except Exception:
+            pass
+        try:
+            renderer = canvas.get_renderer()
+            stats["renderer_ready"] = True
+        except Exception:
+            try:
+                renderer = canvas.figure.canvas.get_renderer()
+                stats["renderer_ready"] = True
+            except Exception:
+                self._debug_auto_arrange("renderer unavailable")
+                return stats
+
+        axis_bbox = ax.get_window_extent(renderer).expanded(0.98, 0.96)
+        data_to_disp = ax.transData.transform
+
+        visible_items: List[Dict[str, Any]] = []
+        for item in items:
+            artist = item.get("artist")
+            if artist is None:
+                continue
+            try:
+                if not bool(artist.get_visible()) or not str(artist.get_text() or "").strip():
+                    continue
+            except Exception:
+                continue
+            visible_items.append(item)
+
+        stats["total"] = len(visible_items)
+        if not visible_items:
+            return stats
+
+        occupied: List[Bbox] = []
+        occupied_centers: List[Tuple[float, float, float, float]] = []
+        occupied_x_data: List[float] = []
+        placed_segments: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
+        for item in visible_items:
+            if not bool(item.get("locked", False)):
+                continue
+            artist = item.get("artist")
+            if artist is None:
+                continue
+            try:
+                bbox = artist.get_window_extent(renderer).expanded(1.10, 1.18)
+                occupied.append(bbox)
+                occupied_centers.append((float((bbox.x0 + bbox.x1) * 0.5), float((bbox.y0 + bbox.y1) * 0.5), float(bbox.width), float(bbox.height)))
+                anchor_xy = item.get("anchor_xy")
+                pos_xy = artist.get_position()
+                occupied_x_data.append(float(pos_xy[0]))
+                if isinstance(anchor_xy, (list, tuple)) and len(anchor_xy) == 2:
+                    placed_segments.append((tuple(data_to_disp((float(anchor_xy[0]), float(anchor_xy[1])))), tuple(data_to_disp((float(pos_xy[0]), float(pos_xy[1]))))))
+            except Exception:
+                continue
+
+        stats["locked"] = len(occupied)
+        changed = False
+        movable = sorted((it for it in visible_items if not bool(it.get("locked", False))), key=lambda it: float(it.get("priority", 0.0)), reverse=True)
+        stats["movable"] = len(movable)
+        self._debug_auto_arrange(f"labels={stats['total']} locked={stats['locked']} movable={stats['movable']} renderer={stats['renderer_ready']}")
+
+        try:
+            y0, y1 = ax.get_ylim()
+            y_min = min(float(y0), float(y1))
+            y_max = max(float(y0), float(y1))
+            y_span = max(1e-9, y_max - y_min)
+        except Exception:
+            y_min = 0.0
+            y_max = 1.0
+            y_span = 1.0
+        cluster_config = self._auto_arrange_cluster_config(ax)
+        lane_dx = float(cluster_config.get("lane_dx", 0.35))
+        max_shift_data = float(cluster_config.get("max_shift", 3.0))
+        cluster_gap = float(cluster_config.get("cluster_gap", 0.4))
+        max_rows = max(1, int(cluster_config.get("max_rows", 4.0) or 4.0))
+        min_x_spacing = 0.30 if max_shift_data <= 3.0 else max(lane_dx * 0.85, 0.30)
+        band_floor = y_min + (y_span * 0.60)
+        band_ceiling = y_max - (y_span * 0.03)
+        row_offset_fracs = (0.05, 0.10, 0.15, 0.20, 0.26, 0.32)
+        try:
+            x0, x1 = ax.get_xlim()
+            x_min = min(float(x0), float(x1))
+            x_max = max(float(x0), float(x1))
+        except Exception:
+            x_min = float("-inf")
+            x_max = float("inf")
+        x_padding = max(float(lane_dx) * 0.35, (x_max - x_min) * 0.01 if math.isfinite(x_min) and math.isfinite(x_max) else 0.0)
+        clusters = self._cluster_annotation_items(movable, cluster_gap)
+
+        for cluster in clusters:
+            cluster_sorted = sorted(cluster, key=lambda item: float(item.get("anchor_xy", (0.0, 0.0))[0]))
+            if not cluster_sorted:
+                continue
+
+            cluster_size = len(cluster_sorted)
+            is_dense_cluster = cluster_size > 1
+            cluster_peak_top = max(float(item.get("anchor_xy", (0.0, 0.0))[1]) for item in cluster_sorted)
+            row_base = max(cluster_peak_top, band_floor)
+            cluster_lane_dx = self._auto_arrange_cluster_lane_dx(lane_dx, max_shift_data, cluster_size)
+            cluster_rows = self._auto_arrange_cluster_row_count(max_rows, cluster_size)
+            cluster_row_offsets = [float(y_span * frac) for frac in row_offset_fracs[:cluster_rows]]
+            lane_pattern = self._auto_arrange_lane_pattern(len(cluster_sorted))
+            center_index = int((len(cluster_sorted) - 1) / 2)
+            center_out_indices: List[int] = []
+            for offset in range(0, len(cluster_sorted) + 1):
+                left_idx = center_index - offset
+                right_idx = center_index + offset
+                if offset == 0:
+                    if 0 <= center_index < len(cluster_sorted):
+                        center_out_indices.append(center_index)
+                    continue
+                if 0 <= left_idx < len(cluster_sorted):
+                    center_out_indices.append(left_idx)
+                if 0 <= right_idx < len(cluster_sorted):
+                    center_out_indices.append(right_idx)
+            lane_by_index: Dict[int, int] = {}
+            for order_idx, sorted_idx in enumerate(center_out_indices[: len(lane_pattern)]):
+                lane_by_index[int(sorted_idx)] = int(lane_pattern[order_idx])
+
+            priority_order = sorted(cluster_sorted, key=lambda item: float(item.get("priority", 0.0)), reverse=True)
+            priority_rank = {id(item): rank for rank, item in enumerate(priority_order)}
+            planned: List[Dict[str, Any]] = []
+            for idx, item in enumerate(cluster_sorted):
+                artist = item.get("artist")
+                anchor_xy = item.get("anchor_xy")
+                if artist is None or not isinstance(anchor_xy, (list, tuple)) or len(anchor_xy) != 2:
+                    continue
+                try:
+                    current_xy = artist.get_position()
+                except Exception:
+                    current_xy = anchor_xy
+
+                anchor_x = float(anchor_xy[0])
+                anchor_y = float(anchor_xy[1])
+                lane = int(lane_by_index.get(int(idx), 0 if not is_dense_cluster else idx - center_index)) if is_dense_cluster else 0
+                row_index = 0 if not is_dense_cluster else int(priority_rank.get(id(item), idx)) % cluster_rows
+                row_y = min(float(row_base + cluster_row_offsets[row_index]), band_ceiling)
+                target_x = float(anchor_x + (lane * cluster_lane_dx)) if is_dense_cluster else float(anchor_x)
+                if math.isfinite(x_min) and math.isfinite(x_max):
+                    target_x = min(max(target_x, x_min + x_padding), x_max - x_padding)
+                planned.append(
+                    {
+                        "item": item,
+                        "artist": artist,
+                        "current_xy": (float(current_xy[0]), float(current_xy[1])),
+                        "anchor_xy": (anchor_x, anchor_y),
+                        "row_index": int(row_index),
+                        "target_x": float(target_x),
+                        "target_y": float(row_y),
+                    }
+                )
+
+            if is_dense_cluster and planned:
+                for idx in range(1, len(planned)):
+                    planned[idx]["target_x"] = max(float(planned[idx]["target_x"]), float(planned[idx - 1]["target_x"]) + min_x_spacing)
+                if math.isfinite(x_min) and math.isfinite(x_max) and float(planned[-1]["target_x"]) > (x_max - x_padding):
+                    planned[-1]["target_x"] = float(x_max - x_padding)
+                    for idx in range(len(planned) - 2, -1, -1):
+                        planned[idx]["target_x"] = min(float(planned[idx]["target_x"]), float(planned[idx + 1]["target_x"]) - min_x_spacing)
+                    if float(planned[0]["target_x"]) < (x_min + x_padding):
+                        planned[0]["target_x"] = float(x_min + x_padding)
+                        for idx in range(1, len(planned)):
+                            planned[idx]["target_x"] = max(float(planned[idx]["target_x"]), float(planned[idx - 1]["target_x"]) + min_x_spacing)
+
+                for idx in range(len(planned) - 1):
+                    left = planned[idx]
+                    right = planned[idx + 1]
+                    left_y = float(left.get("target_y", 0.0))
+                    right_y = float(right.get("target_y", 0.0))
+                    current_score = self._auto_arrange_pair_length_score(ax=ax, left=left, right=right, left_y=left_y, right_y=right_y)
+                    swapped_score = self._auto_arrange_pair_length_score(ax=ax, left=left, right=right, left_y=right_y, right_y=left_y)
+                    if float(swapped_score) + 1e-6 < float(current_score):
+                        left["target_y"], right["target_y"] = right_y, left_y
+
+            for entry in planned:
+                artist = entry.get("artist")
+                if artist is None:
+                    continue
+                anchor_xy = entry.get("anchor_xy", (0.0, 0.0))
+                current_xy = entry.get("current_xy", anchor_xy)
+                best_xy = (float(entry.get("target_x", anchor_xy[0])), float(entry.get("target_y", anchor_xy[1])))
+                try:
+                    artist.set_position(best_xy)
+                    bbox = artist.get_window_extent(renderer).expanded(1.12, 1.22)
+                except Exception:
+                    continue
+
+                overlap_penalty = 0.0
+                for other_bbox in occupied:
+                    overlap_penalty += self._annotation_overlap_area(bbox, other_bbox) * 12.0
+                crossing_penalty = 0.0
+                anchor_disp = tuple(data_to_disp((float(anchor_xy[0]), float(anchor_xy[1]))))
+                best_disp = tuple(data_to_disp(best_xy))
+                for seg in placed_segments:
+                    try:
+                        if self._line_segments_intersect(anchor_disp, best_disp, seg[0], seg[1]):
+                            crossing_penalty += 650.0
+                    except Exception:
+                        continue
+                if float(overlap_penalty + crossing_penalty) > 1.0:
+                    stats["crowded"] = int(stats.get("crowded", 0)) + 1
+
+                occupied.append(bbox)
+                occupied_centers.append((float((bbox.x0 + bbox.x1) * 0.5), float((bbox.y0 + bbox.y1) * 0.5), float(bbox.width), float(bbox.height)))
+                occupied_x_data.append(float(best_xy[0]))
+                placed_segments.append((anchor_disp, best_disp))
+                if abs(float(best_xy[0]) - float(current_xy[0])) > 1e-9 or abs(float(best_xy[1]) - float(current_xy[1])) > 1e-9:
+                    changed = True
+                    stats["moved"] = int(stats.get("moved", 0)) + 1
+
+        stats["changed"] = bool(changed)
+        self._debug_auto_arrange(
+            f"moved={stats['moved']} crowded={stats['crowded']} first_bbox={(occupied[0].bounds if occupied else None)}"
+        )
+        return stats
+
+    def _auto_arrange_lcms_labels(self, *, preserve_manual: bool = True) -> Dict[str, Any]:
+        items: List[Dict[str, Any]] = []
+
+        for ann in list(getattr(self, "_spectrum_annotations", []) or []):
+            spec_key = self._spec_ann_key_by_objid.get(id(ann))
+            if spec_key is None or len(spec_key) < 2:
+                continue
+            spectrum_id = str(spec_key[1])
+            entry = self._get_spec_label_position_entry(spectrum_id, spec_key)
+            locked = bool(entry.get("locked", False)) if entry is not None else False
+            if not preserve_manual:
+                locked = False
+            try:
+                anchor_xy = ann.xy
+            except Exception:
+                continue
+            try:
+                anchor_y = float(anchor_xy[1])
+            except Exception:
+                anchor_y = 0.0
+            kind = str(spec_key[0])
+            base_priority = {"poly": 90.0, "custom": 78.0, "auto": 64.0}.get(kind, 50.0)
+            if kind == "poly" and len(spec_key) >= 3:
+                base_priority += {"poly": 8.0, "ox": 6.0, "decarb": 5.0, "oxdecarb": 4.0, "2m": 3.0}.get(str(spec_key[2]), 0.0)
+            items.append(
+                {
+                    "artist": ann,
+                    "anchor_xy": (float(anchor_xy[0]), float(anchor_xy[1])),
+                    "locked": bool(locked),
+                    "priority": float((max(0.0, anchor_y) * 1000.0) + base_priority),
+                    "spec_key": spec_key,
+                    "spectrum_id": spectrum_id,
+                }
+            )
+
+        labels_by_uvrt = self._active_uv_labels_by_uvrt(create=False)
+        for ann in list(getattr(self, "_uv_annotations", []) or []):
+            uv_key = self._uv_ann_key_by_objid.get(id(ann))
+            if uv_key is None:
+                continue
+            state: Optional[UVLabelState] = None
+            try:
+                uv_rt, idx = uv_key
+                rows = labels_by_uvrt.get(float(uv_rt), [])
+                if 0 <= int(idx) < len(rows):
+                    state = rows[int(idx)]
+            except Exception:
+                state = None
+            if state is None:
+                continue
+            locked = bool(getattr(state, "locked", False)) if preserve_manual else False
+            try:
+                anchor_xy = ann.xy
+            except Exception:
+                continue
+            priority = float(getattr(state, "confidence", 0.0) or 0.0) + (float(getattr(state, "uv_peak_score", 0.0) or 0.0) * 100.0)
+            items.append(
+                {
+                    "artist": ann,
+                    "anchor_xy": (float(anchor_xy[0]), float(anchor_xy[1])),
+                    "locked": bool(locked),
+                    "priority": float((max(0.0, float(anchor_xy[1])) * 1000.0) + priority),
+                    "uv_key": uv_key,
+                    "uv_state": state,
+                }
+            )
+
+        stats: Dict[str, Any] = {"changed": False, "renderer_ready": False, "total": len(items), "locked": 0, "movable": 0, "moved": 0, "crowded": 0}
+        if not items:
+            return stats
+
+        changed = False
+        spec_items = [item for item in items if item.get("spec_key") is not None]
+        uv_items = [item for item in items if item.get("uv_key") is not None]
+        if spec_items and self._ax_spec is not None and self._canvas is not None:
+            spec_stats = self._auto_arrange_annotation_artists(canvas=self._canvas, ax=self._ax_spec, items=spec_items, full_reflow=True)
+            changed = bool(spec_stats.get("changed", False)) or changed
+            for key in ("locked", "movable", "moved", "crowded"):
+                stats[key] = int(stats.get(key, 0)) + int(spec_stats.get(key, 0) or 0)
+            stats["renderer_ready"] = bool(stats.get("renderer_ready", False) or spec_stats.get("renderer_ready", False))
+        if uv_items and self._ax_uv is not None and self._canvas is not None:
+            uv_stats = self._auto_arrange_annotation_artists(canvas=self._canvas, ax=self._ax_uv, items=uv_items, full_reflow=True)
+            changed = bool(uv_stats.get("changed", False)) or changed
+            for key in ("locked", "movable", "moved", "crowded"):
+                stats[key] = int(stats.get(key, 0)) + int(uv_stats.get(key, 0) or 0)
+            stats["renderer_ready"] = bool(stats.get("renderer_ready", False) or uv_stats.get("renderer_ready", False))
+
+        for item in spec_items:
+            ann = item.get("artist")
+            spec_key = item.get("spec_key")
+            spectrum_id = str(item.get("spectrum_id") or "")
+            if ann is None or spec_key is None or not spectrum_id:
+                continue
+            try:
+                xy = ann.get_position()
+                self._store_spec_label_xytext(spectrum_id, spec_key, (float(xy[0]), float(xy[1])), locked=bool(item.get("locked", False)))
+            except Exception:
+                continue
+
+        for item in uv_items:
+            ann = item.get("artist")
+            state = item.get("uv_state")
+            if ann is None or state is None:
+                continue
+            try:
+                xy = ann.get_position()
+                state.xytext = (float(xy[0]), float(xy[1]))
+                state.locked = bool(item.get("locked", False))
+            except Exception:
+                continue
+
+        if changed and self._canvas is not None:
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+        stats["changed"] = bool(changed)
+        stats["total"] = int(stats.get("locked", 0)) + int(stats.get("movable", 0))
+        return stats
+
+    def _run_auto_arrange_lcms_labels(self, *, preserve_manual: bool = False) -> None:
+        if not self._spectrum_annotations and not self._uv_annotations:
+            try:
+                messagebox.showinfo("Auto Arrange Labels", "There are no visible LCMS labels to arrange.", parent=self)
+            except Exception:
+                pass
+            return
+        self._push_lcms_undo_state("Auto arrange labels")
+        try:
+            stats = self._auto_arrange_lcms_labels(preserve_manual=preserve_manual)
+        except Exception as exc:
+            self._set_status("Auto arrange labels failed")
+            try:
+                messagebox.showerror("Auto Arrange Labels", f"Failed to auto-arrange labels:\n\n{exc}", parent=self)
+            except Exception:
+                pass
+            return
+
+        if not bool(stats.get("renderer_ready", False)):
+            self._set_status("Auto arrange labels failed: renderer unavailable")
+            try:
+                messagebox.showerror("Auto Arrange Labels", "Auto-arrange could not measure label bounds because no renderer was available.", parent=self)
+            except Exception:
+                pass
+            return
+
+        total = int(stats.get("total", 0) or 0)
+        moved = int(stats.get("moved", 0) or 0)
+        crowded = int(stats.get("crowded", 0) or 0)
+        msg = f"Auto-arranged {moved} labels"
+        if crowded > 0:
+            msg += f", {crowded} remained crowded"
+        self._set_status(msg)
+        if bool(stats.get("changed", False)):
+            self._update_current_context_panel()
+
     def _open_label_editor(self, ann) -> None:
         """Edit/delete a clicked label in spectrum or UV."""
         if ann is None:
@@ -21783,6 +23174,7 @@ class App(tb.Window):
                     items = self._custom_labels_by_spectrum.get(spectrum_id, [])
                     if 0 <= int(idx) < len(items):
                         items.pop(int(idx))
+                        self._shift_custom_label_positions_after_delete(spectrum_id, int(idx))
                         if not items:
                             self._custom_labels_by_spectrum.pop(spectrum_id, None)
                         self._redraw_spectrum_only()
@@ -22476,8 +23868,10 @@ class App(tb.Window):
 
         states: List[UVLabelState] = []
         for j, text in enumerate(texts[:top_n]):
+            prev_state = None
             if text in prev_xy_by_text:
                 xytext = prev_xy_by_text[text]
+                prev_state = next((st for st in prev_states if str(getattr(st, "text", "")) == text), None)
             else:
                 xytext = (float(uv_rt), float(y0 + (j + 1) * y_step))
             states.append(
@@ -22488,6 +23882,7 @@ class App(tb.Window):
                     rt_delta_min=float(conf_meta.get("rt_delta_min", 0.0)),
                     uv_peak_score=float(conf_meta.get("uv_peak_score", 0.0)),
                     tic_peak_score=float(conf_meta.get("tic_peak_score", 0.0)),
+                    locked=bool(getattr(prev_state, "locked", False)) if prev_state is not None else False,
                 )
             )
 
@@ -22618,14 +24013,16 @@ class App(tb.Window):
             inten_v = float(inten_v)
             y_text = inten_v + y_offset
             mz_key = self._mz_key(float(mz_v))
+            spec_key = ("auto", spectrum_id, float(mz_key))
             ov_key = ("auto", float(mz_key))
             ov = overrides.get(ov_key)
             if ov is None and ov_key in overrides:
                 continue
+            pos_x, pos_y = self._get_spec_label_xytext(spectrum_id, spec_key, (float(mz_v), float(y_text)))
             ann = self._ax_spec.annotate(
                 (str(ov) if isinstance(ov, str) else f"{float(mz_v):.4f}"),
                 xy=(float(mz_v), float(inten_v)),
-                xytext=(float(mz_v), float(y_text)),
+                xytext=(float(pos_x), float(pos_y)),
                 textcoords="data",
                 ha="center",
                 va="bottom",
@@ -22640,7 +24037,7 @@ class App(tb.Window):
             except Exception:
                 pass
             self._spectrum_annotations.append(ann)
-            self._spec_ann_key_by_objid[id(ann)] = ("auto", spectrum_id, float(mz_key))
+            self._spec_ann_key_by_objid[id(ann)] = spec_key
 
     def _clear_spectrum_annotations(self) -> None:
         # Remove any previously created annotations (auto/custom/polymer)
@@ -22709,10 +24106,12 @@ class App(tb.Window):
                 inten_use = 0.0
 
             y_text = (inten_use if inten_use > 0 else max_int * 0.05) + y_offset
+            spec_key = ("custom", key, int(idx))
+            pos_x, pos_y = self._get_spec_label_xytext(key, spec_key, (float(mz_use), float(y_text)))
             ann = self._ax_spec.annotate(
                 label,
                 xy=(float(mz_use), float(inten_use if inten_use > 0 else 0.0)),
-                xytext=(float(mz_use), float(y_text)),
+                xytext=(float(pos_x), float(pos_y)),
                 textcoords="data",
                 ha="center",
                 va="bottom",
@@ -22726,7 +24125,7 @@ class App(tb.Window):
             except Exception:
                 pass
             self._spectrum_annotations.append(ann)
-            self._spec_ann_key_by_objid[id(ann)] = ("custom", key, int(idx))
+            self._spec_ann_key_by_objid[id(ann)] = spec_key
 
     def _parse_charges(self, raw: str) -> List[int]:
         vals: List[int] = []
@@ -22901,6 +24300,7 @@ class App(tb.Window):
 
             for j, (knd, _err, label, mz_act, inten_act) in enumerate(items):
                 mz_key = self._mz_key(float(mz_act))
+                spec_key = ("poly", spectrum_id, str(knd), float(mz_key))
                 ov_key = (str(knd), float(mz_key))
                 ov = overrides.get(ov_key)
                 if ov is None and ov_key in overrides:
@@ -22908,10 +24308,11 @@ class App(tb.Window):
                 if isinstance(ov, str):
                     label = ov
                 y_text = float(inten_act) + y_offset * (1.0 + float(j))
+                pos_x, pos_y = self._get_spec_label_xytext(spectrum_id, spec_key, (float(mz_act), float(y_text)))
                 ann = self._ax_spec.annotate(
                     label,
                     xy=(float(mz_act), float(inten_act)),
-                    xytext=(float(mz_act), float(y_text)),
+                    xytext=(float(pos_x), float(pos_y)),
                     textcoords="data",
                     ha="center",
                     va="bottom",
@@ -22925,7 +24326,7 @@ class App(tb.Window):
                 except Exception:
                     pass
                 self._spectrum_annotations.append(ann)
-                self._spec_ann_key_by_objid[id(ann)] = ("poly", spectrum_id, str(knd), float(mz_key))
+                self._spec_ann_key_by_objid[id(ann)] = spec_key
 
 
 def run_overlay_self_checks() -> Dict[str, Any]:

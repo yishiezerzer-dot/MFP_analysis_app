@@ -45,10 +45,22 @@ class _DataPreviewWindow(tk.Toplevel):
 
         self.title("Plate Reader Preview")
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
+
+        summary = ttk.Frame(self, style="ShellPanel.TFrame", padding=(14, 12))
+        summary.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 0))
+        summary.columnconfigure(0, weight=1)
+        ttk.Label(summary, text="Plate Reader Preview", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            summary,
+            text="Inspect the imported table before running MIC analysis or adjusting the active dataset.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         top = ttk.Frame(self, padding=8)
-        top.grid(row=0, column=0, sticky="ew")
+        top.grid(row=1, column=0, sticky="ew")
         top.columnconfigure(2, weight=1)
 
         ttk.Label(top, text="Rows:").grid(row=0, column=0, sticky="w")
@@ -57,11 +69,13 @@ class _DataPreviewWindow(tk.Toplevel):
             row=0, column=1, sticky="w", padx=(6, 12)
         )
         self._info_var = tk.StringVar(value="")
-        ttk.Label(top, textvariable=self._info_var).grid(row=0, column=2, sticky="e")
-        ttk.Button(top, text="Close", command=self._on_close).grid(row=0, column=3, sticky="e", padx=(12, 0))
+        ttk.Label(top, textvariable=self._info_var, style="Muted.TLabel").grid(row=0, column=2, sticky="e")
+        close_btn = ttk.Button(top, text="Close", command=self._on_close)
+        close_btn.grid(row=0, column=3, sticky="e", padx=(12, 0))
+        style_secondary(close_btn)
 
         table = ttk.Frame(self, padding=(8, 0, 8, 8))
-        table.grid(row=1, column=0, sticky="nsew")
+        table.grid(row=2, column=0, sticky="nsew")
         table.columnconfigure(0, weight=1)
         table.rowconfigure(0, weight=1)
 
@@ -619,14 +633,39 @@ class PlateReaderView(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
-        ws = ttk.LabelFrame(self, text="Workspace", padding=8)
+        ws = ttk.LabelFrame(self, text="Workspace", padding=8, style="Card.TLabelframe")
         ws.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         ws.columnconfigure(0, weight=1)
-        ws.rowconfigure(1, weight=1)
+        ws.rowconfigure(2, weight=1)
+
+        workspace_summary = ttk.Frame(ws, style="ShellPanel.TFrame", padding=(14, 12))
+        workspace_summary.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        workspace_summary.columnconfigure(0, weight=1)
+        ttk.Label(workspace_summary, text="Plate Reader studio", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            workspace_summary,
+            text="Track the active file, current MIC result, and workspace state while preparing or rerunning analysis.",
+            style="CardHint.TLabel",
+            wraplength=280,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 10))
+        ttk.Label(workspace_summary, textvariable=self._active_file_var, wraplength=280, justify="left").grid(row=2, column=0, sticky="w")
+        ttk.Label(workspace_summary, textvariable=self._active_mic_var, style="AppEyebrow.TLabel").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(workspace_summary, textvariable=self._status_var, style="Muted.TLabel", wraplength=280, justify="left").grid(
+            row=4, column=0, sticky="w", pady=(8, 0)
+        )
 
         ws_btns = ttk.Frame(ws)
-        ws_btns.grid(row=0, column=0, sticky="ew")
+        ws_btns.grid(row=1, column=0, sticky="ew")
         ws_btns.columnconfigure(5, weight=1)
+
+        ttk.Label(
+            ws,
+            text="Add raw files, restore a saved workspace, or curate the active dataset inventory.",
+            style="CardHint.TLabel",
+            wraplength=280,
+            justify="left",
+        ).grid(row=1, column=1, sticky="e")
 
         self._add_files_btn = ttk.Button(ws_btns, text="Add Files…", command=self._add_files)
         self._add_files_btn.grid(row=0, column=0, sticky="w")
@@ -656,7 +695,7 @@ class PlateReaderView(ttk.Frame):
         style_danger(self._clear_btn)
 
         self._ws_tree = ttk.Treeview(ws, columns=("type", "shape", "mic"), show="tree headings", selectmode="browse", height=14)
-        self._ws_tree.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+        self._ws_tree.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
         self._ws_tree.heading("#0", text="Name")
         self._ws_tree.column("#0", width=220, stretch=True, anchor="w")
         self._ws_tree.heading("type", text="Type")
@@ -666,7 +705,7 @@ class PlateReaderView(ttk.Frame):
         self._ws_tree.column("shape", width=90, stretch=False, anchor="w")
         self._ws_tree.column("mic", width=40, stretch=False, anchor="center")
         sb = ttk.Scrollbar(ws, orient=tk.VERTICAL, command=self._ws_tree.yview)
-        sb.grid(row=1, column=1, sticky="ns", pady=(8, 0), padx=(6, 0))
+        sb.grid(row=2, column=1, sticky="ns", pady=(8, 0), padx=(6, 0))
         self._ws_tree.configure(yscrollcommand=sb.set)
         try:
             self._ws_tree.bind("<<TreeviewSelect>>", self._on_tree_select)
@@ -676,36 +715,66 @@ class PlateReaderView(ttk.Frame):
         right = ttk.Frame(self)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(1, weight=1)
+        right.rowconfigure(3, weight=1)
 
-        top = ttk.Frame(right, padding=(0, 0, 0, 8))
+        top = ttk.LabelFrame(right, text="Actions", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
-        top.columnconfigure(3, weight=1)
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(2, weight=1)
+        ttk.Label(
+            top,
+            text="Preview the active file, launch the analysis wizard, or adjust plotting without losing context.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
 
         self._preview_btn = ttk.Button(top, text="Preview", command=self._open_preview)
-        self._preview_btn.grid(row=0, column=0, sticky="w")
+        self._preview_btn.grid(row=1, column=0, sticky="ew")
         style_secondary(self._preview_btn)
         ToolTip.attach(self._preview_btn, "Open a read-only preview of the active dataset.")
 
         self._run_btn = ttk.Button(top, text="Run", command=self._open_wizard)
-        self._run_btn.grid(row=0, column=1, sticky="w", padx=(8, 0))
+        self._run_btn.grid(row=1, column=1, sticky="ew", padx=(8, 8))
         style_success(self._run_btn)
         ToolTip.attach(self._run_btn, "Open the Analysis Wizard (MIC first) for the active dataset.")
 
         self._edit_plot_btn = ttk.Button(top, text="Edit Plot…", command=self._open_plot_editor)
-        self._edit_plot_btn.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        self._edit_plot_btn.grid(row=1, column=2, sticky="ew")
         style_secondary(self._edit_plot_btn)
         ToolTip.attach(self._edit_plot_btn, "Edit plot styling for the active dataset.")
 
-        info = ttk.Frame(top)
-        info.grid(row=0, column=3, sticky="ew", padx=(12, 0))
+        info = ttk.Frame(top, style="Surface.TFrame", padding=(12, 10))
+        info.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         info.columnconfigure(0, weight=1)
-        ttk.Label(info, textvariable=self._active_file_var).grid(row=0, column=0, sticky="w")
-        ttk.Label(info, textvariable=self._active_mic_var).grid(row=0, column=1, sticky="w", padx=(12, 0))
-        ttk.Label(top, textvariable=self._status_var).grid(row=0, column=4, sticky="e")
+        ttk.Label(info, text="Current dataset", style="AppEyebrow.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(info, text="MIC result", style="AppEyebrow.TLabel").grid(row=0, column=1, sticky="w", padx=(12, 0))
+        ttk.Label(info, text="Status", style="AppEyebrow.TLabel").grid(row=0, column=2, sticky="w", padx=(12, 0))
+        ttk.Label(info, textvariable=self._active_file_var, wraplength=360, justify="left").grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(info, textvariable=self._active_mic_var).grid(row=1, column=1, sticky="w", padx=(12, 0), pady=(2, 0))
+        ttk.Label(info, textvariable=self._status_var, style="Muted.TLabel", wraplength=220, justify="left").grid(
+            row=1, column=2, sticky="w", padx=(12, 0), pady=(2, 0)
+        )
 
-        plot_card = PlotCard(right, title="Plate Reader", show_header=True)
-        plot_card.grid(row=1, column=0, sticky="nsew")
+        stage_hdr = ttk.Frame(right, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=1, column=0, sticky="ew", pady=(10, 8))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="Plate Reader Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="The growth curve or MIC visualization stays central while the workflow context remains visible above it.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, textvariable=self._active_mic_var, style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
+        status_row = ttk.Label(right, textvariable=self._status_var, style="Muted.TLabel", wraplength=760, justify="left")
+        status_row.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+
+        plot_card = PlotCard(right, title="Plate Reader Analysis", status_text="Live view", show_header=True)
+        plot_card.grid(row=3, column=0, sticky="nsew")
         plot = plot_card.body
 
         self._fig = Figure(figsize=(9.0, 6.0), dpi=110)

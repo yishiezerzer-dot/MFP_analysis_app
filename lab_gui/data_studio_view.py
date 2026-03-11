@@ -80,9 +80,21 @@ class _PreviewWindow(tk.Toplevel):
         self._search_series: Optional[pd.Series] = None
         self._suppress_filter_traces: bool = False
 
+        summary = ttk.Frame(self, style="ShellPanel.TFrame", padding=(14, 12))
+        summary.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+        summary.columnconfigure(0, weight=1)
+        ttk.Label(summary, text="Data Preview", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            summary,
+            text="Inspect sheets, filter rows, and validate column quality before promoting a dataset into plotting workflows.",
+            style="CardHint.TLabel",
+            wraplength=920,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+
         body = ttk.Frame(self, padding=10)
-        body.grid(row=0, column=0, sticky="nsew")
-        self.rowconfigure(0, weight=1)
+        body.grid(row=1, column=0, sticky="nsew")
+        self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
         body.rowconfigure(4, weight=1)
         body.columnconfigure(0, weight=1)
@@ -521,9 +533,9 @@ class DataStudioView(ttk.Frame):
         ws_sb.grid(row=0, column=1, sticky="ns")
         ws_canvas.configure(yscrollcommand=ws_sb.set)
 
-        ws = ttk.LabelFrame(ws_canvas, text="Workspace", padding=8)
+        ws = ttk.LabelFrame(ws_canvas, text="Workspace", padding=8, style="Card.TLabelframe")
         ws.columnconfigure(0, weight=1)
-        ws.rowconfigure(1, weight=1)
+        ws.rowconfigure(2, weight=1)
 
         ws_window = ws_canvas.create_window((0, 0), window=ws, anchor="nw")
 
@@ -553,8 +565,31 @@ class DataStudioView(ttk.Frame):
         ws_canvas.bind("<MouseWheel>", _on_ws_mousewheel)
         ws.bind("<MouseWheel>", _on_ws_mousewheel)
 
+        workspace_summary = ttk.Frame(ws, style="ShellPanel.TFrame", padding=(14, 12))
+        workspace_summary.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        workspace_summary.columnconfigure(0, weight=1)
+        ttk.Label(workspace_summary, text="Data Studio", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            workspace_summary,
+            text="Manage imported tables, plot definitions, recipes, and overlay context from a single workspace rail.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 10))
+        ttk.Label(workspace_summary, textvariable=self._status_var, style="Muted.TLabel", wraplength=300, justify="left").grid(
+            row=2, column=0, sticky="w"
+        )
+        ttk.Label(workspace_summary, textvariable=self._dirty_var, style="Danger.TLabel").grid(row=3, column=0, sticky="w", pady=(6, 0))
+
         btns = ttk.Frame(ws)
-        btns.grid(row=0, column=0, sticky="ew")
+        btns.grid(row=1, column=0, sticky="ew")
+        ttk.Label(
+            ws,
+            text="Import files, curate the workspace, and promote the active dataset before shaping plots.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=1, column=1, sticky="e")
         _b_add = ttk.Button(btns, text="Add Files…", command=self._add_files)
         _b_add.grid(row=0, column=0, sticky="w")
         style_primary(_b_add)
@@ -576,28 +611,35 @@ class DataStudioView(ttk.Frame):
         self._ws_tree.heading("name", text="File")
         self._ws_tree.column("active", width=60, stretch=False, anchor="center")
         self._ws_tree.column("name", width=200, stretch=True)
-        self._ws_tree.grid(row=1, column=0, sticky="nsew")
+        self._ws_tree.grid(row=2, column=0, sticky="nsew")
         self._ws_tree.bind("<<TreeviewSelect>>", lambda _e: self._on_select())
 
         _b_sa = ttk.Button(ws, text="Set Active", command=self._set_active_from_selection)
-        _b_sa.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        _b_sa.grid(row=3, column=0, sticky="ew", pady=(6, 0))
         style_secondary(_b_sa)
         _b_pt = ttk.Button(ws, text="Preview Table", command=self._preview_data)
-        _b_pt.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        _b_pt.grid(row=4, column=0, sticky="ew", pady=(6, 0))
         style_secondary(_b_pt)
 
         defs = ttk.LabelFrame(ws, text="Plot Definitions", padding=8)
-        defs.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        defs.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         defs.columnconfigure(0, weight=1)
+        ttk.Label(
+            defs,
+            text="Store repeatable plot setups and switch the active definition without rebuilding settings manually.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
         self._plot_tree = ttk.Treeview(defs, columns=("active", "name"), show="headings", height=5, selectmode="browse")
         self._plot_tree.heading("active", text="Active")
         self._plot_tree.heading("name", text="Plot")
         self._plot_tree.column("active", width=60, stretch=False, anchor="center")
         self._plot_tree.column("name", width=200, stretch=True)
-        self._plot_tree.grid(row=0, column=0, sticky="ew")
+        self._plot_tree.grid(row=1, column=0, sticky="ew")
         self._plot_tree.bind("<<TreeviewSelect>>", lambda _e: self._on_plot_select())
         defs_btns = ttk.Frame(defs)
-        defs_btns.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        defs_btns.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         _b_np = ttk.Button(defs_btns, text="New Plot", command=self._new_plot_def)
         _b_np.grid(row=0, column=0, sticky="w")
         style_primary(_b_np)
@@ -607,13 +649,20 @@ class DataStudioView(ttk.Frame):
         ttk.Button(defs_btns, text="Set Active", command=self._set_active_plot_from_selection).grid(row=0, column=2, padx=(6, 0))
 
         recipes = ttk.LabelFrame(ws, text="Recipes", padding=8)
-        recipes.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        recipes.grid(row=6, column=0, sticky="ew", pady=(10, 0))
         recipes.columnconfigure(0, weight=1)
+        ttk.Label(
+            recipes,
+            text="Capture reusable plotting workflows and reapply them to another dataset in one step.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
         self._recipes_cb = ttk.Combobox(recipes, textvariable=self._recipes_var, state="readonly")
-        self._recipes_cb.grid(row=0, column=0, sticky="ew")
+        self._recipes_cb.grid(row=1, column=0, sticky="ew")
 
         recipes_btns = ttk.Frame(recipes)
-        recipes_btns.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        recipes_btns.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         _b_sr = ttk.Button(recipes_btns, text="Save as recipe…", command=self._save_recipe)
         _b_sr.grid(row=0, column=0, sticky="w")
         style_success(_b_sr)
@@ -627,24 +676,31 @@ class DataStudioView(ttk.Frame):
         ttk.Button(recipes_btns, text="?", width=3, command=self._open_recipes_help).grid(row=0, column=4, padx=(6, 0))
 
         overlay = ttk.LabelFrame(ws, text="Overlay", padding=8)
-        overlay.grid(row=6, column=0, sticky="ew", pady=(10, 0))
+        overlay.grid(row=7, column=0, sticky="ew", pady=(10, 0))
+        ttk.Label(
+            overlay,
+            text="Compose comparison views and decide which file anchors the active overlay stack.",
+            style="CardHint.TLabel",
+            wraplength=300,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
         self._overlay_tree = ttk.Treeview(overlay, columns=("sel", "name"), show="headings", height=6, selectmode="browse")
         self._overlay_tree.heading("sel", text="Overlay")
         self._overlay_tree.heading("name", text="File")
         self._overlay_tree.column("sel", width=70, stretch=False, anchor="center")
         self._overlay_tree.column("name", width=180, stretch=True)
-        self._overlay_tree.grid(row=0, column=0, sticky="ew")
+        self._overlay_tree.grid(row=1, column=0, sticky="ew")
         self._overlay_tree.bind("<Button-1>", self._on_overlay_click, add=True)
         _b_ov = ttk.Button(overlay, text="Overlay Selected", command=self._apply_overlay)
-        _b_ov.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        _b_ov.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         style_success(_b_ov)
-        ttk.Button(overlay, text="Select all", command=self._overlay_select_all).grid(row=2, column=0, sticky="ew", pady=(6, 0))
-        ttk.Button(overlay, text="Select none", command=self._overlay_select_none).grid(row=3, column=0, sticky="ew", pady=(6, 0))
-        ttk.Button(overlay, text="Make active = first overlay", command=self._overlay_make_active_first).grid(row=4, column=0, sticky="ew", pady=(6, 0))
+        ttk.Button(overlay, text="Select all", command=self._overlay_select_all).grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        ttk.Button(overlay, text="Select none", command=self._overlay_select_none).grid(row=4, column=0, sticky="ew", pady=(6, 0))
+        ttk.Button(overlay, text="Make active = first overlay", command=self._overlay_make_active_first).grid(row=5, column=0, sticky="ew", pady=(6, 0))
         _b_co = ttk.Button(overlay, text="Clear Overlay", command=self._clear_overlay)
-        _b_co.grid(row=5, column=0, sticky="ew", pady=(6, 0))
+        _b_co.grid(row=6, column=0, sticky="ew", pady=(6, 0))
         style_danger(_b_co)
-        ttk.Button(overlay, text="?", command=self._open_overlay_help).grid(row=6, column=0, sticky="ew", pady=(6, 0))
+        ttk.Button(overlay, text="?", command=self._open_overlay_help).grid(row=7, column=0, sticky="ew", pady=(6, 0))
 
 
         right = ttk.Frame(panes)
@@ -654,15 +710,26 @@ class DataStudioView(ttk.Frame):
         panes.add(left, weight=1)
         panes.add(right, weight=4)
 
-        top = ttk.Frame(right)
+        top = ttk.LabelFrame(right, text="Workflow Controls", padding=8, style="Card.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
-        ttk.Label(top, textvariable=self._status_var).pack(side=tk.LEFT)
-        ttk.Label(top, textvariable=self._dirty_var, style="Danger.TLabel").pack(side=tk.LEFT, padx=(10, 0))
-        ttk.Checkbutton(top, text="Auto-plot", variable=self._auto_plot_var).pack(side=tk.RIGHT, padx=(8, 0))
-        ttk.Button(top, text="Export transformed CSV…", command=self._export_transformed_csv).pack(side=tk.RIGHT, padx=(8, 0))
-        ttk.Button(top, text="Apply", command=self._apply_plot).pack(side=tk.RIGHT)
-        ttk.Button(top, text="Reset", command=self._reset_plot_builder).pack(side=tk.RIGHT, padx=(8, 0))
-        ttk.Button(top, text="Export…", command=self._export_plot).pack(side=tk.RIGHT, padx=(8, 0))
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(2, weight=1)
+        ttk.Label(
+            top,
+            text="Control plot generation, export transformed data, and keep draft-state feedback visible while iterating.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        ttk.Button(top, text="Apply", command=self._apply_plot).grid(row=1, column=0, sticky="ew")
+        ttk.Button(top, text="Reset", command=self._reset_plot_builder).grid(row=1, column=1, sticky="ew", padx=(8, 8))
+        ttk.Button(top, text="Export…", command=self._export_plot).grid(row=1, column=2, sticky="ew")
+        ttk.Button(top, text="Export transformed CSV…", command=self._export_transformed_csv).grid(
+            row=2, column=0, sticky="ew", pady=(8, 0)
+        )
+        ttk.Checkbutton(top, text="Auto-plot", variable=self._auto_plot_var).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        ttk.Label(top, textvariable=self._dirty_var, style="Danger.TLabel").grid(row=2, column=2, sticky="e", pady=(8, 0))
 
         controls = ttk.Frame(right)
         controls.grid(row=1, column=0, sticky="ew", pady=(4, 0))
@@ -693,11 +760,24 @@ class DataStudioView(ttk.Frame):
         except Exception:
             pass
 
+        stage_hdr = ttk.Frame(right, style="Surface.TFrame", padding=(14, 12))
+        stage_hdr.grid(row=2, column=0, sticky="ew", pady=(8, 6))
+        stage_hdr.columnconfigure(0, weight=1)
+        ttk.Label(stage_hdr, text="Data Studio Stage", style="SectionTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            stage_hdr,
+            text="Shape columns, switch plot strategies, and inspect overlay behavior with the chart kept at the center of the workflow.",
+            style="CardHint.TLabel",
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(stage_hdr, textvariable=self._status_var, style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+
         banner = ttk.Label(right, textvariable=self._banner_var, style="Info.TLabel", anchor="w")
-        banner.grid(row=2, column=0, sticky="ew", pady=(2, 4))
+        banner.grid(row=3, column=0, sticky="ew", pady=(2, 4))
 
         body = ttk.Frame(right)
-        body.grid(row=3, column=0, sticky="nsew")
+        body.grid(row=4, column=0, sticky="nsew")
         body.columnconfigure(0, weight=0)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
@@ -822,7 +902,7 @@ class DataStudioView(ttk.Frame):
             except Exception:
                 pass
 
-        plot_card = PlotCard(body, title="Data Studio", show_header=True)
+        plot_card = PlotCard(body, title="Data Studio Analysis", status_text="Live view", show_header=True)
         plot_card.grid(row=0, column=1, sticky="nsew")
         plot = plot_card.body
 

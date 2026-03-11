@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -120,7 +120,7 @@ def normalize_series(values: np.ndarray, mode: str) -> np.ndarray:
 
 def apply_transform_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.DataFrame:
     """Apply ordered transform steps to a DataFrame (non-destructive)."""
-    out = df.copy()
+    out: pd.DataFrame = df.copy()
     warnings: List[str] = []
 
     def _warn(msg: str) -> None:
@@ -139,9 +139,9 @@ def apply_transform_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.D
                 if not cols_set and cols:
                     _warn("select_columns: no matching columns")
                 if mode == "drop":
-                    out = out.drop(columns=[c for c in cols if c in out.columns], errors="ignore")
+                    out = cast(pd.DataFrame, out.drop(columns=[c for c in cols if c in out.columns], errors="ignore"))
                 else:
-                    out = out.loc[:, cols_set] if cols_set else out
+                    out = cast(pd.DataFrame, out.loc[:, cols_set]) if cols_set else out
 
             elif stype == "rename":
                 mapping = dict(step.get("mapping") or {})
@@ -149,7 +149,7 @@ def apply_transform_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.D
                     missing = [k for k in mapping.keys() if k not in out.columns]
                     if missing:
                         _warn(f"rename: missing columns {missing}")
-                    out = out.rename(columns={k: v for k, v in mapping.items() if k in out.columns})
+                    out = cast(pd.DataFrame, out.rename(columns={k: v for k, v in mapping.items() if k in out.columns}))
 
             elif stype == "to_numeric":
                 errs_raw = str(step.get("errors") or "coerce").strip().lower()

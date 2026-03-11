@@ -70,6 +70,7 @@ class UVLabelState:
     rt_delta_min: float = 0.0
     uv_peak_score: float = 0.0
     tic_peak_score: float = 0.0
+    locked: bool = False
 
 
 @dataclass
@@ -88,6 +89,7 @@ class MzMLSession:
     rt_min: Optional[float]
     rt_max: Optional[float]
     polarity_summary: str
+    spec_label_positions: Dict[str, Any] = field(default_factory=dict)
 
     last_selected_rt_min: Optional[float] = None
     last_scan_index: Optional[int] = None
