@@ -94,6 +94,10 @@ except Exception:
 from lab_gui.plate_reader_model import PlateReaderDataset
 from lab_gui.plate_reader_view import PlateReaderView
 from lab_gui.data_studio_view import DataStudioView
+from lab_gui.ai_assistant import AIAssistant
+from lab_gui.ai_ollama_client import OllamaChatClient
+from lab_gui.ai_openai_client import OpenAIChatClient
+from lab_gui.ai_panel import AIPanel
 from lab_gui.settings import load_settings, save_settings
 
 # Refactor step B: IO extracted into lab_gui/lcms_io.py (UI-free).
@@ -104,6 +108,7 @@ from lab_gui.ftir_io import _try_parse_float_pair, _parse_ftir_xy_only, _parse_f
 
 # Refactor step D: shared UI widgets extracted into lab_gui/ui_widgets.py.
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
+from lab_gui.runtime_paths import app_root, resource_path
 
 # App chrome (modern top bar).
 from lab_gui.plot_card import PlotCard
@@ -269,6 +274,45 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
                 out[str(spec_id)] = rows
         return out
 
+    def _encode_uv_labels_by_uv_id(uv_labels_by_uv_id: Dict[str, Any]) -> Dict[str, Any]:
+        # Convert UV-id keys to UV-path keys so labels can be restored after reload.
+        out: Dict[str, Any] = {}
+        uv_sessions = getattr(app, "_uv_sessions", {}) or {}
+        for uv_id, labels_by_uvrt in (uv_labels_by_uv_id or {}).items():
+            uv_sess = uv_sessions.get(str(uv_id))
+            if uv_sess is None:
+                continue
+            uv_path = str(getattr(uv_sess, "path", "") or "").strip()
+            if not uv_path:
+                continue
+            uvrt_rows: List[Dict[str, Any]] = []
+            if isinstance(labels_by_uvrt, dict):
+                for uv_rt, states in labels_by_uvrt.items():
+                    try:
+                        uv_rt_f = float(uv_rt)
+                    except Exception:
+                        continue
+                    st_rows: List[Dict[str, Any]] = []
+                    for st in (states or []):
+                        try:
+                            xy = getattr(st, "xytext", (0.0, 0.0))
+                            st_rows.append(
+                                {
+                                    "text": str(getattr(st, "text", "")),
+                                    "xytext": [float(xy[0]), float(xy[1])],
+                                    "confidence": float(getattr(st, "confidence", 0.0) or 0.0),
+                                    "rt_delta_min": float(getattr(st, "rt_delta_min", 0.0) or 0.0),
+                                    "uv_peak_score": float(getattr(st, "uv_peak_score", 0.0) or 0.0),
+                                    "tic_peak_score": float(getattr(st, "tic_peak_score", 0.0) or 0.0),
+                                    "locked": bool(getattr(st, "locked", False)),
+                                }
+                            )
+                        except Exception:
+                            continue
+                    uvrt_rows.append({"uv_rt": float(uv_rt_f), "labels": st_rows})
+            out[uv_path] = uvrt_rows
+        return out
+
     rt_unit = "minutes"
     try:
         rt_unit = str(app.rt_unit_var.get() or "minutes")
@@ -324,6 +368,7 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
                 "last_selected_rt_min": (None if sess.last_selected_rt_min is None else float(sess.last_selected_rt_min)),
                 "linked_uv_path": linked_uv_path,
                 "spec_label_positions": _encode_positions(getattr(sess, "spec_label_positions", {}) or {}),
+                "uv_labels_by_uv_path": _encode_uv_labels_by_uv_id(getattr(sess, "uv_labels_by_uv_id", {}) or {}),
             }
         )
         annotations_by_mzml[str(sess.path)] = _encode_annotations(
@@ -1206,9 +1251,11 @@ def _default_logo_path() -> Path:
         here = Path(__file__).resolve().parent
     except Exception:
         here = Path.cwd()
-    # When packaged under lab_gui/, assets live one directory up.
+    packaged = resource_path("assets", "lab_logo.png")
     p1 = here / "assets" / "lab_logo.png"
     p2 = here.parent / "assets" / "lab_logo.png"
+    if packaged.exists():
+        return packaged
     return p1 if p1.exists() else p2
 
 
@@ -1219,10 +1266,10 @@ def _resolve_logo_path() -> Optional[Path]:
     except Exception:
         here = Path.cwd()
 
-    root = here.parent
+    root = app_root()
 
-    # Preferred: assets/lab_logo.png (support both package dir and project root).
-    candidates: List[Path] = [here / "assets" / "lab_logo.png", root / "assets" / "lab_logo.png"]
+    # Preferred: packaged/project assets/lab_logo.png.
+    candidates: List[Path] = [resource_path("assets", "lab_logo.png"), here / "assets" / "lab_logo.png", root / "assets" / "lab_logo.png"]
 
     # Next: any common image in assets/
     assets_dir = here / "assets"
@@ -11311,6 +11358,7 @@ class App(tb.Window):
         self._microscopy_view: Optional[MicroscopyView] = None
         self._plate_reader_view: Optional[PlateReaderView] = None
         self._data_studio_view: Optional[DataStudioView] = None
+        self._ai_panel: Optional[AIPanel] = None
 
         # Lazily created helper windows.
         self._label_explain_win: Optional[LabelExplanationWindow] = None
@@ -11725,6 +11773,15 @@ class App(tb.Window):
                 except Exception:
                     pass
 
+        if tab_text.strip().lower() == "ai assistant":
+            av = getattr(self, "_ai_panel", None)
+            if av is not None:
+                try:
+                    self._set_status(str(av.status_text()))
+                    return
+                except Exception:
+                    pass
+
         # Default: LCMS-style status string (existing behavior)
         self._update_status_current()
 
@@ -11770,10 +11827,12 @@ class App(tb.Window):
         ftir_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
         plate_reader_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
         data_studio_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
+        ai_tab = ttk.Frame(nb, style="ModuleHost.TFrame")
         nb.add(lcms_tab, text="LCMS")
         nb.add(ftir_tab, text="FTIR")
         nb.add(plate_reader_tab, text="Plate Reader")
         nb.add(data_studio_tab, text="Data Studio")
+        nb.add(ai_tab, text="AI Assistant")
 
         try:
             nb.bind("<<NotebookTabChanged>>", lambda _e: self._update_status_by_tab(), add=True)
@@ -11792,6 +11851,22 @@ class App(tb.Window):
 
         self._data_studio_view = DataStudioView(data_studio_tab, self, self.workspace)
         self._data_studio_view.pack(fill=tk.BOTH, expand=True)
+
+        ai_assistant = AIAssistant()
+        try:
+            ai_assistant = AIAssistant(
+                llm_client=OllamaChatClient(),
+                model=str(os.environ.get("OLLAMA_MODEL", "llama3.1:8b") or "llama3.1:8b"),
+            )
+        except Exception:
+            pass
+        try:
+            if os.environ.get("OPENAI_API_KEY"):
+                ai_assistant = AIAssistant(llm_client=OpenAIChatClient(api_key_env_var="OPENAI_API_KEY"))
+        except Exception:
+            pass
+        self._ai_panel = AIPanel(ai_tab, self, self.workspace, assistant=ai_assistant)
+        self._ai_panel.pack(fill=tk.BOTH, expand=True)
 
         status = ttk.Label(
             self,
@@ -14996,6 +15071,42 @@ class App(tb.Window):
                 out[float(uv_rt)] = labels
             return out
 
+        def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
+            out: Dict[float, List[UVLabelState]] = {}
+            if not isinstance(payload, list):
+                return out
+            for row in payload:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    uv_rt_raw = row.get("uv_rt")
+                    if uv_rt_raw is None:
+                        continue
+                    uv_rt = float(uv_rt_raw)
+                except Exception:
+                    continue
+                labels: List[UVLabelState] = []
+                for st in (row.get("labels") or []):
+                    if not isinstance(st, dict):
+                        continue
+                    try:
+                        xy = st.get("xytext") or [0.0, 0.0]
+                        labels.append(
+                            UVLabelState(
+                                text=str(st.get("text", "")),
+                                xytext=(float(xy[0]), float(xy[1])),
+                                confidence=float(st.get("confidence", 0.0) or 0.0),
+                                rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
+                                uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
+                                tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
+                                locked=bool(st.get("locked", False)),
+                            )
+                        )
+                    except Exception:
+                        continue
+                out[float(uv_rt)] = labels
+            return out
+
         # Restore mzML order as saved
         mzml_order_paths = list(ctx.get("mzml_order_paths") or [])
         if mzml_order_paths:
@@ -15321,6 +15432,42 @@ class App(tb.Window):
                 out[str(spec_id)] = rows
             return out
 
+        def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
+            out: Dict[float, List[UVLabelState]] = {}
+            if not isinstance(payload, list):
+                return out
+            for row in payload:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    uv_rt_raw = row.get("uv_rt")
+                    if uv_rt_raw is None:
+                        continue
+                    uv_rt = float(uv_rt_raw)
+                except Exception:
+                    continue
+                labels: List[UVLabelState] = []
+                for st in (row.get("labels") or []):
+                    if not isinstance(st, dict):
+                        continue
+                    try:
+                        xy = st.get("xytext") or [0.0, 0.0]
+                        labels.append(
+                            UVLabelState(
+                                text=str(st.get("text", "")),
+                                xytext=(float(xy[0]), float(xy[1])),
+                                confidence=float(st.get("confidence", 0.0) or 0.0),
+                                rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
+                                uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
+                                tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
+                                locked=bool(st.get("locked", False)),
+                            )
+                        )
+                    except Exception:
+                        continue
+                out[float(uv_rt)] = labels
+            return out
+
         # Apply per-session saved fields now that UV sessions are loaded
         for sid, sess in list(self._sessions.items()):
             path_key = str(sess.path)
@@ -15351,6 +15498,18 @@ class App(tb.Window):
                 sess.spec_label_overrides = overrides
             if isinstance(saved.get("spec_label_positions"), dict):
                 sess.spec_label_positions = _decode_positions(saved.get("spec_label_positions"))
+
+            # Restore UV labels (UV path -> UV id)
+            uv_labels_by_uv_path = saved.get("uv_labels_by_uv_path")
+            sess.uv_labels_by_uv_id = {}
+            if isinstance(uv_labels_by_uv_path, dict):
+                for uv_path, payload in uv_labels_by_uv_path.items():
+                    if not isinstance(uv_path, str):
+                        continue
+                    uv_id = uv_path_to_id.get(str(uv_path))
+                    if not uv_id:
+                        continue
+                    sess.uv_labels_by_uv_id[str(uv_id)] = _decode_uv_labels(payload)
 
             # Restore linked UV per session (if saved)
             try:
@@ -15398,7 +15557,13 @@ class App(tb.Window):
             active_sid = str(self._session_order[0])
         if active_sid is not None:
             try:
-                self._set_active_session(active_sid)
+                if str(self._active_session_id or "") != str(active_sid):
+                    self._set_active_session(active_sid)
+                else:
+                    self._sync_active_uv_id()
+                    self._update_uv_ws_controls()
+                    self._plot_uv()
+                    self._update_status_current()
             except Exception:
                 pass
 
@@ -20975,11 +21140,34 @@ class App(tb.Window):
             except Exception:
                 self._uv_rt_marker = None
 
-        if bool(self.uv_label_from_ms_var.get()):
+        if bool(self.uv_label_from_ms_var.get()) or bool(self._active_uv_labels_by_uvrt(create=False)):
             self._draw_uv_ms_peak_labels()
 
         self._apply_plot_style()
         self._update_lcms_empty_state()
+        try:
+            uv_lim = prev_lims.get(self._ax_uv)
+            if uv_lim is not None and x is not None and y is not None and x.size > 0 and y.size > 0:
+                x_lo = min(float(uv_lim[0][0]), float(uv_lim[0][1]))
+                x_hi = max(float(uv_lim[0][0]), float(uv_lim[0][1]))
+                y_lo = min(float(uv_lim[1][0]), float(uv_lim[1][1]))
+                y_hi = max(float(uv_lim[1][0]), float(uv_lim[1][1]))
+                data_x_min = float(np.min(x))
+                data_x_max = float(np.max(x))
+                data_y_min = float(np.min(y))
+                data_y_max = float(np.max(y))
+                x_pad = max((data_x_max - data_x_min) * 0.01, 1e-9)
+                y_pad = max((data_y_max - data_y_min) * 0.01, 1e-9)
+                overlaps = not (
+                    x_hi < (data_x_min - x_pad)
+                    or x_lo > (data_x_max + x_pad)
+                    or y_hi < (data_y_min - y_pad)
+                    or y_lo > (data_y_max + y_pad)
+                )
+                if not overlaps:
+                    prev_lims.pop(self._ax_uv, None)
+        except Exception:
+            pass
         self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 
@@ -21501,6 +21689,10 @@ class App(tb.Window):
         offset_step = self._overlay_offset_step(max_global)
 
         any_uv = False
+        uv_x_min: Optional[float] = None
+        uv_x_max: Optional[float] = None
+        uv_y_min: Optional[float] = None
+        uv_y_max: Optional[float] = None
         active_sid = str(self._active_session_id or "")
         for i, sid in enumerate(ids):
             sess = self._sessions.get(str(sid))
@@ -21515,6 +21707,17 @@ class App(tb.Window):
             if x.size == 0 or y.size == 0:
                 continue
             any_uv = True
+            try:
+                cur_x_min = float(np.min(x))
+                cur_x_max = float(np.max(x))
+                cur_y_min = float(np.min(y))
+                cur_y_max = float(np.max(y))
+                uv_x_min = cur_x_min if uv_x_min is None else min(float(uv_x_min), cur_x_min)
+                uv_x_max = cur_x_max if uv_x_max is None else max(float(uv_x_max), cur_x_max)
+                uv_y_min = cur_y_min if uv_y_min is None else min(float(uv_y_min), cur_y_min)
+                uv_y_max = cur_y_max if uv_y_max is None else max(float(uv_y_max), cur_y_max)
+            except Exception:
+                pass
             col = self._ensure_overlay_color(str(sid))
             if mode == "Offset":
                 y = y + (float(i) * float(offset_step))
@@ -21550,10 +21753,35 @@ class App(tb.Window):
             except Exception:
                 self._uv_rt_marker = None
 
-        if bool(self.uv_label_from_ms_var.get()):
+        if bool(self.uv_label_from_ms_var.get()) or bool(self._active_uv_labels_by_uvrt(create=False)):
             self._draw_uv_ms_peak_labels()
 
         self._apply_plot_style()
+        try:
+            uv_lim = prev_lims.get(self._ax_uv)
+            if (
+                uv_lim is not None
+                and uv_x_min is not None
+                and uv_x_max is not None
+                and uv_y_min is not None
+                and uv_y_max is not None
+            ):
+                x_lo = min(float(uv_lim[0][0]), float(uv_lim[0][1]))
+                x_hi = max(float(uv_lim[0][0]), float(uv_lim[0][1]))
+                y_lo = min(float(uv_lim[1][0]), float(uv_lim[1][1]))
+                y_hi = max(float(uv_lim[1][0]), float(uv_lim[1][1]))
+                x_pad = max((float(uv_x_max) - float(uv_x_min)) * 0.01, 1e-9)
+                y_pad = max((float(uv_y_max) - float(uv_y_min)) * 0.01, 1e-9)
+                overlaps = not (
+                    x_hi < (float(uv_x_min) - x_pad)
+                    or x_lo > (float(uv_x_max) + x_pad)
+                    or y_hi < (float(uv_y_min) - y_pad)
+                    or y_lo > (float(uv_y_max) + y_pad)
+                )
+                if not overlaps:
+                    prev_lims.pop(self._ax_uv, None)
+        except Exception:
+            pass
         self._restore_axes_limits_map(prev_lims)
         self._canvas.draw()
 

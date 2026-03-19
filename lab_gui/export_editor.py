@@ -363,7 +363,7 @@ class ExportEditor(tk.Toplevel):
 
         ToolTip.attach(controls_btn, self._tt("exp_controls"))
         ToolTip.attach(arrange_btn, self._tt("annotate_peaks"))
-        ToolTip.attach(distribute_btn, "Manually distribute export labels with configurable X and Y spacing for all labels or a selected index range.")
+        ToolTip.attach(distribute_btn, "Distribute export labels like PowerPoint: equal center spacing on X/Y for all labels or a selected index range.")
         ToolTip.attach(saveas_btn, self._tt("exp_saveas"))
         ToolTip.attach(close_btn, self._tt("exp_close"))
 
@@ -1469,119 +1469,130 @@ class ExportEditor(tk.Toplevel):
             raise ValueError("The selected label indices are out of range")
         return selected_annotations
 
-    def _distribute_annotations(self, *, scope: str, selection_text: str, x_step: float, y_step: float, apply_x: bool = True, apply_y: bool = True) -> int:
-        selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
-        if not selected_annotations:
-            return 0
-
-        lane_pattern = [0, -1, 1, -2, 2]
-        moved = 0
-        x_min: Optional[float] = None
-        x_max: Optional[float] = None
-        x_padding = 0.0
-        try:
-            x0, x1 = self._ax.get_xlim()
-            x_min = min(float(x0), float(x1))
-            x_max = max(float(x0), float(x1))
-            x_padding = max(abs(float(x_step)) * 0.35, (x_max - x_min) * 0.01)
-        except Exception:
-            x_min = None
-            x_max = None
-            x_padding = max(abs(float(x_step)) * 0.35, 0.0)
-        y_min: Optional[float] = None
-        y_max: Optional[float] = None
-        y_padding = 0.0
-        try:
-            y0, y1 = self._ax.get_ylim()
-            y_min = min(float(y0), float(y1))
-            y_max = max(float(y0), float(y1))
-            y_span = max(1e-9, y_max - y_min)
-            y_padding = max(abs(float(y_step)) * 0.25, y_span * 0.01)
-        except Exception:
-            y_min = None
-            y_max = None
-            y_padding = max(abs(float(y_step)) * 0.25, 0.0)
-
-        anchor_ann = selected_annotations[0]
-        try:
-            anchor_anchor_x = float(anchor_ann.xy[0])
-            anchor_current_x = float(anchor_ann.get_position()[0])
-            anchor_current_y = float(anchor_ann.get_position()[1])
-        except Exception:
-            return 0
-
-        placements: List[Dict[str, Any]] = []
-        for idx, ann in enumerate(selected_annotations):
+    def _annotation_is_locked(self, ann: Any) -> bool:
+        for name in ("_mfp_locked", "mfp_locked", "locked"):
             try:
-                anchor_x = float(ann.xy[0])
-                current_x = float(ann.get_position()[0])
-                current_y = float(ann.get_position()[1])
+                if bool(getattr(ann, name, False)):
+                    return True
             except Exception:
                 continue
-            if idx == 0:
-                target_x = float(anchor_current_x)
-                target_y = float(anchor_current_y)
-            else:
-                rel_idx = idx - 1
-                lane = int(lane_pattern[rel_idx % len(lane_pattern)])
-                row = int(rel_idx // len(lane_pattern))
-                relative_rt = float(anchor_x - anchor_anchor_x)
-                target_x = float(anchor_current_x + relative_rt + (lane * float(x_step)))
-                target_y = float(anchor_current_y + ((row + 1) * float(y_step)))
-            if x_min is not None and x_max is not None:
-                if idx == 0:
-                    target_x = float(anchor_current_x)
-                else:
-                    target_x = min(max(target_x, float(x_min + x_padding)), float(x_max - x_padding))
-            if y_min is not None and y_max is not None:
-                if idx == 0:
-                    target_y = float(anchor_current_y)
-                else:
-                    target_y = min(max(target_y, float(y_min + y_padding)), float(y_max - y_padding))
-            placements.append({
-                "ann": ann,
-                "anchor_x": float(anchor_x),
-                "current_x": float(current_x),
-                "current_y": float(current_y),
-                "target_x": float(target_x),
-                "target_y": float(target_y),
-            })
+        try:
+            locked_ids = getattr(self, "_locked_annotation_ids", None)
+            if isinstance(locked_ids, set) and id(ann) in locked_ids:
+                return True
+        except Exception:
+            pass
+        return False
 
-        if not placements:
-            return 0
+    def _distribute_annotations(
+        self,
+        *,
+        scope: str,
+        selection_text: str,
+        x_spacing: float = 1.0,
+        y_spacing: float = 1.0,
+        apply_x: bool = True,
+        apply_y: bool = True,
+    ) -> Dict[str, int]:
+        selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
+        if not selected_annotations:
+            return {"moved": 0, "locked": 0, "selected": 0, "movable": 0, "axis_x": 0, "axis_y": 0}
 
-        if bool(apply_x):
-            min_order_spacing = max(abs(float(x_step)) * 0.45, 1e-6)
-            for idx in range(2, len(placements)):
-                placements[idx]["target_x"] = max(
-                    float(placements[idx]["target_x"]),
-                    float(placements[idx - 1]["target_x"]) + min_order_spacing,
-                )
+        x_spacing = float(x_spacing)
+        y_spacing = float(y_spacing)
+        if bool(apply_x) and x_spacing < 0.0:
+            raise ValueError("X spacing must be zero or greater.")
+        if bool(apply_y) and y_spacing < 0.0:
+            raise ValueError("Y spacing must be zero or greater.")
 
-            if x_min is not None and x_max is not None:
-                upper_bound = float(x_max - x_padding)
-                lower_bound = float(x_min + x_padding)
-                if float(placements[-1]["target_x"]) > upper_bound:
-                    placements[-1]["target_x"] = upper_bound
-                    for idx in range(len(placements) - 2, 0, -1):
-                        placements[idx]["target_x"] = min(
-                            float(placements[idx]["target_x"]),
-                            float(placements[idx + 1]["target_x"]) - min_order_spacing,
-                        )
-                    if len(placements) > 1 and float(placements[1]["target_x"]) < max(lower_bound, float(placements[0]["target_x"]) + min_order_spacing):
-                        placements[1]["target_x"] = max(lower_bound, float(placements[0]["target_x"]) + min_order_spacing)
-                        for idx in range(2, len(placements)):
-                            placements[idx]["target_x"] = max(
-                                float(placements[idx]["target_x"]),
-                                float(placements[idx - 1]["target_x"]) + min_order_spacing,
-                            )
+        try:
+            self._canvas.draw()
+        except Exception:
+            pass
+        try:
+            renderer = self._canvas.get_renderer()
+        except Exception as exc:
+            raise RuntimeError(f"Renderer unavailable: {exc}")
 
-        for entry in placements:
+        axis_bbox = self._ax.get_window_extent(renderer)
+        to_disp = self._ax.transData.transform
+        from_disp = self._ax.transData.inverted().transform
+
+        entries: List[Dict[str, Any]] = []
+        locked = 0
+        for ann in selected_annotations:
             try:
-                final_x = float(entry["target_x"]) if bool(apply_x) else float(entry["current_x"])
-                final_y = float(entry["target_y"]) if bool(apply_y) else float(entry["current_y"])
-                entry["ann"].set_position((final_x, final_y))
-                moved += 1
+                current_data_x, current_data_y = ann.get_position()
+                anchor_disp = tuple(to_disp((float(current_data_x), float(current_data_y))))
+                bbox = ann.get_window_extent(renderer)
+            except Exception:
+                continue
+            is_locked = self._annotation_is_locked(ann)
+            if is_locked:
+                locked += 1
+            entries.append(
+                {
+                    "ann": ann,
+                    "locked": bool(is_locked),
+                    "current_data": (float(current_data_x), float(current_data_y)),
+                    "anchor_disp": (float(anchor_disp[0]), float(anchor_disp[1])),
+                    "center_disp": (float((bbox.x0 + bbox.x1) * 0.5), float((bbox.y0 + bbox.y1) * 0.5)),
+                    "size_disp": (float(max(1e-9, bbox.width)), float(max(1e-9, bbox.height))),
+                }
+            )
+
+        movable = [entry for entry in entries if not bool(entry.get("locked", False))]
+        moved = 0
+        axis_x_applied = 0
+        axis_y_applied = 0
+
+        if bool(apply_x) and len(movable) >= 3:
+            ordered_x = sorted(movable, key=lambda item: float(item["center_disp"][0]))
+            left = float(ordered_x[0]["center_disp"][0])
+            right = float(ordered_x[-1]["center_disp"][0])
+            step_x = float((right - left) / max(1, len(ordered_x) - 1))
+            midpoint_x = float((left + right) * 0.5)
+            for idx, entry in enumerate(ordered_x):
+                width = float(entry["size_disp"][0])
+                ppt_center = float(left + (idx * step_x))
+                raw_center = float(midpoint_x + ((ppt_center - midpoint_x) * x_spacing))
+                clamped_center = min(max(raw_center, float(axis_bbox.x0 + (width * 0.5))), float(axis_bbox.x1 - (width * 0.5)))
+                entry["target_center_x"] = float(clamped_center)
+            axis_x_applied = 1
+
+        if bool(apply_y) and len(movable) >= 3:
+            ordered_y = sorted(movable, key=lambda item: float(item["center_disp"][1]))
+            bottom = float(ordered_y[0]["center_disp"][1])
+            top = float(ordered_y[-1]["center_disp"][1])
+            step_y = float((top - bottom) / max(1, len(ordered_y) - 1))
+            midpoint_y = float((bottom + top) * 0.5)
+            for idx, entry in enumerate(ordered_y):
+                height = float(entry["size_disp"][1])
+                ppt_center = float(bottom + (idx * step_y))
+                raw_center = float(midpoint_y + ((ppt_center - midpoint_y) * y_spacing))
+                clamped_center = min(max(raw_center, float(axis_bbox.y0 + (height * 0.5))), float(axis_bbox.y1 - (height * 0.5)))
+                entry["target_center_y"] = float(clamped_center)
+            axis_y_applied = 1
+
+        for entry in movable:
+            ann = entry.get("ann")
+            if ann is None:
+                continue
+            current_data = entry.get("current_data", (0.0, 0.0))
+            anchor_disp = entry.get("anchor_disp", (0.0, 0.0))
+            size_disp = entry.get("size_disp", (1.0, 1.0))
+            target_center_x = float(entry.get("target_center_x", entry.get("center_disp", (anchor_disp[0], anchor_disp[1]))[0]))
+            target_center_y = float(entry.get("target_center_y", entry.get("center_disp", (anchor_disp[0], anchor_disp[1]))[1]))
+            target_anchor_x = float(target_center_x) if bool(axis_x_applied) else float(anchor_disp[0])
+            target_anchor_y = float(target_center_y - (size_disp[1] * 0.5)) if bool(axis_y_applied) else float(anchor_disp[1])
+
+            try:
+                next_data = from_disp((float(target_anchor_x), float(target_anchor_y)))
+                final_x = float(next_data[0])
+                final_y = float(next_data[1])
+                ann.set_position((final_x, final_y))
+                if abs(final_x - float(current_data[0])) > 1e-9 or abs(final_y - float(current_data[1])) > 1e-9:
+                    moved += 1
             except Exception:
                 continue
 
@@ -1591,7 +1602,15 @@ class ExportEditor(tk.Toplevel):
                 self._canvas.draw_idle()
             except Exception:
                 pass
-        return int(moved)
+
+        return {
+            "moved": int(moved),
+            "locked": int(locked),
+            "selected": int(len(entries)),
+            "movable": int(len(movable)),
+            "axis_x": int(axis_x_applied),
+            "axis_y": int(axis_y_applied),
+        }
 
     def _shift_annotations(self, *, scope: str, selection_text: str, shift_x: float, shift_y: float, apply_x: bool = True, apply_y: bool = True) -> int:
         selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
@@ -1643,6 +1662,101 @@ class ExportEditor(tk.Toplevel):
                 pass
         return int(moved)
 
+    def _align_annotations(self, *, scope: str, selection_text: str, horizontal: bool = False, vertical: bool = False) -> Dict[str, int]:
+        selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
+        if not selected_annotations:
+            return {"moved": 0, "locked": 0, "selected": 0, "movable": 0, "aligned_h": 0, "aligned_v": 0}
+
+        try:
+            self._canvas.draw()
+        except Exception:
+            pass
+        try:
+            renderer = self._canvas.get_renderer()
+        except Exception as exc:
+            raise RuntimeError(f"Renderer unavailable: {exc}")
+
+        to_disp = self._ax.transData.transform
+
+        entries: List[Dict[str, Any]] = []
+        locked = 0
+        for ann in selected_annotations:
+            try:
+                current_data_x, current_data_y = ann.get_position()
+                anchor_disp = tuple(to_disp((float(current_data_x), float(current_data_y))))
+                bbox = ann.get_window_extent(renderer)
+            except Exception:
+                continue
+            is_locked = self._annotation_is_locked(ann)
+            if is_locked:
+                locked += 1
+            entries.append(
+                {
+                    "ann": ann,
+                    "locked": bool(is_locked),
+                    "current_data": (float(current_data_x), float(current_data_y)),
+                    "anchor_disp": (float(anchor_disp[0]), float(anchor_disp[1])),
+                }
+            )
+
+        movable = [entry for entry in entries if not bool(entry.get("locked", False))]
+        if not movable:
+            return {
+                "moved": 0,
+                "locked": int(locked),
+                "selected": int(len(entries)),
+                "movable": 0,
+                "aligned_h": 0,
+                "aligned_v": 0,
+            }
+
+        reference = movable[0]
+        reference_data = reference.get("current_data", (0.0, 0.0))
+        reference_x = float(reference_data[0])
+        reference_y = float(reference_data[1])
+        moved = 0
+        aligned_h = 0
+        aligned_v = 0
+
+        for entry in movable:
+            ann = entry.get("ann")
+            if ann is None:
+                continue
+            current_data = entry.get("current_data", (0.0, 0.0))
+            target_data_x = float(current_data[0])
+            target_data_y = float(current_data[1])
+            if bool(vertical):
+                target_data_x = float(reference_x)
+                aligned_v = 1
+            if bool(horizontal):
+                target_data_y = float(reference_y)
+                aligned_h = 1
+
+            try:
+                final_x = float(target_data_x)
+                final_y = float(target_data_y)
+                ann.set_position((final_x, final_y))
+                if abs(final_x - float(current_data[0])) > 1e-9 or abs(final_y - float(current_data[1])) > 1e-9:
+                    moved += 1
+            except Exception:
+                continue
+
+        if moved:
+            self._apply_numbering(redraw_only=True)
+            try:
+                self._canvas.draw_idle()
+            except Exception:
+                pass
+
+        return {
+            "moved": int(moved),
+            "locked": int(locked),
+            "selected": int(len(entries)),
+            "movable": int(len(movable)),
+            "aligned_h": int(aligned_h),
+            "aligned_v": int(aligned_v),
+        }
+
     def _open_distribute_labels_dialog(self) -> None:
         if self._label_distribution_win is not None:
             try:
@@ -1670,8 +1784,8 @@ class ExportEditor(tk.Toplevel):
 
         scope_var = tk.StringVar(value="all")
         selection_var = tk.StringVar(value="")
-        x_step_var = tk.DoubleVar(value=0.35 if self.kind in ("tic", "uv") else 0.5)
-        y_step_var = tk.DoubleVar(value=0.08)
+        x_step_var = tk.DoubleVar(value=1.0)
+        y_step_var = tk.DoubleVar(value=1.0)
         shift_x_var = tk.DoubleVar(value=0.0)
         shift_y_var = tk.DoubleVar(value=0.0)
 
@@ -1687,17 +1801,20 @@ class ExportEditor(tk.Toplevel):
         selection_entry = ttk.Entry(frm, textvariable=selection_var)
         selection_entry.grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
 
-        ttk.Label(frm, text="X spacing").grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(frm, textvariable=x_step_var).grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ttk.Label(frm, text="Distribution mode").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(frm, text="PowerPoint-style equal center spacing", style="CardHint.TLabel").grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
 
-        ttk.Label(frm, text="Y spacing").grid(row=3, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(frm, textvariable=y_step_var).grid(row=3, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ttk.Label(frm, text="X spacing (1.0 = default)").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=x_step_var).grid(row=3, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
 
-        ttk.Label(frm, text="Move X together").grid(row=4, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(frm, textvariable=shift_x_var).grid(row=4, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ttk.Label(frm, text="Y spacing (1.0 = default)").grid(row=4, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=y_step_var).grid(row=4, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
 
-        ttk.Label(frm, text="Move Y together").grid(row=5, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(frm, textvariable=shift_y_var).grid(row=5, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        ttk.Label(frm, text="Move X together").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=shift_x_var).grid(row=5, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        ttk.Label(frm, text="Move Y together").grid(row=6, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(frm, textvariable=shift_y_var).grid(row=6, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
 
         preview_lines: List[str] = []
         for idx, ann in enumerate(ordered, start=1):
@@ -1707,20 +1824,20 @@ class ExportEditor(tk.Toplevel):
                 label_text = ""
             preview_lines.append(f"{idx}. {label_text}")
         preview_text = tk.Text(frm, width=42, height=min(10, max(4, len(preview_lines))), wrap="word")
-        preview_text.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        preview_text.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         try:
-            preview_text.insert("1.0", "Use left-to-right label indices, for example 1-4,7\n\n" + "\n".join(preview_lines))
+            preview_text.insert("1.0", "Use left-to-right label indices, for example 1-4,7\nPowerPoint distribution keeps locked labels fixed and spaces movable label centers equally.\n\n" + "\n".join(preview_lines))
             preview_text.configure(state="disabled")
         except Exception:
             pass
 
         def _apply(*, apply_x: bool, apply_y: bool) -> None:
             try:
-                moved = self._distribute_annotations(
+                result = self._distribute_annotations(
                     scope=str(scope_var.get() or "all"),
                     selection_text=str(selection_var.get() or ""),
-                    x_step=float(x_step_var.get()),
-                    y_step=float(y_step_var.get()),
+                    x_spacing=float(x_step_var.get()),
+                    y_spacing=float(y_step_var.get()),
                     apply_x=bool(apply_x),
                     apply_y=bool(apply_y),
                 )
@@ -1731,7 +1848,18 @@ class ExportEditor(tk.Toplevel):
                 messagebox.showerror("Distribute Labels", f"Failed to distribute labels:\n{exc}", parent=dlg)
                 return
             try:
-                messagebox.showinfo("Distribute Labels", f"Updated {moved} label(s).", parent=dlg)
+                moved = int(result.get("moved", 0)) if isinstance(result, dict) else int(result)
+                locked = int(result.get("locked", 0)) if isinstance(result, dict) else 0
+                movable = int(result.get("movable", 0)) if isinstance(result, dict) else 0
+                axis_x = int(result.get("axis_x", 0)) if isinstance(result, dict) else int(bool(apply_x))
+                axis_y = int(result.get("axis_y", 0)) if isinstance(result, dict) else int(bool(apply_y))
+                notes: List[str] = [f"Updated {moved} label(s).", f"Locked labels kept fixed: {locked}."]
+                if bool(apply_x) and not bool(axis_x):
+                    notes.append("X distribution needs at least 3 movable labels.")
+                if bool(apply_y) and not bool(axis_y):
+                    notes.append("Y distribution needs at least 3 movable labels.")
+                notes.append(f"Movable labels in scope: {movable}.")
+                messagebox.showinfo("Distribute Labels", "\n".join(notes), parent=dlg)
             except Exception:
                 pass
 
@@ -1756,6 +1884,29 @@ class ExportEditor(tk.Toplevel):
             except Exception:
                 pass
 
+        def _align(*, horizontal: bool, vertical: bool) -> None:
+            try:
+                result = self._align_annotations(
+                    scope=str(scope_var.get() or "all"),
+                    selection_text=str(selection_var.get() or ""),
+                    horizontal=bool(horizontal),
+                    vertical=bool(vertical),
+                )
+            except ValueError as exc:
+                messagebox.showerror("Distribute Labels", str(exc), parent=dlg)
+                return
+            except Exception as exc:
+                messagebox.showerror("Distribute Labels", f"Failed to align labels:\n{exc}", parent=dlg)
+                return
+            try:
+                moved = int(result.get("moved", 0)) if isinstance(result, dict) else int(result)
+                locked = int(result.get("locked", 0)) if isinstance(result, dict) else 0
+                movable = int(result.get("movable", 0)) if isinstance(result, dict) else 0
+                notes: List[str] = [f"Aligned {moved} label(s).", f"Locked labels kept fixed: {locked}.", f"Movable labels in scope: {movable}."]
+                messagebox.showinfo("Distribute Labels", "\n".join(notes), parent=dlg)
+            except Exception:
+                pass
+
         def _close() -> None:
             self._label_distribution_win = None
             try:
@@ -1764,7 +1915,7 @@ class ExportEditor(tk.Toplevel):
                 pass
 
         buttons = ttk.Frame(frm)
-        buttons.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        buttons.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         buttons.columnconfigure(0, weight=1)
         buttons.columnconfigure(1, weight=1)
         buttons.columnconfigure(2, weight=1)
@@ -1780,6 +1931,15 @@ class ExportEditor(tk.Toplevel):
         ttk.Button(buttons, text="Move Y", command=lambda: _shift(apply_x=False, apply_y=True)).grid(row=0, column=4, sticky="ew", padx=(0, 6))
         ttk.Button(buttons, text="Move X + Y", command=lambda: _shift(apply_x=True, apply_y=True)).grid(row=0, column=5, sticky="ew", padx=(0, 6))
         ttk.Button(buttons, text="Close", command=_close).grid(row=0, column=6, sticky="ew")
+
+        align_buttons = ttk.Frame(frm)
+        align_buttons.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        align_buttons.columnconfigure(0, weight=1)
+        align_buttons.columnconfigure(1, weight=1)
+        align_buttons.columnconfigure(2, weight=1)
+        ttk.Button(align_buttons, text="Align Horizontal", command=lambda: _align(horizontal=True, vertical=False)).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        ttk.Button(align_buttons, text="Align Vertical", command=lambda: _align(horizontal=False, vertical=True)).grid(row=0, column=1, sticky="ew", padx=(0, 6))
+        ttk.Button(align_buttons, text="Align H + V", command=lambda: _align(horizontal=True, vertical=True)).grid(row=0, column=2, sticky="ew")
 
         try:
             dlg.protocol("WM_DELETE_WINDOW", _close)
