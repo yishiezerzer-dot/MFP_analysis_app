@@ -64,6 +64,10 @@ PLOT_TYPES = [
 
 class DataStudioPreviewDialog(QDialog):
     def __init__(self, parent: QWidget, *, path: Path, dataset: DataStudioDataset, df) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._path = path
         self._dataset = dataset
@@ -99,6 +103,10 @@ class DataStudioPreviewDialog(QDialog):
         self._render_table(df)
 
     def _render_table(self, df) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._rows_label.setText(f"Rows: {len(df)}")
         self._cols_label.setText(f"Columns: {len(df.columns)}")
         self._table.clear()
@@ -111,6 +119,10 @@ class DataStudioPreviewDialog(QDialog):
         self._table.resizeColumnsToContents()
 
     def _reload_sheet(self) -> None:
+        """Implement the `_reload_sheet` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sheet = str(self._sheet_cb.currentText())
         df = load_table(self._path, sheet_name=sheet, header_row=self._dataset.header_row)
         self._dataset.sheet_name = sheet
@@ -120,6 +132,10 @@ class DataStudioPreviewDialog(QDialog):
 
 class DataStudioTab(QWidget):
     def __init__(self, status: StatusService, dialogs: DialogService, worker_runner=None, adapter: DataStudioAdapter | None = None) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.status = status
         self.dialogs = dialogs
@@ -144,6 +160,10 @@ class DataStudioTab(QWidget):
         self._refresh_workspace()
 
     def _build_ui(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         root = QSplitter(Qt.Horizontal)
         root.setChildrenCollapsible(False)
         self._root_splitter = root
@@ -158,6 +178,10 @@ class DataStudioTab(QWidget):
         return root
 
     def reset_layout(self) -> None:
+        """Implement the `reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self, "_root_splitter", None) is not None:
                 self._root_splitter.setSizes([340, 980])
@@ -165,6 +189,10 @@ class DataStudioTab(QWidget):
             pass
 
     def _build_workspace_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = QGroupBox("Workspace")
         layout = QVBoxLayout(ws)
 
@@ -240,6 +268,10 @@ class DataStudioTab(QWidget):
         return ws
 
     def _build_plot_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         right = QWidget()
         layout = QVBoxLayout(right)
 
@@ -339,6 +371,10 @@ class DataStudioTab(QWidget):
         return right
 
     def _init_data_options(self) -> None:
+        """Implement the `_init_data_options` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._drop_na_var = True
         self._decimal_var = False
         self._autocast_var = True
@@ -354,6 +390,10 @@ class DataStudioTab(QWidget):
         self._yerr_var = "(None)"
 
     def _on_mouse_move(self, event: Any) -> None:
+        """Implement the `_on_mouse_move` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if event.inaxes and event.xdata is not None and event.ydata is not None:
                 self._coord_label.setText(f"x={event.xdata:.4g}, y={event.ydata:.4g}")
@@ -363,26 +403,50 @@ class DataStudioTab(QWidget):
             self._coord_label.setText("")
 
     def _mark_dirty(self) -> None:
+        """Implement the `_mark_dirty` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._dirty_label.setText("● Unsaved changes")
 
     def _clear_dirty(self) -> None:
+        """Implement the `_clear_dirty` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._dirty_label.setText("")
 
     def _active_plot_def(self) -> Optional[DataStudioPlotDef]:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._ws.active_plot_id
         if not pid:
             return None
         return self._ws.plot_defs.get(pid)
 
     def _plot_def_name(self, pd: DataStudioPlotDef) -> str:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(pd.dataset_id)
         base = str(ds.display_name) if ds is not None else str(pd.dataset_id)
         return f"{base} · {pd.plot_type or 'Plot'}"
 
     def _toggle_advanced_panel(self) -> None:
+        """Implement the `_toggle_advanced_panel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._builder_panel.setVisible(not self._builder_panel.isVisible())
 
     def _open_data_options(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = QDialog(self)
         dlg.setWindowTitle("Data options")
         layout = QVBoxLayout(dlg)
@@ -410,6 +474,10 @@ class DataStudioTab(QWidget):
         dlg.exec()
 
     def _apply_data_options_and_close(self, dlg: QDialog) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._drop_na_var = bool(self._drop_na_cb.isChecked())
         self._decimal_var = bool(self._decimal_cb.isChecked())
         self._autocast_var = bool(self._autocast_cb.isChecked())
@@ -419,6 +487,10 @@ class DataStudioTab(QWidget):
         dlg.accept()
 
     def _open_y_selector(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -436,6 +508,10 @@ class DataStudioTab(QWidget):
         layout.addWidget(listbox, 1)
 
         def _refresh() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             items = self._available_y_items(filter_edit.text())
             listbox.clear()
             for d in items:
@@ -448,6 +524,10 @@ class DataStudioTab(QWidget):
                     listbox.item(i).setSelected(True)
 
         def _apply() -> None:
+            """Implement the `_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             selected: List[str] = []
             for it in listbox.selectedItems():
                 disp = it.text()
@@ -474,6 +554,10 @@ class DataStudioTab(QWidget):
         dlg.exec()
 
     def _schedule_overlay_refresh(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._overlay_refresh_timer is not None:
             self._overlay_refresh_timer.stop()
         self._overlay_refresh_timer = QTimer(self)
@@ -482,6 +566,10 @@ class DataStudioTab(QWidget):
         self._overlay_refresh_timer.start(180)
 
     def _on_overlay_mode_changed(self) -> None:
+        """Implement the `_on_overlay_mode_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None or not pd.y_cols:
             return
@@ -492,6 +580,10 @@ class DataStudioTab(QWidget):
             pass
 
     def _add_files(self) -> None:
+        """Implement the `_add_files` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Add files",
@@ -520,11 +612,19 @@ class DataStudioTab(QWidget):
         self._status_label.setText(f"Loaded {len(paths)} file(s)")
 
     def _infer_schema_async(self, dataset_id: str) -> None:
+        """Implement the `_infer_schema_async` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(dataset_id)
         if ds is None:
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 cols, schema_hash = self.adapter.infer_schema(ds, decimal_comma=self._decimal_var, auto_cast=self._autocast_var)
             except Exception:
@@ -532,6 +632,10 @@ class DataStudioTab(QWidget):
             return cols, schema_hash
 
         def _done(res):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cols, schema_hash = res
             d = self._ws.datasets.get(dataset_id)
             if d is None:
@@ -553,6 +657,10 @@ class DataStudioTab(QWidget):
         )
 
     def _set_active_dataset(self, dataset_id: str) -> None:
+        """Implement the `_set_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not dataset_id:
             return
         self._ws.active_id = dataset_id
@@ -569,6 +677,10 @@ class DataStudioTab(QWidget):
         self._clear_dirty()
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_id(self._ws_tree)
         if not sid:
             return
@@ -585,12 +697,20 @@ class DataStudioTab(QWidget):
         self._refresh_workspace()
 
     def _clear_workspace(self) -> None:
+        """Implement the `_clear_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.adapter.reset()
         self._ws = self.adapter.ws
         self._plotted_ids = set()
         self._refresh_workspace()
 
     def _save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._ws.datasets:
             self.dialogs.info("Data Studio", "No datasets to save.")
             return None
@@ -615,6 +735,10 @@ class DataStudioTab(QWidget):
         return self._last_workspace_path
 
     def _load_workspace(self) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Data Studio Workspace",
@@ -651,6 +775,10 @@ class DataStudioTab(QWidget):
         return str(path)
 
     def _set_active_from_selection(self) -> None:
+        """Implement the `_set_active_from_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws.active_id:
             self._store_current_config()
         sid = self._selected_id(self._ws_tree)
@@ -660,6 +788,10 @@ class DataStudioTab(QWidget):
         self._auto_plot_for_selection()
 
     def _on_select(self) -> None:
+        """Implement the `_on_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws.active_id:
             self._store_current_config()
         sid = self._selected_id(self._ws_tree)
@@ -668,6 +800,10 @@ class DataStudioTab(QWidget):
             self._auto_plot_for_selection()
 
     def _on_plot_select(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._selected_id(self._plot_tree)
         if not pid:
             return
@@ -682,9 +818,17 @@ class DataStudioTab(QWidget):
             self._auto_plot_for_selection()
 
     def _set_active_plot_from_selection(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._on_plot_select()
 
     def _new_plot_def(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds_id = self._ws.active_id
         if not ds_id:
             return
@@ -697,6 +841,10 @@ class DataStudioTab(QWidget):
         self._mark_dirty()
 
     def _remove_plot_def(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._selected_id(self._plot_tree)
         if not pid:
             return
@@ -706,6 +854,10 @@ class DataStudioTab(QWidget):
         self._refresh_workspace()
 
     def _preview_data(self) -> None:
+        """Implement the `_preview_data` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             self.dialogs.info("Preview", "No active dataset.")
@@ -714,9 +866,17 @@ class DataStudioTab(QWidget):
         if ds is None:
             return
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.load_df(ds, decimal_comma=self._decimal_var, auto_cast=self._autocast_var)
 
         def _done(df):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             dlg = DataStudioPreviewDialog(self, path=ds.path, dataset=ds, df=df)
             dlg.exec()
 
@@ -730,6 +890,10 @@ class DataStudioTab(QWidget):
         )
 
     def _apply_overlay(self) -> None:
+        """Implement the `_apply_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         overlay_ids = [
             str(self._overlay_tree.topLevelItem(i).data(0, Qt.UserRole))
             for i in range(self._overlay_tree.topLevelItemCount())
@@ -768,17 +932,29 @@ class DataStudioTab(QWidget):
         self._plot()
 
     def _clear_overlay(self) -> None:
+        """Implement the `_clear_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws.overlay_ids = []
         self._refresh_workspace()
         self._auto_plot_for_selection()
 
     def _on_overlay_click(self, item: QTreeWidgetItem, column: int) -> None:
+        """Implement the `_on_overlay_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if column != 0:
             return
         cur = item.text(0)
         item.setText(0, "" if cur == "✔" else "✔")
 
     def _refresh_workspace(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws_tree.clear()
         self._overlay_tree.clear()
         self._plot_tree.clear()
@@ -808,12 +984,20 @@ class DataStudioTab(QWidget):
         self._restore_config_for_active()
 
     def _selected_id(self, tree: QTreeWidget) -> Optional[str]:
+        """Implement the `_selected_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = tree.selectedItems()
         if not items:
             return None
         return str(items[0].data(0, Qt.UserRole) or "")
 
     def _populate_columns(self) -> None:
+        """Implement the `_populate_columns` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -843,6 +1027,10 @@ class DataStudioTab(QWidget):
         cols = [str(c) for c in cols_map.keys()]
 
         def _disp(name: str, dtype: str) -> str:
+            """Implement the `_disp` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return f"{name} ({dtype})" if dtype else str(name)
 
         self._x_display_to_col = {"(Index)": "(Index)"}
@@ -881,6 +1069,10 @@ class DataStudioTab(QWidget):
         self._restoring_ui = False
 
     def _restore_config_for_active(self) -> None:
+        """Implement the `_restore_config_for_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -952,6 +1144,10 @@ class DataStudioTab(QWidget):
         self._restoring_ui = False
 
     def _auto_plot_for_selection(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -968,6 +1164,10 @@ class DataStudioTab(QWidget):
                 return
 
     def _pick_default_axes(self, dataset_id: str) -> Tuple[Optional[str], List[str]]:
+        """Implement the `_pick_default_axes` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(dataset_id)
         if ds is None:
             return None, []
@@ -979,9 +1179,17 @@ class DataStudioTab(QWidget):
         idx_keys = ("index", "scan", "cycle", "frame")
 
         def _is_time(name: str) -> bool:
+            """Implement the `_is_time` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return any(k in name for k in time_keys)
 
         def _is_idx(name: str) -> bool:
+            """Implement the `_is_idx` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return any(k in name for k in idx_keys)
 
         x_col = None
@@ -1023,6 +1231,10 @@ class DataStudioTab(QWidget):
         return x_col, y_cols
 
     def _toggle_extra_fields(self) -> None:
+        """Implement the `_toggle_extra_fields` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for i in reversed(range(self._extra_layout.count())):
             w = self._extra_layout.itemAt(i).widget()
             if w is not None:
@@ -1031,6 +1243,10 @@ class DataStudioTab(QWidget):
         kind = str(self._plot_cb.currentText())
 
         def _combo(title: str, values: List[str], current: str) -> QComboBox:
+            """Implement the `_combo` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._extra_layout.addWidget(QLabel(title))
             cb = QComboBox()
             cb.addItems(values)
@@ -1077,6 +1293,10 @@ class DataStudioTab(QWidget):
             self._xerr_cb.currentTextChanged.connect(lambda v: self._set_extra_var("xerr", v))
 
     def _set_extra_var(self, key: str, value: Any) -> None:
+        """Implement the `_set_extra_var` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if key == "size":
             self._size_var = str(value)
         elif key == "heat_row":
@@ -1098,6 +1318,10 @@ class DataStudioTab(QWidget):
         self._mark_dirty()
 
     def _refresh_y_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._available_y_items("")
         pd = self._active_plot_def()
         if pd is not None and pd.y_cols:
@@ -1108,6 +1332,10 @@ class DataStudioTab(QWidget):
         self._update_y_summary()
 
     def _available_y_items(self, filter_text: str) -> List[str]:
+        """Implement the `_available_y_items` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = list(self._y_display_to_col.keys())
         filt = str(filter_text or "").strip().lower()
         if filt:
@@ -1127,6 +1355,10 @@ class DataStudioTab(QWidget):
         return items
 
     def _update_y_summary(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None or not pd.y_cols:
             self._y_summary_label.setText("Y: (none)")
@@ -1138,6 +1370,10 @@ class DataStudioTab(QWidget):
             self._y_summary_label.setText(f"Y: {len(disp)} selected")
 
     def _on_plot_type_changed(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._toggle_extra_fields()
@@ -1153,18 +1389,30 @@ class DataStudioTab(QWidget):
             self._refresh_workspace()
 
     def _on_x_changed(self) -> None:
+        """Implement the `_on_x_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._mark_dirty()
         self._store_current_config()
 
     def _on_group_changed(self) -> None:
+        """Implement the `_on_group_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._mark_dirty()
         self._store_current_config()
 
     def _reset_plot_builder(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._plot_cb.setCurrentText(PLOT_TYPES[0])
         self._drop_na_var = True
         self._decimal_var = False
@@ -1175,12 +1423,20 @@ class DataStudioTab(QWidget):
         self._clear_dirty()
 
     def _plot(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             self.dialogs.error("Plot", "No active plot.")
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.build_plot_series(
                 active_plot_def=pd,
                 overlay_ids=self._ws.overlay_ids,
@@ -1192,10 +1448,18 @@ class DataStudioTab(QWidget):
             )
 
         def _done(res):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             base_series, meta = res
             self._render_plot(base_series, meta)
 
         def _err(msg: str) -> None:
+            """Implement the `_err` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self.dialogs.error("Plot", str(msg))
 
         self.worker_runner(
@@ -1209,6 +1473,10 @@ class DataStudioTab(QWidget):
         )
 
     def _render_plot(self, base_series: List[Dict[str, Any]], meta: Dict[str, Any]) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         series = [dict(s) for s in (base_series or [])]
         self.adapter.apply_overlay_offset(
             series,
@@ -1310,6 +1578,10 @@ class DataStudioTab(QWidget):
             self._plotted_ids.add(self._ws.active_id)
 
     def _apply_plot(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._store_current_config()
         pd = self._active_plot_def()
         sid = self._ws.active_id
@@ -1339,6 +1611,10 @@ class DataStudioTab(QWidget):
         self._clear_dirty()
 
     def _store_current_config(self) -> None:
+        """Implement the `_store_current_config` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -1368,6 +1644,10 @@ class DataStudioTab(QWidget):
             self._ws.preferred_axes_by_dataset[pd.dataset_id] = (pd.x_col, list(pd.y_cols or []))
 
     def _export_plot(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         payload = getattr(self, "_last_payload", None)
         if not payload:
             self.dialogs.info("Export", "Plot something first.")
@@ -1376,17 +1656,33 @@ class DataStudioTab(QWidget):
         dlg.exec()
 
     def open_workspace(self) -> Optional[str]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._load_workspace()
 
     def save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._save_workspace()
 
     def open_workspace_path(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return
         self._load_workspace_path(str(path))
 
     def _load_workspace_path(self, path: str) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return
         try:
@@ -1416,12 +1712,24 @@ class DataStudioTab(QWidget):
         self._status_label.setText("Workspace loaded")
 
     def get_last_workspace_path(self) -> Optional[str]:
+        """Implement the `get_last_workspace_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._last_workspace_path
 
     def _ui_state_path(self, workspace_path: str) -> str:
+        """Implement the `_ui_state_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return str(workspace_path) + ".ui.json"
 
     def _save_ui_state(self, workspace_path: str) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             payload = {
                 "overlay_mode": str(self._overlay_mode_cb.currentText()),
@@ -1433,6 +1741,10 @@ class DataStudioTab(QWidget):
             pass
 
     def _load_ui_state(self, workspace_path: str) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(self._ui_state_path(workspace_path), "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -1448,6 +1760,10 @@ class DataStudioTab(QWidget):
 
     @staticmethod
     def _safe_float(value: Any) -> float:
+        """Implement the `_safe_float` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return float(str(value).strip())
         except Exception:

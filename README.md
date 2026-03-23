@@ -2,6 +2,11 @@
 
 A small, local mzML analyzer for LC–MS(/MS) data.
 
+## Documentation for understanding and customization
+
+- `CODEBASE_EXPLAINER.md`: module-by-module and function-by-function purpose and safe-change hints.
+- `CODE_EDITING_PLAYBOOK.md`: practical guide for where to edit, in what order, and how to keep changes safe.
+
 ## What it produces
 Given an `.mzML`, it writes an output folder containing:
 - `summary.json`: high-level dataset summary and per-MS-level stats
@@ -32,6 +37,30 @@ To avoid a console window entirely, you can run with `pythonw.exe`:
 ```powershell
 C:/Users/owner/AppData/Local/Programs/Python/Python312/pythonw.exe main.py
 ```
+
+## Build EXE
+
+You can package the app for Windows so target machines do not need Python or the pip requirements installed.
+
+Install the build tool once in your build environment:
+
+```powershell
+python -m pip install -r requirements-build.txt
+```
+
+Then build the packaged app:
+
+```powershell
+./build_exe.ps1
+```
+
+The output will be created under `dist/MainMFP/`. Distribute that folder as-is.
+
+Notes:
+- This bundles Python and the required libraries into the app, so the target machine does not need Python.
+- The current build includes `assets/` and `lab_gui/macros/`.
+- Fiji/ImageJ is still an external dependency for microscopy actions. Users will still need a local Fiji/ImageJ executable if they use those features.
+- Build the EXE on Windows for Windows target machines.
 
 In the viewer:
 - Open an mzML file

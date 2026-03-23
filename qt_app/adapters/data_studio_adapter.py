@@ -51,23 +51,43 @@ from lab_gui.data_studio_model import DataStudioDataset, DataStudioPlotDef, Data
 
 class DataStudioAdapter:
     def __init__(self) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.ws = DataStudioWorkspace()
         self.df_cache: Dict[str, pd.DataFrame] = {}
 
     def reset(self) -> None:
+        """Implement the `reset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.ws = DataStudioWorkspace()
         self.df_cache = {}
 
     def get_sheet_names(self, path: Path) -> List[str]:
+        """Implement the `get_sheet_names` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return get_sheet_names(path)
 
     def infer_schema(self, ds: DataStudioDataset, *, decimal_comma: bool, auto_cast: bool) -> Tuple[Dict[str, str], str]:
+        """Implement the `infer_schema` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         df = load_table(ds.path, sheet_name=ds.sheet_name, header_row=ds.header_row, decimal_comma=decimal_comma, auto_cast=auto_cast)
         cols = column_type_map(df)
         schema_hash = schema_hash_from_columns(cols)
         return cols, schema_hash
 
     def load_df(self, ds: DataStudioDataset, *, decimal_comma: bool, auto_cast: bool) -> pd.DataFrame:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ds.dataset_id in self.df_cache:
             return self.df_cache[ds.dataset_id]
         df = load_table(ds.path, sheet_name=ds.sheet_name, header_row=ds.header_row, decimal_comma=decimal_comma, auto_cast=auto_cast)
@@ -75,6 +95,10 @@ class DataStudioAdapter:
         return df
 
     def ensure_plot_def_for_dataset(self, dataset_id: str, *, plot_type: str) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not dataset_id:
             return
         for pd in self.ws.plot_defs.values():
@@ -86,6 +110,10 @@ class DataStudioAdapter:
             self.ws.active_plot_id = pid
 
     def remove_plot_defs_for_dataset(self, dataset_id: str) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         to_drop = [pid for pid, pd in self.ws.plot_defs.items() if pd.dataset_id == dataset_id]
         for pid in to_drop:
             self.ws.plot_defs.pop(pid, None)
@@ -105,6 +133,10 @@ class DataStudioAdapter:
         xcol_override: Optional[str] = None,
         ycols_override: Optional[List[str]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid_list = overlay_ids if overlay_ids else ([active_plot_def.dataset_id] if active_plot_def.dataset_id else [])
         if not sid_list:
             raise ValueError("No active dataset selected.")
@@ -292,6 +324,10 @@ class DataStudioAdapter:
         return series, meta
 
     def apply_overlay_offset(self, series: List[Dict[str, Any]], *, overlay_ids: List[str], mode: str, offset: float) -> None:
+        """Implement the `apply_overlay_offset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not overlay_ids or not series:
             return
         if mode == "Normal" or offset == 0.0:
@@ -311,4 +347,8 @@ class DataStudioAdapter:
                 s["x"] = np.asarray(s.get("x", []), dtype=float) + (idx * offset)
 
     def open_export_editor(self, payload: Dict[str, Any]) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return None

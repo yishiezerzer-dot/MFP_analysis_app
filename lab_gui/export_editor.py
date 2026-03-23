@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import traceback
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
@@ -18,7 +18,7 @@ from matplotlib.ticker import ScalarFormatter
 from matplotlib.transforms import Bbox
 
 from lab_gui.plot_card import PlotCard
-from lab_gui.ui_theme import style_primary, style_secondary, style_success, style_danger
+from lab_gui.ui_theme import style_primary, style_secondary, style_success
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 
 
@@ -31,6 +31,10 @@ class ExportEditor(tk.Toplevel):
         default_stem: str,
         tooltip_text: Optional[Dict[str, str]] = None,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
         self.kind = str(kind)
@@ -58,21 +62,37 @@ class ExportEditor(tk.Toplevel):
             return
 
     def _tt(self, key: str) -> str:
+        """Implement the `_tt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return str(self._tooltip_text.get(str(key), "") or "")
 
     def _source_axis(self) -> Optional[Any]:
+        """Implement the `_source_axis` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         attr = {"tic": "_ax_tic", "uv": "_ax_uv", "spectrum": "_ax_spec"}.get(str(self.kind), "")
         if not attr:
             return None
         return getattr(self.app, attr, None)
 
     def _to_hex_color(self, value: Any, fallback: str) -> str:
+        """Implement the `_to_hex_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return str(mcolors.to_hex(value, keep_alpha=False))
         except Exception:
             return str(fallback)
 
     def _grid_style_from_lines(self, lines: List[Any], *, fallback_color: str, fallback_alpha: float, fallback_lw: float) -> Dict[str, Any]:
+        """Implement the `_grid_style_from_lines` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ln in list(lines or []):
             try:
                 return {
@@ -91,6 +111,10 @@ class ExportEditor(tk.Toplevel):
         }
 
     def _capture_live_style_snapshot(self) -> Dict[str, Any]:
+        """Implement the `_capture_live_style_snapshot` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         defaults: Dict[str, Any] = {
             "figure_facecolor": "#F4F7F7",
             "axes_facecolor": "#FCFEFE",
@@ -242,6 +266,10 @@ class ExportEditor(tk.Toplevel):
         return defaults
 
     def _apply_live_plot_theme(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         snap = dict(getattr(self, "_live_style_snapshot", {}) or {})
         fig_bg = snap.get("figure_facecolor", "#F4F7F7")
         ax_bg = (self.axes_facecolor_var.get() or "").strip() or self._to_hex_color(snap.get("axes_facecolor"), "#FCFEFE")
@@ -316,6 +344,10 @@ class ExportEditor(tk.Toplevel):
 
     def _init_ui(self) -> None:
 
+        """Implement the `_init_ui` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._controls_win: Optional[tk.Toplevel] = None
         self._controls_scroll_canvas: Optional[tk.Canvas] = None
 
@@ -380,7 +412,7 @@ class ExportEditor(tk.Toplevel):
         ).grid(row=1, column=0, sticky="w", pady=(2, 0))
         ttk.Label(stage_hdr, text=str(self.kind).upper(), style="CardStatus.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
 
-        plot_card = PlotCard(self, title=f"{str(self.kind).upper()} Export", status_text="Preview", show_header=True)
+        plot_card = PlotCard(cast(tk.Widget, self), title=f"{str(self.kind).upper()} Export", status_text="Preview", show_header=True)
         plot_card.grid(row=2, column=0, sticky="nsew")
         plot = plot_card.body
         plot.columnconfigure(0, weight=1)
@@ -444,7 +476,7 @@ class ExportEditor(tk.Toplevel):
         self.title_fs_var = tk.IntVar(value=int(self.app.title_fontsize_var.get()))
         self.label_fs_var = tk.IntVar(value=int(self.app.label_fontsize_var.get()))
         self.tick_fs_var = tk.IntVar(value=int(self.app.tick_fontsize_var.get()))
-        self.ann_fs_var = tk.IntVar(value=max(6, int(self.app.tick_fontsize_var.get()) - 1))
+        self.ann_fs_var = tk.IntVar(value=10)
         self.ann_orientation_var = tk.StringVar(value="vertical")
 
         self.xmin_var = tk.StringVar(value="")
@@ -559,6 +591,10 @@ class ExportEditor(tk.Toplevel):
             pass
 
     def _on_close_export(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._controls_win is not None and bool(self._controls_win.winfo_exists()):
                 self._controls_win.destroy()
@@ -573,11 +609,19 @@ class ExportEditor(tk.Toplevel):
                 pass
 
     def _on_controls_closed(self) -> None:
+        """Implement the `_on_controls_closed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._controls_win = None
         self._controls_scroll_canvas = None
 
     def _open_controls_window(self) -> None:
         # Reuse if already open.
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._controls_win is not None:
             try:
                 if bool(self._controls_win.winfo_exists()):
@@ -660,12 +704,20 @@ class ExportEditor(tk.Toplevel):
         inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
         def _on_inner_config(_evt=None):
+            """Implement the `_on_inner_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 canvas.configure(scrollregion=canvas.bbox("all"))
             except Exception:
                 pass
 
         def _on_canvas_config(evt=None):
+            """Implement the `_on_canvas_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 w = int(evt.width) if evt is not None else int(canvas.winfo_width())
                 canvas.itemconfigure(inner_id, width=w)
@@ -713,6 +765,10 @@ class ExportEditor(tk.Toplevel):
             step: Optional[float] = None,
             fmt: Optional[str] = None,
         ) -> ttk.Scale:
+            """Implement the `_add_slider` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             holder = ttk.Frame(parent)
             holder.columnconfigure(0, weight=1)
 
@@ -720,6 +776,10 @@ class ExportEditor(tk.Toplevel):
             lbl = ttk.Label(holder, text="")
 
             def _format_value(v: float) -> str:
+                """Implement the `_format_value` behavior for this module.
+
+                Text-only documentation note: modify internal logic here to change behavior.
+                """
                 if fmt:
                     try:
                         return fmt.format(v)
@@ -730,6 +790,10 @@ class ExportEditor(tk.Toplevel):
                 return f"{float(v):.2f}"
 
             def _apply(v: Any = None) -> None:
+                """Implement the `_apply` behavior for this module.
+
+                Text-only documentation note: modify internal logic here to change behavior.
+                """
                 try:
                     fv = float(v if v is not None else scale_var.get())
                 except Exception:
@@ -846,6 +910,10 @@ class ExportEditor(tk.Toplevel):
         row += 1
 
         def _pick_legend_color(var: tk.StringVar, title: str) -> None:
+            """Implement the `_pick_legend_color` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
                 if c:
@@ -894,6 +962,10 @@ class ExportEditor(tk.Toplevel):
         self._legend_tree = leg_tree  # type: ignore[attr-defined]
 
         def _refresh_legend_tree() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             tv = getattr(self, "_legend_tree", None)
             if tv is None:
                 return
@@ -909,6 +981,10 @@ class ExportEditor(tk.Toplevel):
                     continue
 
         def _edit_legend_label(evt=None) -> None:
+            """Implement the `_edit_legend_label` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             tv = getattr(self, "_legend_tree", None)
             if tv is None:
                 return
@@ -972,6 +1048,10 @@ class ExportEditor(tk.Toplevel):
         row += 1
 
         def _nudge_table(_evt=None):
+            """Implement the `_nudge_table` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._apply_numbering(redraw_only=True)
             try:
                 self._canvas.draw_idle()
@@ -1015,6 +1095,10 @@ class ExportEditor(tk.Toplevel):
         self._tbl_tree = tv
 
         def _edit_table_cell(evt: Any = None):
+            """Implement the `_edit_table_cell` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if evt is None:
                 return
             try:
@@ -1079,6 +1163,10 @@ class ExportEditor(tk.Toplevel):
         row += 1
 
         def _pick_one(var: tk.StringVar, title: str) -> None:
+            """Implement the `_pick_one` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
                 if c:
@@ -1163,11 +1251,19 @@ class ExportEditor(tk.Toplevel):
             pass
 
     def _install_color_traces(self) -> None:
+        """Implement the `_install_color_traces` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_color_traces_installed", False)):
             return
         self._color_traces_installed = True
 
         def _cb(*_args) -> None:
+            """Implement the `_cb` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._apply_colors()
             except Exception:
@@ -1192,6 +1288,10 @@ class ExportEditor(tk.Toplevel):
 
     def _pick_colors(self) -> None:
         # Minimal color picker: reuse existing vars, apply immediately.
+        """Implement the `_pick_colors` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             c = colorchooser.askcolor(title="Pick plot color", parent=self)[1]
             if c:
@@ -1225,6 +1325,10 @@ class ExportEditor(tk.Toplevel):
         self._apply_colors()
 
     def _refresh_table_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tv = getattr(self, "_tbl_tree", None)
         if tv is None:
             return
@@ -1250,6 +1354,10 @@ class ExportEditor(tk.Toplevel):
             tv.insert("", "end", values=(str(n), label, rt))
 
     def _label_rt_for_number(self, n: int) -> str:
+        """Implement the `_label_rt_for_number` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ann = self._num_to_ann.get(int(n))
         if ann is None:
             return ""
@@ -1264,6 +1372,10 @@ class ExportEditor(tk.Toplevel):
         return f"{float(meta.rt_min):.4f}"
 
     def _apply_colors(self) -> None:
+        """Implement the `_apply_colors` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         plot_c = (self.plot_color_var.get() or "").strip() or None
         label_c = (self.label_color_var.get() or "").strip() or None
         bg_c = (self.axes_facecolor_var.get() or "").strip() or None
@@ -1328,15 +1440,27 @@ class ExportEditor(tk.Toplevel):
         self._canvas.draw_idle()
 
     def _parse_optional_float(self, raw: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (raw or "").strip()
         if not raw:
             return None
         return float(raw)
 
     def _annotation_rotation(self) -> float:
+        """Implement the `_annotation_rotation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return 0.0 if str(self.ann_orientation_var.get() or "vertical").strip().lower() == "horizontal" else 90.0
 
     def _apply_annotation_orientation(self) -> None:
+        """Implement the `_apply_annotation_orientation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rotation = float(self._annotation_rotation())
         for ann in list(self._annotations):
             try:
@@ -1349,6 +1473,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
     def _clear_annotations(self) -> None:
+        """Implement the `_clear_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ann in list(self._annotations):
             try:
                 ann.remove()
@@ -1358,6 +1486,10 @@ class ExportEditor(tk.Toplevel):
         self._ann_original_text = {}
 
     def _add_annotation(self, text: str, *, xy: Tuple[float, float], xytext: Tuple[float, float]) -> Any:
+        """Implement the `_add_annotation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ann_color = (self.label_color_var.get() or "").strip() or self._to_hex_color(self._live_style_snapshot.get("label_color"), "#111111")
         ann = self._ax.annotate(
             str(text),
@@ -1381,6 +1513,10 @@ class ExportEditor(tk.Toplevel):
         return ann
 
     def _auto_arrange_labels(self) -> None:
+        """Implement the `_auto_arrange_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._annotations:
             try:
                 messagebox.showinfo("Auto Arrange Labels", "There are no export labels to arrange.", parent=self)
@@ -1422,6 +1558,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
     def _sorted_export_annotations(self) -> List[Any]:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         anns: List[Tuple[float, Any]] = []
         for ann in list(self._annotations):
             try:
@@ -1432,6 +1572,10 @@ class ExportEditor(tk.Toplevel):
         return [ann for _, ann in anns]
 
     def _parse_annotation_selection(self, raw: str, total: int) -> List[int]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = str(raw or "").strip()
         if not raw:
             return []
@@ -1456,6 +1600,10 @@ class ExportEditor(tk.Toplevel):
         return selected
 
     def _resolve_selected_annotations(self, *, scope: str, selection_text: str) -> List[Any]:
+        """Implement the `_resolve_selected_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ordered = self._sorted_export_annotations()
         if not ordered:
             return []
@@ -1470,6 +1618,10 @@ class ExportEditor(tk.Toplevel):
         return selected_annotations
 
     def _annotation_is_locked(self, ann: Any) -> bool:
+        """Implement the `_annotation_is_locked` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for name in ("_mfp_locked", "mfp_locked", "locked"):
             try:
                 if bool(getattr(ann, name, False)):
@@ -1494,6 +1646,10 @@ class ExportEditor(tk.Toplevel):
         apply_x: bool = True,
         apply_y: bool = True,
     ) -> Dict[str, int]:
+        """Implement the `_distribute_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
         if not selected_annotations:
             return {"moved": 0, "locked": 0, "selected": 0, "movable": 0, "axis_x": 0, "axis_y": 0}
@@ -1521,11 +1677,14 @@ class ExportEditor(tk.Toplevel):
         entries: List[Dict[str, Any]] = []
         locked = 0
         for ann in selected_annotations:
+            bbox: Optional[Bbox] = None
             try:
                 current_data_x, current_data_y = ann.get_position()
                 anchor_disp = tuple(to_disp((float(current_data_x), float(current_data_y))))
                 bbox = ann.get_window_extent(renderer)
             except Exception:
+                continue
+            if bbox is None:
                 continue
             is_locked = self._annotation_is_locked(ann)
             if is_locked:
@@ -1613,6 +1772,10 @@ class ExportEditor(tk.Toplevel):
         }
 
     def _shift_annotations(self, *, scope: str, selection_text: str, shift_x: float, shift_y: float, apply_x: bool = True, apply_y: bool = True) -> int:
+        """Implement the `_shift_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
         if not selected_annotations:
             return 0
@@ -1663,6 +1826,10 @@ class ExportEditor(tk.Toplevel):
         return int(moved)
 
     def _align_annotations(self, *, scope: str, selection_text: str, horizontal: bool = False, vertical: bool = False) -> Dict[str, int]:
+        """Implement the `_align_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         selected_annotations = self._resolve_selected_annotations(scope=scope, selection_text=selection_text)
         if not selected_annotations:
             return {"moved": 0, "locked": 0, "selected": 0, "movable": 0, "aligned_h": 0, "aligned_v": 0}
@@ -1671,11 +1838,6 @@ class ExportEditor(tk.Toplevel):
             self._canvas.draw()
         except Exception:
             pass
-        try:
-            renderer = self._canvas.get_renderer()
-        except Exception as exc:
-            raise RuntimeError(f"Renderer unavailable: {exc}")
-
         to_disp = self._ax.transData.transform
 
         entries: List[Dict[str, Any]] = []
@@ -1684,7 +1846,6 @@ class ExportEditor(tk.Toplevel):
             try:
                 current_data_x, current_data_y = ann.get_position()
                 anchor_disp = tuple(to_disp((float(current_data_x), float(current_data_y))))
-                bbox = ann.get_window_extent(renderer)
             except Exception:
                 continue
             is_locked = self._annotation_is_locked(ann)
@@ -1758,6 +1919,10 @@ class ExportEditor(tk.Toplevel):
         }
 
     def _open_distribute_labels_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._label_distribution_win is not None:
             try:
                 if bool(self._label_distribution_win.winfo_exists()):
@@ -1832,6 +1997,10 @@ class ExportEditor(tk.Toplevel):
             pass
 
         def _apply(*, apply_x: bool, apply_y: bool) -> None:
+            """Implement the `_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 result = self._distribute_annotations(
                     scope=str(scope_var.get() or "all"),
@@ -1864,6 +2033,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
         def _shift(*, apply_x: bool, apply_y: bool) -> None:
+            """Implement the `_shift` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 moved = self._shift_annotations(
                     scope=str(scope_var.get() or "all"),
@@ -1885,6 +2058,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
         def _align(*, horizontal: bool, vertical: bool) -> None:
+            """Implement the `_align` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 result = self._align_annotations(
                     scope=str(scope_var.get() or "all"),
@@ -1908,6 +2085,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
         def _close() -> None:
+            """Close resources and finalize state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._label_distribution_win = None
             try:
                 dlg.destroy()
@@ -1948,6 +2129,10 @@ class ExportEditor(tk.Toplevel):
 
     def _build_initial_plot(self) -> None:
         # NOTE: This relies on App-provided attributes/methods; kept identical to original behavior.
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ax.clear()
         if self._table_artist is not None:
             try:
@@ -2324,6 +2509,7 @@ class ExportEditor(tk.Toplevel):
                                         in_s = in_a[order]
                                         y_off = 0.10 * float(np.max(in_s)) if in_s.size else 1.0
 
+                                        # Helper function for `nearest_peak` workflow behavior.
                                         def nearest_peak(target: float) -> Tuple[float, float]:
                                             i2 = int(np.searchsorted(mz_s, float(target)))
                                             cand = []
@@ -2381,6 +2567,7 @@ class ExportEditor(tk.Toplevel):
                             in_s = in_a[order]
                             y_off = 0.10 * float(np.max(in_s)) if in_s.size else 1.0
 
+                            # Helper function for `nearest_peak` workflow behavior.
                             def nearest_peak(target: float) -> Tuple[float, float]:
                                 i = int(np.searchsorted(mz_s, float(target)))
                                 cand = []
@@ -2409,6 +2596,10 @@ class ExportEditor(tk.Toplevel):
         self._apply_colors()
 
     def _apply_style_and_limits_impl(self, *, initial: bool = False) -> None:
+        """Implement the `_apply_style_and_limits_impl` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._apply_style_only_impl()
 
         try:
@@ -2441,9 +2632,17 @@ class ExportEditor(tk.Toplevel):
         self._canvas.draw_idle()
 
     def _apply_style_and_limits(self) -> None:
+        """Implement the `_apply_style_and_limits` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._apply_style_and_limits_impl(initial=False)
 
     def _apply_style_only_impl(self) -> None:
+        """Implement the `_apply_style_only_impl` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._apply_live_plot_theme()
 
         self._ax.set_title(self.title_var.get())
@@ -2483,6 +2682,10 @@ class ExportEditor(tk.Toplevel):
         self._apply_legend()
 
     def _apply_legend(self) -> None:
+        """Implement the `_apply_legend` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._legend_artist is not None:
                 try:
@@ -2535,11 +2738,19 @@ class ExportEditor(tk.Toplevel):
             pass
 
     def _install_live_style_traces(self) -> None:
+        """Implement the `_install_live_style_traces` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_live_style_traces_installed", False)):
             return
         self._live_style_traces_installed = True
 
         def _schedule(*_args) -> None:
+            """Implement the `_schedule` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._schedule_live_style_apply()
             except Exception:
@@ -2563,6 +2774,10 @@ class ExportEditor(tk.Toplevel):
                     pass
 
     def _overlay_gap_step(self, max_global: float) -> float:
+        """Implement the `_overlay_gap_step` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             scale = float(self.overlay_gap_var.get() or 0.12)
         except Exception:
@@ -2573,11 +2788,19 @@ class ExportEditor(tk.Toplevel):
         return 1.0 if scale > 0 else 0.0
 
     def _install_overlay_gap_trace(self) -> None:
+        """Implement the `_install_overlay_gap_trace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_overlay_gap_trace_installed", False)):
             return
         self._overlay_gap_trace_installed = True
 
         def _schedule(*_args) -> None:
+            """Implement the `_schedule` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._schedule_plot_rebuild()
             except Exception:
@@ -2592,6 +2815,10 @@ class ExportEditor(tk.Toplevel):
                 pass
 
     def _schedule_plot_rebuild(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._plot_rebuild_job is not None:
                 try:
@@ -2608,6 +2835,10 @@ class ExportEditor(tk.Toplevel):
             self._plot_rebuild_job = None
 
     def _rebuild_plot_now(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._plot_rebuild_job = None
         lims = {
             "xmin": self.xmin_var.get(),
@@ -2626,6 +2857,10 @@ class ExportEditor(tk.Toplevel):
             pass
 
     def _schedule_live_style_apply(self) -> None:
+        """Implement the `_schedule_live_style_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._live_style_job is not None:
                 try:
@@ -2642,6 +2877,10 @@ class ExportEditor(tk.Toplevel):
             self._live_style_job = None
 
     def _apply_live_style_now(self) -> None:
+        """Implement the `_apply_live_style_now` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._live_style_job = None
         # Live updates should never pop error dialogs (e.g., while typing axis limits).
         try:
@@ -2652,6 +2891,10 @@ class ExportEditor(tk.Toplevel):
             pass
 
     def _label_rt_for_annotation(self, ann) -> str:
+        """Implement the `_label_rt_for_annotation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self.kind in ("tic", "uv"):
             try:
                 x = float(ann.xy[0])
@@ -2664,6 +2907,10 @@ class ExportEditor(tk.Toplevel):
         return f"{float(meta.rt_min):.4f}"
 
     def _apply_numbering(self, redraw_only: bool = False) -> None:
+        """Implement the `_apply_numbering` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         enabled = bool(self.number_labels_var.get())
         if not enabled:
             for ann in self._annotations:
@@ -2751,6 +2998,10 @@ class ExportEditor(tk.Toplevel):
             self._canvas.draw_idle()
 
     def _save_as(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         initial = f"{self.default_stem}.png"
         path = filedialog.asksaveasfilename(
             title="Save plot",
@@ -2779,6 +3030,10 @@ class ExportEditor(tk.Toplevel):
         messagebox.showinfo("Saved", f"Saved:\n{path}", parent=self)
 
     def _open_editor_for_label(self, ann) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ann is None:
             return
         current = ""
@@ -2805,6 +3060,10 @@ class ExportEditor(tk.Toplevel):
             pass
 
         def apply() -> None:
+            """Implement the `apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             new = (var.get() or "").strip()
             if not new:
                 messagebox.showerror("Invalid", "Label cannot be empty (use Delete).", parent=dlg)
@@ -2820,6 +3079,10 @@ class ExportEditor(tk.Toplevel):
             dlg.destroy()
 
         def delete() -> None:
+            """Implement the `delete` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 ann.remove()
             except Exception:
@@ -2835,6 +3098,10 @@ class ExportEditor(tk.Toplevel):
         ttk.Button(frm, text="Cancel", command=dlg.destroy).grid(row=2, column=2, pady=(10, 0), sticky="e")
 
     def _on_press(self, event) -> None:
+        """Implement the `_on_press` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event.inaxes != self._ax:
             return
         if getattr(event, "button", None) != 1:
@@ -2860,6 +3127,10 @@ class ExportEditor(tk.Toplevel):
         self._active_ann = ann
 
     def _on_motion(self, event) -> None:
+        """Implement the `_on_motion` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._active_ann is None:
             return
         if event.inaxes != self._ax:
@@ -2876,4 +3147,8 @@ class ExportEditor(tk.Toplevel):
         self._canvas.draw_idle()
 
     def _on_release(self, event) -> None:
+        """Implement the `_on_release` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._active_ann = None

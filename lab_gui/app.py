@@ -1,3 +1,9 @@
+"""Primary Tk-based application module for Main MFP analysis workflows.
+
+This file orchestrates UI wiring, domain models, import/export operations,
+and analysis actions for LCMS/FTIR/plate-reader/data-studio features.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -12,21 +18,17 @@ import threading
 import traceback
 import uuid
 import datetime
-import warnings
 import subprocess
 import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union, Literal, Protocol, cast
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union, Literal, Protocol, cast
 
 import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, simpledialog
 
 import ttkbootstrap as tb
 import tkinter.ttk as ttk_native
-
-ttk: Any = tb
-ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
 
 import numpy as np
 import pandas as pd
@@ -55,11 +57,6 @@ from lab_gui.lcms_model import (
     UVSession,
     LCMSDataset,
     OverlaySession,
-    _safe_float,
-    _extract_ms_level,
-    _extract_rt_minutes,
-    _extract_polarity,
-    _spectrum_id,
 )
 from lab_gui.ftir_model import FTIRBondAnnotation, FTIRDataset, FTIRWorkspace, FTIRDatasetKey, StyleState, OverlayGroup
 try:
@@ -85,10 +82,12 @@ except Exception:
 try:
     from lab_gui.microscopy_tab import MicroscopyView  # pyright: ignore[reportMissingImports]
 except Exception:
-    class MicroscopyView(ttk.Frame):
+    class MicroscopyView(ttk_native.Frame):
+        # Helper function for `__init__` workflow behavior.
         def __init__(self, parent: tk.Widget, app: "App", workspace: Workspace) -> None:
             super().__init__(parent)
 
+        # Helper function for `refresh_from_workspace` workflow behavior.
         def refresh_from_workspace(self, select_first: bool = True) -> None:
             return
 from lab_gui.plate_reader_model import PlateReaderDataset
@@ -104,7 +103,7 @@ from lab_gui.settings import load_settings, save_settings
 from lab_gui.lcms_io import MzMLTICIndex, infer_uv_columns, preview_dataframe_rows, parse_uv_arrays
 
 # Refactor step C: FTIR parsing extracted into lab_gui/ftir_io.py (UI-free).
-from lab_gui.ftir_io import _try_parse_float_pair, _parse_ftir_xy_only, _parse_ftir_xy_numpy, _ftir_parse_for_executor
+from lab_gui.ftir_io import _parse_ftir_xy_only, _parse_ftir_xy_numpy
 
 # Refactor step D: shared UI widgets extracted into lab_gui/ui_widgets.py.
 from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
@@ -122,8 +121,12 @@ from lab_gui.export_editor import ExportEditor
 # LCMS polymer matching engine (pure analysis helpers).
 import lab_gui.lcms_polymer_match as poly_match
 
+ttk: Any = tb
+ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
+
 
 class _FTIRPeakCtor(Protocol):
+    # Helper function for `__call__` workflow behavior.
     def __call__(self, *, wn: float, y: float, prominence: float = 0.0) -> Any: ...
 
 
@@ -143,6 +146,7 @@ except Exception:
 
     FTIRPeak = cast(_FTIRPeakCtor, _FTIRPeakFallback)
 
+    # Helper function for `_missing_ftir` workflow behavior.
     def _missing_ftir(*args: Any, **kwargs: Any) -> Any:
         raise ImportError("lab_gui/ftir_analysis.py is required for FTIR peak picking")
 
@@ -162,6 +166,10 @@ WORKSPACE_SCHEMA_VERSION = 1
 
 
 def json_default(obj: Any) -> Any:
+    """Convert non-JSON-native project objects into serializable primitives.
+
+    Extend this helper when new model/value types are added to workspaces.
+    """
     if isinstance(obj, Path):
         return str(obj)
     if isinstance(obj, np.integer):
@@ -178,6 +186,10 @@ def json_default(obj: Any) -> Any:
 
 
 def atomic_write_json(path: Path, data: Dict[str, Any]) -> None:
+    """Persist JSON atomically using a temp file then an OS-level replace.
+
+    This avoids partially written workspace files if a write fails mid-flight.
+    """
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
         text = json.dumps(data, indent=2, ensure_ascii=False, default=json_default)
@@ -195,7 +207,49 @@ def atomic_write_json(path: Path, data: Dict[str, Any]) -> None:
         raise
 
 
+def decode_uv_label_payload(payload: Any) -> Dict[float, List[UVLabelState]]:
+    """Decode serialized UV label rows into runtime `UVLabelState` objects."""
+    out: Dict[float, List[UVLabelState]] = {}
+    if not isinstance(payload, list):
+        return out
+    for row in payload:
+        if not isinstance(row, dict):
+            continue
+        try:
+            uv_rt_raw = row.get("uv_rt")
+            if uv_rt_raw is None:
+                continue
+            uv_rt = float(uv_rt_raw)
+        except Exception:
+            continue
+        labels: List[UVLabelState] = []
+        for st in (row.get("labels") or []):
+            if not isinstance(st, dict):
+                continue
+            try:
+                xy = st.get("xytext") or [0.0, 0.0]
+                labels.append(
+                    UVLabelState(
+                        text=str(st.get("text", "")),
+                        xytext=(float(xy[0]), float(xy[1])),
+                        confidence=float(st.get("confidence", 0.0) or 0.0),
+                        rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
+                        uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
+                        tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
+                        locked=bool(st.get("locked", False)),
+                    )
+                )
+            except Exception:
+                continue
+        out[float(uv_rt)] = labels
+    return out
+
+
 def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
+    """Build a fully serializable dictionary snapshot of LCMS workspace state.
+
+    The resulting payload is designed for persistence and later restoration.
+    """
     try:
         app._save_active_session_state()
     except Exception:
@@ -225,6 +279,10 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         custom_labels_by_spectrum: Dict[str, List[CustomLabel]],
         spec_label_overrides: Dict[str, Dict[Tuple[str, float], Optional[str]]],
     ) -> Dict[str, List[Dict[str, Any]]]:
+        """Implement the `_encode_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: Dict[str, List[Dict[str, Any]]] = {}
         for spec_id, items in (custom_labels_by_spectrum or {}).items():
             rows: List[Dict[str, Any]] = []
@@ -249,6 +307,10 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         return out
 
     def _encode_positions(positions: Dict[str, Any]) -> Dict[str, Any]:
+        """Implement the `_encode_positions` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: Dict[str, Any] = {}
         for spec_id, items in (positions or {}).items():
             rows: List[Dict[str, Any]] = []
@@ -276,6 +338,10 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
 
     def _encode_uv_labels_by_uv_id(uv_labels_by_uv_id: Dict[str, Any]) -> Dict[str, Any]:
         # Convert UV-id keys to UV-path keys so labels can be restored after reload.
+        """Implement the `_encode_uv_labels_by_uv_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: Dict[str, Any] = {}
         uv_sessions = getattr(app, "_uv_sessions", {}) or {}
         for uv_id, labels_by_uvrt in (uv_labels_by_uv_id or {}).items():
@@ -418,7 +484,7 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         "decarb": bool(_tk_get("poly_decarb_enabled_var", False)),
         "oxid": bool(_tk_get("poly_oxid_enabled_var", False)),
         "cluster": bool(_tk_get("poly_cluster_enabled_var", False)),
-        "min_rel_int": float(_tk_get("poly_min_rel_int_var", 0.01)),
+        "min_rel_int": float(_tk_get("poly_min_rel_int_var", 0.05)),
     }
 
     try:
@@ -458,8 +524,8 @@ def build_lcms_workspace_dict(app: "App") -> Dict[str, Any]:
         "polymer_settings": {
             "enabled": bool(_tk_get("poly_enabled_var", False)),
             "monomers": list(monomers),
-            "max_dp": int(_tk_get("poly_max_dp_var", 12)),
-            "tolerance": float(_tk_get("poly_tol_value_var", 0.02)),
+            "max_dp": int(_tk_get("poly_max_dp_var", 20)),
+            "tolerance": float(_tk_get("poly_tol_value_var", 0.5)),
             "tolerance_unit": str(_tk_get("poly_tol_unit_var", "Da")),
             "positive_mode": dict(poly_common),
             "negative_mode": dict(poly_common),
@@ -1220,10 +1286,18 @@ TOOLTIP_TEXT: Dict[str, str] = {
 
 
 def _clamp_u8(v: float) -> int:
+    """Implement the `_clamp_u8` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     return int(max(0, min(255, round(v))))
 
 
 def _hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
+    """Implement the `_hex_to_rgb` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     s = (hex_color or "").strip()
     if s.startswith("#"):
         s = s[1:]
@@ -1236,6 +1310,10 @@ def _hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
 
 
 def _rgb_to_hex(rgb: Sequence[float]) -> str:
+    """Implement the `_rgb_to_hex` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     r, g, b = rgb  # type: ignore[misc]
     return f"#{_clamp_u8(r):02x}{_clamp_u8(g):02x}{_clamp_u8(b):02x}"
 
@@ -1247,6 +1325,10 @@ def _adjust_color(hex_color: str, factor: float) -> str:
 
 
 def _default_logo_path() -> Path:
+    """Implement the `_default_logo_path` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         here = Path(__file__).resolve().parent
     except Exception:
@@ -1334,6 +1416,10 @@ class FTIRExportEditor(tk.Toplevel):
         snapshot: Dict[str, Any],
         default_stem: str,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
         self.snapshot = dict(snapshot or {})
@@ -1357,6 +1443,10 @@ class FTIRExportEditor(tk.Toplevel):
                 pass
 
     def _init_ui(self) -> None:
+        """Implement the `_init_ui` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._controls_win: Optional[tk.Toplevel] = None
         self._controls_scroll_canvas: Optional[tk.Canvas] = None
 
@@ -1553,6 +1643,10 @@ class FTIRExportEditor(tk.Toplevel):
             pass
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._controls_win is not None and bool(self._controls_win.winfo_exists()):
                 self._controls_win.destroy()
@@ -1567,12 +1661,20 @@ class FTIRExportEditor(tk.Toplevel):
                 pass
 
     def _parse_optional_float(self, raw: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (raw or "").strip()
         if not raw:
             return None
         return float(raw)
 
     def _open_controls_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._controls_win is not None:
             try:
                 if bool(self._controls_win.winfo_exists()):
@@ -1653,12 +1755,20 @@ class FTIRExportEditor(tk.Toplevel):
         inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
         def _on_inner_config(_evt=None):
+            """Implement the `_on_inner_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 canvas.configure(scrollregion=canvas.bbox("all"))
             except Exception:
                 pass
 
         def _on_canvas_config(evt=None):
+            """Implement the `_on_canvas_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 w = int(evt.width) if evt is not None else int(canvas.winfo_width())
                 canvas.itemconfigure(inner_id, width=w)
@@ -1672,6 +1782,10 @@ class FTIRExportEditor(tk.Toplevel):
             pass
 
         def _pick_one(var: tk.StringVar, title: str) -> None:
+            """Implement the `_pick_one` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
                 if c:
@@ -1702,12 +1816,20 @@ class FTIRExportEditor(tk.Toplevel):
         row += 1
 
         def _add_slider(parent: tk.Widget, *, variable: Union[tk.IntVar, tk.DoubleVar], from_: float, to: float, step: float = 1.0) -> ttk_native.Frame:
+            """Implement the `_add_slider` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             holder = ttk.Frame(parent)
             holder.columnconfigure(0, weight=1)
             scale_var = tk.DoubleVar(value=float(variable.get()))
             lbl = ttk.Label(holder, text="")
 
             def _apply(v: Any = None) -> None:
+                """Implement the `_apply` behavior for this module.
+
+                Text-only documentation note: modify internal logic here to change behavior.
+                """
                 try:
                     fv = float(v if v is not None else scale_var.get())
                 except Exception:
@@ -1860,6 +1982,7 @@ class FTIRExportEditor(tk.Toplevel):
             ttk.Button(bar, text="Pick color…", command=self._pick_color_for_selected).pack(side=tk.LEFT, padx=(8, 0))
             ttk.Button(bar, text="Apply to all", command=self._apply_selected_style_to_all).pack(side=tk.LEFT, padx=(8, 0))
 
+            # Helper function for `_on_double` workflow behavior.
             def _on_double(evt=None):
                 self._toggle_overlay_tree_cell(evt)
 
@@ -1868,6 +1991,7 @@ class FTIRExportEditor(tk.Toplevel):
             except Exception:
                 pass
 
+            # Helper function for `_on_click` workflow behavior.
             def _on_click(evt=None):
                 if evt is None:
                     return
@@ -1927,14 +2051,26 @@ class FTIRExportEditor(tk.Toplevel):
                 pass
 
     def _on_controls_closed(self) -> None:
+        """Implement the `_on_controls_closed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._controls_win = None
         self._controls_scroll_canvas = None
 
     def _schedule_apply(self) -> None:
+        """Implement the `_schedule_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if getattr(self, "_apply_after", None) is not None:
             return
 
         def _do():
+            """Implement the `_do` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._apply_after = None
             self._apply_style()
 
@@ -1945,6 +2081,10 @@ class FTIRExportEditor(tk.Toplevel):
             _do()
 
     def _build_initial_plot(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ax.clear()
         self._base_xy_by_key = {}
 
@@ -2022,6 +2162,10 @@ class FTIRExportEditor(tk.Toplevel):
 
     def _apply_style(self, *, rebuild_peaks: bool = False) -> None:
         # Global titles/labels
+        """Implement the `_apply_style` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._ax.set_title(str(self.title_var.get() or ""), fontsize=int(self.title_fs_var.get()))
         except Exception:
@@ -2198,6 +2342,10 @@ class FTIRExportEditor(tk.Toplevel):
             pass
 
     def _overlay_offset_for_key(self, key: Tuple[str, str]) -> Tuple[float, float]:
+        """Implement the `_overlay_offset_for_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if not self._overlay_on:
                 return 0.0, 0.0
@@ -2231,6 +2379,10 @@ class FTIRExportEditor(tk.Toplevel):
         return 0.0, 0.0
 
     def _interp_y_on_line(self, key: Tuple[str, str], wn: float) -> Optional[float]:
+        """Implement the `_interp_y_on_line` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = self._base_xy_by_key.get(key)
         if base is None:
             return None
@@ -2250,6 +2402,10 @@ class FTIRExportEditor(tk.Toplevel):
             return None
 
     def _apply_peak_styles_only(self) -> None:
+        """Implement the `_apply_peak_styles_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         fs = int(self.peak_label_fs_var.get())
         ms = int(self.peak_marker_size_var.get())
         for k, st in (self._style_by_key or {}).items():
@@ -2291,6 +2447,10 @@ class FTIRExportEditor(tk.Toplevel):
 
     def _rebuild_all_peaks(self) -> None:
         # Remove old
+        """Implement the `_rebuild_all_peaks` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for mk in list((self._peak_markers_by_key or {}).values()):
             try:
                 mk.remove()
@@ -2456,6 +2616,10 @@ class FTIRExportEditor(tk.Toplevel):
         self._apply_peak_styles_only()
 
     def _bond_should_show(self, dataset_id: str) -> bool:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dsid = str(dataset_id or "")
         if not dsid:
             return False
@@ -2471,6 +2635,10 @@ class FTIRExportEditor(tk.Toplevel):
         return False
 
     def _clear_bond_artists(self) -> None:
+        """Implement the `_clear_bond_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for t in list(getattr(self, "_bond_texts", []) or []):
             try:
                 t.remove()
@@ -2486,6 +2654,10 @@ class FTIRExportEditor(tk.Toplevel):
         self._bond_artist_to_idx = {}
 
     def _apply_bond_visibility_only(self) -> None:
+        """Implement the `_apply_bond_visibility_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for artist, idx in list((getattr(self, "_bond_artist_to_idx", {}) or {}).items()):
             try:
                 row = (self._bond_rows or [])[int(idx)]
@@ -2499,6 +2671,10 @@ class FTIRExportEditor(tk.Toplevel):
                 pass
 
     def _rebuild_all_bonds(self) -> None:
+        """Implement the `_rebuild_all_bonds` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._clear_bond_artists()
         rows = list(getattr(self, "_bond_rows", []) or [])
         if not rows:
@@ -2574,6 +2750,10 @@ class FTIRExportEditor(tk.Toplevel):
                 continue
 
     def _refresh_overlay_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tv = self._overlay_tree
         if tv is None:
             return
@@ -2609,6 +2789,10 @@ class FTIRExportEditor(tk.Toplevel):
             )
 
     def _toggle_overlay_tree_cell(self, evt) -> None:
+        """Implement the `_toggle_overlay_tree_cell` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tv = self._overlay_tree
         if tv is None or evt is None:
             return
@@ -2689,6 +2873,10 @@ class FTIRExportEditor(tk.Toplevel):
             return
 
     def _selected_overlay_key(self) -> Optional[Tuple[str, str]]:
+        """Implement the `_selected_overlay_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tv = self._overlay_tree
         if tv is None:
             return None
@@ -2705,6 +2893,10 @@ class FTIRExportEditor(tk.Toplevel):
         return (str(a), str(b))
 
     def _pick_color_for_selected(self) -> None:
+        """Implement the `_pick_color_for_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = self._selected_overlay_key()
         if k is None:
             return
@@ -2733,6 +2925,10 @@ class FTIRExportEditor(tk.Toplevel):
         self._refresh_overlay_tree()
 
     def _apply_selected_style_to_all(self) -> None:
+        """Implement the `_apply_selected_style_to_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = self._selected_overlay_key()
         if k is None:
             return
@@ -2752,6 +2948,10 @@ class FTIRExportEditor(tk.Toplevel):
 
     def _on_press(self, evt) -> None:
         # Left click drag on labels; double click to edit text
+        """Implement the `_on_press` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if evt is None or getattr(evt, "inaxes", None) is None:
                 return
@@ -2855,6 +3055,10 @@ class FTIRExportEditor(tk.Toplevel):
                 continue
 
     def _on_motion(self, evt) -> None:
+        """Implement the `_on_motion` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._drag_bond_artist is not None and self._drag_bond_idx is not None:
             try:
                 if evt is None or getattr(evt, "inaxes", None) is None:
@@ -2926,6 +3130,10 @@ class FTIRExportEditor(tk.Toplevel):
             pass
 
     def _on_release(self, evt) -> None:
+        """Implement the `_on_release` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._drag_bond_artist = None
         self._drag_bond_idx = None
         self._drag_bond_dx = 0.0
@@ -2936,6 +3144,10 @@ class FTIRExportEditor(tk.Toplevel):
         self._drag_dy = 0.0
 
     def _save_as(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.asksaveasfilename(
             parent=self,
             title="Save FTIR export",
@@ -2958,6 +3170,10 @@ class FTIRExportEditor(tk.Toplevel):
 
 class AlignmentDiagnostics(tk.Toplevel):
     def __init__(self, app: "App") -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
         self._selected_anchor_idx: Optional[int] = None
@@ -3087,6 +3303,10 @@ class AlignmentDiagnostics(tk.Toplevel):
         self.refresh()
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self.app, "_alignment_diag_win", None) is self:
                 self.app._alignment_diag_win = None
@@ -3098,6 +3318,10 @@ class AlignmentDiagnostics(tk.Toplevel):
             pass
 
     def _get_anchors(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Implement the `_get_anchors` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv = getattr(self.app, "_uv_ms_align_uv_rts", None)
         ms = getattr(self.app, "_uv_ms_align_ms_rts", None)
         if uv is None or ms is None:
@@ -3109,6 +3333,10 @@ class AlignmentDiagnostics(tk.Toplevel):
         return uv, ms
 
     def _compute_residuals(self, uv: np.ndarray, ms: np.ndarray) -> np.ndarray:
+        """Compute derived values from inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             ms_pred = np.asarray([float(self.app._map_uv_to_ms_rt(float(u))) for u in uv.tolist()], dtype=float)
         except Exception:
@@ -3116,6 +3344,10 @@ class AlignmentDiagnostics(tk.Toplevel):
         return np.asarray(ms, dtype=float) - np.asarray(ms_pred, dtype=float)
 
     def _update_stats(self, residuals: np.ndarray) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         res = np.asarray(residuals, dtype=float)
         if res.size == 0:
             self._stat_n.set("N: -")
@@ -3136,6 +3368,10 @@ class AlignmentDiagnostics(tk.Toplevel):
             self._stat_p90.set("P90 |res|: -")
 
     def _refresh_plots(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv, ms = self._get_anchors()
         self._ax_map.clear()
         self._ax_res.clear()
@@ -3220,6 +3456,10 @@ class AlignmentDiagnostics(tk.Toplevel):
             pass
 
     def _refresh_table(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             for iid in self._tree.get_children(""):
                 self._tree.delete(iid)
@@ -3246,10 +3486,18 @@ class AlignmentDiagnostics(tk.Toplevel):
             )
 
     def refresh(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._refresh_table()
         self._refresh_plots()
 
     def _on_select(self, event=None) -> None:
+        """Implement the `_on_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sel = None
         try:
             s = self._tree.selection()
@@ -3302,6 +3550,10 @@ class AlignmentDiagnostics(tk.Toplevel):
         self._refresh_plots()
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv, ms = self._get_anchors()
         if uv is None or ms is None or uv.size < 1:
             messagebox.showinfo("Remove anchor", "No anchors available.", parent=self)
@@ -3356,6 +3608,10 @@ class AlignmentDiagnostics(tk.Toplevel):
         self.refresh()
 
     def _export_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv, ms = self._get_anchors()
         if uv is None or ms is None or uv.size < 1:
             messagebox.showinfo("Export", "No anchors available to export.", parent=self)
@@ -3412,6 +3668,10 @@ class SIMWindow(tk.Toplevel):
         tol_unit: str,
         use_current_polarity: bool,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
 
@@ -3520,9 +3780,17 @@ class SIMWindow(tk.Toplevel):
 
     @property
     def sim_params(self) -> Tuple[float, float, str, bool]:
+        """Implement the `sim_params` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return (float(self._target_mz), float(self._tol_value), str(self._tol_unit), bool(self._use_current_polarity))
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self.app._unregister_ms_position_listener(self._on_app_ms_position_changed)
         except Exception:
@@ -3537,12 +3805,20 @@ class SIMWindow(tk.Toplevel):
             pass
 
     def _fmt_tol(self) -> str:
+        """Implement the `_fmt_tol` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         unit = (self._tol_unit or "ppm").strip()
         if unit.lower() == "ppm":
             return f"{float(self._tol_value):g} ppm"
         return f"{float(self._tol_value):g} Da"
 
     def set_data(self, *, mzml_path: Path, rts: np.ndarray, intensities: np.ndarray, polarity_filter: str) -> None:
+        """Implement the `set_data` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._mzml_path = Path(mzml_path) if mzml_path is not None else None
         self._polarity_filter = str(polarity_filter or "all")
         self._rts = np.asarray(rts, dtype=float)
@@ -3551,6 +3827,10 @@ class SIMWindow(tk.Toplevel):
         self._update_marker_from_app()
 
     def _header_text(self) -> str:
+        """Implement the `_header_text` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mzml_name = self._mzml_path.name if self._mzml_path is not None else "(no mzML)"
         pol_txt = (self._polarity_filter if bool(self._use_current_polarity) else "all")
         return (
@@ -3559,6 +3839,10 @@ class SIMWindow(tk.Toplevel):
         )
 
     def _redraw_plot(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ax.clear()
         self._header_var.set(self._header_text())
 
@@ -3616,6 +3900,10 @@ class SIMWindow(tk.Toplevel):
             pass
 
     def _update_marker_from_app(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         meta = getattr(self.app, "_current_spectrum_meta", None)
         if meta is None:
             self._set_marker_rt(None)
@@ -3626,6 +3914,10 @@ class SIMWindow(tk.Toplevel):
             self._set_marker_rt(None)
 
     def _set_marker_rt(self, rt: Optional[float]) -> None:
+        """Implement the `_set_marker_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rts = self._rts
         ints = self._ints
         if rts is None or ints is None or rts.size == 0 or ints.size == 0:
@@ -3666,6 +3958,10 @@ class SIMWindow(tk.Toplevel):
             pass
 
     def _on_click(self, event) -> None:
+        """Implement the `_on_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is None or getattr(event, "inaxes", None) != self._ax:
             return
         if getattr(event, "xdata", None) is None:
@@ -3681,12 +3977,24 @@ class SIMWindow(tk.Toplevel):
         self.app._show_spectrum_for_index(nearest_idx)
 
     def _on_app_ms_position_changed(self, rt_min: Optional[float]) -> None:
+        """Implement the `_on_app_ms_position_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._set_marker_rt(rt_min)
 
     def _on_app_active_session_changed(self) -> None:
+        """Implement the `_on_app_active_session_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.app._run_sim_for_window(self)
 
     def _export_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._rts is None or self._ints is None or self._rts.size == 0 or self._ints.size == 0:
             messagebox.showinfo("Export", "No EIC data to export.", parent=self)
             return
@@ -3719,6 +4027,10 @@ class SIMWindow(tk.Toplevel):
 
 class InstructionWindow(tk.Toplevel):
     def __init__(self, app: "App") -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
 
@@ -3852,6 +4164,10 @@ class InstructionWindow(tk.Toplevel):
         self._set_section(GUIDE_SECTIONS[0])
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self.app, "_instructions_win", None) is self:
                 self.app._instructions_win = None
@@ -3863,6 +4179,10 @@ class InstructionWindow(tk.Toplevel):
             pass
 
     def _set_section(self, section: str) -> None:
+        """Implement the `_set_section` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sec = str(section)
         self._active_section = sec
         content = GUIDE.get(sec, "")
@@ -3873,6 +4193,10 @@ class InstructionWindow(tk.Toplevel):
         self._clear_search_highlights()
 
     def _on_select_section(self, _evt=None) -> None:
+        """Implement the `_on_select_section` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             sel = self._nav.selection()
         except Exception:
@@ -3890,6 +4214,10 @@ class InstructionWindow(tk.Toplevel):
             self._apply_search()
 
     def _copy_section(self) -> None:
+        """Implement the `_copy_section` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sec = (self._active_section or "").strip()
         if not sec:
             return
@@ -3904,6 +4232,10 @@ class InstructionWindow(tk.Toplevel):
             pass
 
     def _clear_search_highlights(self) -> None:
+        """Implement the `_clear_search_highlights` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._match_ranges = []
         self._match_pos = 0
         try:
@@ -3919,6 +4251,10 @@ class InstructionWindow(tk.Toplevel):
                 pass
 
     def _apply_search(self) -> None:
+        """Implement the `_apply_search` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             term = (self._search_var.get() or "").strip()
         except Exception:
@@ -3953,6 +4289,10 @@ class InstructionWindow(tk.Toplevel):
         self._scroll_to_match(self._match_pos)
 
     def _scroll_to_match(self, pos: int) -> None:
+        """Match candidates using configured rules.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._match_ranges:
             return
         p = int(max(0, min(int(pos), len(self._match_ranges) - 1)))
@@ -3972,6 +4312,10 @@ class InstructionWindow(tk.Toplevel):
                 pass
 
     def _jump_match(self, step: int) -> None:
+        """Match candidates using configured rules.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._match_ranges:
             return
         n = int(len(self._match_ranges))
@@ -3982,6 +4326,10 @@ class InstructionWindow(tk.Toplevel):
 
 class LabelExplanationWindow(tk.Toplevel):
     def __init__(self, app: "App", *, title: str = "Explain Label") -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(app)
         self.app = app
 
@@ -4039,6 +4387,10 @@ class LabelExplanationWindow(tk.Toplevel):
             pass
 
     def set_content(self, text: str) -> None:
+        """Implement the `set_content` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._text.configure(state="normal")
             self._text.delete("1.0", "end")
@@ -4052,6 +4404,10 @@ class LabelExplanationWindow(tk.Toplevel):
                 pass
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self.app, "_label_explain_win", None) is self:
                 self.app._label_explain_win = None
@@ -4071,12 +4427,20 @@ class LCMSView(ttk.Frame):
     """
 
     def __init__(self, parent: tk.Widget, app: "App", workspace: Workspace) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self.app = app
         self.workspace = workspace
         self._build()
 
     def _build(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         a = self.app
 
         self.columnconfigure(0, weight=1)
@@ -4253,12 +4617,20 @@ class LCMSView(ttk.Frame):
         left_win = left_canvas.create_window((0, 0), window=left, anchor="nw")
 
         def _sync_left_scrollregion(_evt=None) -> None:
+            """Implement the `_sync_left_scrollregion` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 left_canvas.configure(scrollregion=left_canvas.bbox("all"))
             except Exception:
                 pass
 
         def _sync_left_width(_evt=None) -> None:
+            """Implement the `_sync_left_width` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 left_canvas.itemconfigure(left_win, width=left_canvas.winfo_width())
             except Exception:
@@ -4273,6 +4645,10 @@ class LCMSView(ttk.Frame):
 
         # Mouse wheel scrolling when cursor is over the left panel
         def _scroll_target_for_event(evt) -> Optional[Any]:
+            """Implement the `_scroll_target_for_event` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 w = a.winfo_containing(evt.x_root, evt.y_root)
             except Exception:
@@ -4290,6 +4666,10 @@ class LCMSView(ttk.Frame):
             return None
 
         def _on_mousewheel(evt) -> str:
+            """Implement the `_on_mousewheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 delta = int(getattr(evt, "delta", 0) or 0)
                 if delta == 0:
@@ -4307,12 +4687,20 @@ class LCMSView(ttk.Frame):
             return "break"
 
         def _bind_wheel(_evt=None) -> None:
+            """Implement the `_bind_wheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 a.bind_all("<MouseWheel>", _on_mousewheel)
             except Exception:
                 pass
 
         def _unbind_wheel(_evt=None) -> None:
+            """Implement the `_unbind_wheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 a.unbind_all("<MouseWheel>")
             except Exception:
@@ -4341,6 +4729,10 @@ class LCMSView(ttk.Frame):
             plot.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         def _set_initial_lcms_split() -> None:
+            """Implement the `_set_initial_lcms_split` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 total_w = int(content.winfo_width())
             except Exception:
@@ -4977,6 +5369,10 @@ class FTIRView(ttk.Frame):
     """FTIR module UI: multi-file workstation (single active spectrum)."""
 
     def __init__(self, parent: tk.Widget, app: "App", workspace: Workspace) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self.app = app
         self.workspace = workspace
@@ -5094,6 +5490,10 @@ class FTIRView(ttk.Frame):
         self._build()
 
     def _build(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -5122,12 +5522,20 @@ class FTIRView(ttk.Frame):
             left_win = None
 
         def _sync_left_scrollregion(_evt=None) -> None:
+            """Implement the `_sync_left_scrollregion` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 left_canvas.configure(scrollregion=left_canvas.bbox("all"))
             except Exception:
                 pass
 
         def _sync_left_width(_evt=None) -> None:
+            """Implement the `_sync_left_width` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 if left_win is not None:
                     left_canvas.itemconfigure(left_win, width=left_canvas.winfo_width())
@@ -5143,6 +5551,10 @@ class FTIRView(ttk.Frame):
 
         # Mouse wheel scrolling when cursor is over the left panel
         def _scroll_target_for_event(evt) -> Optional[Any]:
+            """Implement the `_scroll_target_for_event` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 w = self.app.winfo_containing(evt.x_root, evt.y_root)
             except Exception:
@@ -5160,6 +5572,10 @@ class FTIRView(ttk.Frame):
             return None
 
         def _on_mousewheel(evt) -> str:
+            """Implement the `_on_mousewheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 delta = int(getattr(evt, "delta", 0) or 0)
                 if delta == 0:
@@ -5177,12 +5593,20 @@ class FTIRView(ttk.Frame):
             return "break"
 
         def _bind_wheel(_evt=None) -> None:
+            """Implement the `_bind_wheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self.app.bind_all("<MouseWheel>", _on_mousewheel)
             except Exception:
                 pass
 
         def _unbind_wheel(_evt=None) -> None:
+            """Implement the `_unbind_wheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self.app.unbind_all("<MouseWheel>")
             except Exception:
@@ -5665,6 +6089,10 @@ class FTIRView(ttk.Frame):
 
     def _init_ftir_workspaces_from_app_workspace(self) -> None:
         # Build a default FTIR workspace from the app Workspace model.
+        """Implement the `_init_ftir_workspaces_from_app_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self.workspaces:
             return
         ws_id = uuid.uuid4().hex
@@ -5683,6 +6111,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _active_workspace(self) -> FTIRWorkspace:
+        """Implement the `_active_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self.workspaces:
             self._init_ftir_workspaces_from_app_workspace()
         ws = self.workspaces.get(str(self.active_workspace_id))
@@ -5722,6 +6154,10 @@ class FTIRView(ttk.Frame):
         return "#1f77b4"
 
     def _workspace_line_color(self, ws_id: str) -> str:
+        """Implement the `_workspace_line_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_obj = None
         try:
             ws_obj = (self.workspaces or {}).get(str(ws_id))
@@ -5736,6 +6172,10 @@ class FTIRView(ttk.Frame):
         return c if c else self._default_color_for_workspace_id(str(ws_id))
 
     def _overlay_scheme_options(self) -> List[str]:
+        """Implement the `_overlay_scheme_options` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return [
             "Manual (workspace)",
             "Single hue…",
@@ -5752,12 +6192,20 @@ class FTIRView(ttk.Frame):
         ]
 
     def _apply_overlay_color_scheme(self) -> None:
+        """Implement the `_apply_overlay_color_scheme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._schedule_redraw()
         except Exception:
             pass
 
     def _pick_overlay_single_hue_color(self) -> None:
+        """Implement the `_pick_overlay_single_hue_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         current = str(self._overlay_single_hue_color or "#1f77b4")
         try:
             picked = colorchooser.askcolor(color=(current or None), title="Pick overlay hue", parent=self.app)[1]
@@ -5773,6 +6221,10 @@ class FTIRView(ttk.Frame):
         self._apply_overlay_color_scheme()
 
     def _overlay_colors_for_scheme(self, scheme: str, n: int) -> List[str]:
+        """Implement the `_overlay_colors_for_scheme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if n <= 0:
             return []
         scheme = str(scheme or "").strip()
@@ -5784,9 +6236,9 @@ class FTIRView(ttk.Frame):
             except Exception:
                 base_rgb = (0.12, 0.47, 0.71)
             try:
-                h, l, s = colorsys.rgb_to_hls(*base_rgb)
+                h, _, s = colorsys.rgb_to_hls(*base_rgb)
             except Exception:
-                h, l, s = (0.58, 0.45, 0.65)
+                h, _, s = (0.58, 0.45, 0.65)
             lo = 0.22
             hi = 0.88
             vals = np.linspace(lo, hi, n)
@@ -5802,6 +6254,10 @@ class FTIRView(ttk.Frame):
         return [mcolors.to_hex(cmap(float(x))) for x in xs]
 
     def _overlay_color_map_for_group(self, g: OverlayGroup) -> Dict[Tuple[str, str], str]:
+        """Implement the `_overlay_color_map_for_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         scheme = str(self._overlay_color_scheme_var.get() or "").strip()
         if scheme in ("", "Manual (workspace)"):
             return {}
@@ -5810,12 +6266,20 @@ class FTIRView(ttk.Frame):
         return {k: str(c) for k, c in zip(members, colors)}
 
     def _on_ftir_overlay_offset_changed(self) -> None:
+        """Implement the `_on_ftir_overlay_offset_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._schedule_redraw()
         except Exception:
             pass
 
     def _edit_active_workspace_graph_color(self) -> None:
+        """Implement the `_edit_active_workspace_graph_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         current = None
         try:
@@ -5842,6 +6306,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _find_workspace_id_by_name(self, name: str) -> Optional[str]:
+        """Implement the `_find_workspace_id_by_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         n = str(name or "").strip()
         for ws_id, ws in (self.workspaces or {}).items():
             if str(getattr(ws, "name", "")) == n:
@@ -5851,6 +6319,10 @@ class FTIRView(ttk.Frame):
     def _sync_active_workspace_to_app_workspace(self) -> None:
         # Keep legacy single-workspace persistence working:
         # mirror the currently active FTIR workspace into `self.workspace.ftir_datasets`.
+        """Implement the `_sync_active_workspace_to_app_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             ws = self._active_workspace()
         except Exception:
@@ -5862,6 +6334,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _all_dataset_keys(self) -> List[Tuple[str, str]]:
+        """Implement the `_all_dataset_keys` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: List[Tuple[str, str]] = []
         for ws_id, ws in (self.workspaces or {}).items():
             for d in (getattr(ws, "datasets", []) or []):
@@ -5872,6 +6348,10 @@ class FTIRView(ttk.Frame):
         return out
 
     def _get_dataset_by_key(self, key: Tuple[str, str]) -> Optional[FTIRDataset]:
+        """Implement the `_get_dataset_by_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             ws_id, ds_id = str(key[0]), str(key[1])
         except Exception:
@@ -5885,6 +6365,10 @@ class FTIRView(ttk.Frame):
         return None
 
     def _unique_workspace_name(self, base: str, *, exclude_id: Optional[str] = None) -> str:
+        """Implement the `_unique_workspace_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         b = str(base or "").strip() or "Workspace"
         used = set()
         for ws_id, ws in (self.workspaces or {}).items():
@@ -5901,6 +6385,10 @@ class FTIRView(ttk.Frame):
             i += 1
 
     def _refresh_workspace_selector(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         names = [str(getattr(ws, "name", "")) for ws in (self.workspaces or {}).values()]
         try:
             if self._ws_combo is not None:
@@ -5914,6 +6402,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _set_active_workspace_by_id(self, ws_id: str) -> None:
+        """Implement the `_set_active_workspace_by_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not ws_id or str(ws_id) not in (self.workspaces or {}):
             return
         # Keep method for existing callers; treat as an explicit workspace switch.
@@ -5928,6 +6420,10 @@ class FTIRView(ttk.Frame):
         self._set_active_dataset(str(ws_id), ds_id, reason="workspace_switch")
 
     def _on_workspace_selected(self) -> None:
+        """Implement the `_on_workspace_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         name = str(self._workspace_select_var.get() or "").strip()
         ws_id = self._find_workspace_id_by_name(name)
         if ws_id is None:
@@ -5935,6 +6431,10 @@ class FTIRView(ttk.Frame):
         self._set_active_workspace_by_id(str(ws_id))
 
     def _new_workspace(self) -> None:
+        """Implement the `_new_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = f"Workspace {len(self.workspaces) + 1}" if self.workspaces else "Workspace 1"
         name = self._unique_workspace_name(base)
         ws_id = uuid.uuid4().hex
@@ -5942,6 +6442,10 @@ class FTIRView(ttk.Frame):
         self._set_active_workspace_by_id(str(ws_id))
 
     def _rename_workspace(self) -> None:
+        """Implement the `_rename_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         new_name = simpledialog.askstring("Rename Workspace", "Workspace name:", initialvalue=str(getattr(ws, "name", "")), parent=self.app)
         if new_name is None:
@@ -5956,6 +6460,10 @@ class FTIRView(ttk.Frame):
         self._rebuild_overlay_selection_list()
 
     def _duplicate_workspace(self) -> None:
+        """Implement the `_duplicate_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         src = self._active_workspace()
         ws_id = uuid.uuid4().hex
         name = self._unique_workspace_name(f"{str(getattr(src, 'name', 'Workspace'))} (copy)")
@@ -6003,6 +6511,10 @@ class FTIRView(ttk.Frame):
         self._set_active_workspace_by_id(str(ws_id))
 
     def _delete_workspace(self) -> None:
+        """Implement the `_delete_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self.workspaces:
             return
         ws = self._active_workspace()
@@ -6056,6 +6568,10 @@ class FTIRView(ttk.Frame):
     # --- Overlays (multiple saved overlay groups) ---
 
     def _parse_overlay_iid(self, iid: str) -> Optional[Tuple[str, str]]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = str(iid or "")
         if "::" not in s:
             return None
@@ -6067,6 +6583,10 @@ class FTIRView(ttk.Frame):
         return (a, b)
 
     def _overlay_group_counter_next(self) -> int:
+        """Implement the `_overlay_group_counter_next` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         best = 0
         for g in (self._overlay_groups or {}).values():
             try:
@@ -6080,12 +6600,20 @@ class FTIRView(ttk.Frame):
         return int(best) + 1
 
     def _overlay_group_ws_indicator(self, members: Sequence[FTIRDatasetKey]) -> str:
+        """Implement the `_overlay_group_ws_indicator` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_ids = set(str(k[0]) for k in (members or []) if isinstance(k, tuple) and len(k) == 2)
         if not ws_ids:
             return "—"
         return "1" if len(ws_ids) == 1 else "mix"
 
     def _get_selected_overlay_group_id(self) -> Optional[str]:
+        """Implement the `_get_selected_overlay_group_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_groups_tree
         if tree is None:
             return None
@@ -6096,12 +6624,20 @@ class FTIRView(ttk.Frame):
         return (str(sel[0]) if sel else None)
 
     def _get_active_overlay_group(self) -> Optional[OverlayGroup]:
+        """Implement the `_get_active_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         gid = str(self._active_overlay_group_id or "").strip()
         if not gid:
             return None
         return (self._overlay_groups or {}).get(gid)
 
     def _effective_active_key(self) -> Optional[FTIRDatasetKey]:
+        """Implement the `_effective_active_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         g = self._get_active_overlay_group()
         if g is not None:
             members = list(getattr(g, "members", []) or [])
@@ -6124,12 +6660,20 @@ class FTIRView(ttk.Frame):
         return None
 
     def _effective_active_dataset(self) -> Optional[FTIRDataset]:
+        """Implement the `_effective_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = self._effective_active_key()
         if k is None:
             return None
         return self._get_dataset_by_key((str(k[0]), str(k[1])))
 
     def _overlay_selection_ordered_selected_keys(self) -> List[FTIRDatasetKey]:
+        """Implement the `_overlay_selection_ordered_selected_keys` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_selection_tree
         if tree is None:
             return []
@@ -6159,6 +6703,10 @@ class FTIRView(ttk.Frame):
         return out
 
     def _default_overlay_group_name(self, members: Sequence[FTIRDatasetKey]) -> str:
+        """Implement the `_default_overlay_group_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         n = self._overlay_group_counter_next()
         parts: List[str] = []
         for key in (members or [])[:2]:
@@ -6174,6 +6722,10 @@ class FTIRView(ttk.Frame):
         return f"Overlay {n}"
 
     def _new_overlay_group_from_selection(self) -> None:
+        """Implement the `_new_overlay_group_from_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         members = self._overlay_selection_ordered_selected_keys()
         if len(members) < 2:
             messagebox.showinfo("Overlay", "Select at least 2 datasets to create an overlay group.", parent=self.app)
@@ -6198,6 +6750,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _activate_selected_overlay_group(self) -> None:
+        """Implement the `_activate_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         gid = self._get_selected_overlay_group_id()
         if not gid:
             return
@@ -6215,11 +6771,19 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _clear_active_overlay_group(self) -> None:
+        """Implement the `_clear_active_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._active_overlay_group_id = None
         self._rebuild_overlay_group_list(select_group_id=self._get_selected_overlay_group_id())
         self._schedule_redraw()
 
     def _rename_selected_overlay_group(self) -> None:
+        """Implement the `_rename_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         gid = self._get_selected_overlay_group_id()
         if not gid:
             return
@@ -6236,6 +6800,10 @@ class FTIRView(ttk.Frame):
         self._rebuild_overlay_group_list(select_group_id=str(gid))
 
     def _duplicate_selected_overlay_group(self) -> None:
+        """Implement the `_duplicate_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         gid = self._get_selected_overlay_group_id()
         if not gid:
             return
@@ -6267,6 +6835,10 @@ class FTIRView(ttk.Frame):
         self._rebuild_overlay_group_members_list()
 
     def _delete_selected_overlay_group(self) -> None:
+        """Implement the `_delete_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         gid = self._get_selected_overlay_group_id()
         if not gid:
             return
@@ -6287,6 +6859,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _set_active_overlay_member_from_selected(self) -> None:
+        """Implement the `_set_active_overlay_member_from_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         g = self._get_active_overlay_group()
         if g is None:
             return
@@ -6307,6 +6883,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _rebuild_overlay_group_list(self, *, select_group_id: Optional[str] = None) -> None:
+        """Implement the `_rebuild_overlay_group_list` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_groups_tree
         if tree is None:
             return
@@ -6344,6 +6924,10 @@ class FTIRView(ttk.Frame):
                 pass
 
     def _rebuild_overlay_group_members_list(self) -> None:
+        """Implement the `_rebuild_overlay_group_members_list` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mt = self._overlay_members_tree
         if mt is None:
             return
@@ -6373,6 +6957,10 @@ class FTIRView(ttk.Frame):
                 continue
 
     def _rebuild_overlay_selection_list(self) -> None:
+        """Implement the `_rebuild_overlay_selection_list` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_selection_tree
         if tree is None:
             return
@@ -6408,6 +6996,10 @@ class FTIRView(ttk.Frame):
                 continue
 
     def _remove_dataset_key_from_overlay_groups(self, key: FTIRDatasetKey) -> None:
+        """Implement the `_remove_dataset_key_from_overlay_groups` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = (str(key[0]), str(key[1]))
         for g in (self._overlay_groups or {}).values():
             try:
@@ -6425,6 +7017,10 @@ class FTIRView(ttk.Frame):
                 pass
 
     def _remove_workspace_id_from_overlay_groups(self, ws_id: str) -> None:
+        """Implement the `_remove_workspace_id_from_overlay_groups` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         wid = str(ws_id or "").strip()
         if not wid:
             return
@@ -6440,6 +7036,10 @@ class FTIRView(ttk.Frame):
                 pass
 
     def refresh_from_workspace(self, *, select_active: bool) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._tree
         if tree is None:
             return
@@ -6472,6 +7072,10 @@ class FTIRView(ttk.Frame):
         # Important: TreeviewSelect can fire asynchronously after selection_set().
         # Keep ignore enabled until the event queue drains.
         def _release_ignore_and_redraw() -> None:
+            """Implement the `_release_ignore_and_redraw` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._ignore_tree_select = False
             self._schedule_redraw()
 
@@ -6761,10 +7365,18 @@ class FTIRView(ttk.Frame):
             pass
 
     def _schedule_redraw(self) -> None:
+        """Implement the `_schedule_redraw` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._redraw_after is not None:
             return
 
         def _do() -> None:
+            """Implement the `_do` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._redraw_after = None
             self._redraw()
 
@@ -6775,6 +7387,10 @@ class FTIRView(ttk.Frame):
             _do()
 
     def load_ftir_dialog(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ftir_busy:
             try:
                 self._status_var.set("FTIR load already in progress…")
@@ -6801,6 +7417,10 @@ class FTIRView(ttk.Frame):
         self.app.after(0, lambda: self._load_ftir_files_async([str(p) for p in paths]))
 
     def _ftir_timing(self, label: str, seconds: float, *, extra: str = "") -> None:
+        """Implement the `_ftir_timing` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not FTIR_DEBUG:
             return
         msg = f"[FTIR] {label}: {seconds:.2f}s{extra}"
@@ -6819,6 +7439,10 @@ class FTIRView(ttk.Frame):
 
     def _request_mpl_draw_idle(self, reason: str = "") -> None:
         # UI thread only. Record when we requested a draw; log when it actually happens.
+        """Implement the `_request_mpl_draw_idle` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._canvas is None:
             return
         self._mpl_draw_pending = True
@@ -6836,6 +7460,10 @@ class FTIRView(ttk.Frame):
             pass
 
         def _watchdog() -> None:
+            """Implement the `_watchdog` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._mpl_draw_watchdog_after = None
             if not self._mpl_draw_pending:
                 return
@@ -6853,6 +7481,10 @@ class FTIRView(ttk.Frame):
             self._mpl_draw_watchdog_after = None
 
     def _on_mpl_draw_event(self, evt=None) -> None:
+        """Implement the `_on_mpl_draw_event` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._mpl_draw_pending:
             return
         self._mpl_draw_pending = False
@@ -6865,6 +7497,10 @@ class FTIRView(ttk.Frame):
         self._ftir_timing("mpl_draw", dt)
 
     def _set_ftir_busy(self, busy: bool) -> None:
+        """Implement the `_set_ftir_busy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ftir_busy = bool(busy)
         st = (tk.DISABLED if busy else tk.NORMAL)
         for b in (self._btn_load, self._btn_remove, self._btn_clear):
@@ -6875,10 +7511,18 @@ class FTIRView(ttk.Frame):
                 pass
 
     def _start_ftir_queue_poll(self) -> None:
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ftir_poll_after is not None:
             return
 
         def _poll() -> None:
+            """Implement the `_poll` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._ftir_poll_after = None
             self._poll_ftir_queue()
             if self._ftir_busy or self._peaks_busy:
@@ -6894,6 +7538,10 @@ class FTIRView(ttk.Frame):
 
     def _poll_ftir_queue(self) -> None:
         # UI thread only.
+        """Implement the `_poll_ftir_queue` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         while True:
             try:
                 evt = self._ftir_event_q.get_nowait()
@@ -6960,6 +7608,10 @@ class FTIRView(ttk.Frame):
                 continue
 
     def _load_ftir_files_async(self, paths: Sequence[str]) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ftir_busy:
             try:
                 self._status_var.set("FTIR load already in progress…")
@@ -6973,6 +7625,10 @@ class FTIRView(ttk.Frame):
             return
 
         def norm_path(s: str) -> str:
+            """Implement the `norm_path` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return os.path.normcase(os.path.normpath(str(s)))
             except Exception:
@@ -7001,6 +7657,10 @@ class FTIRView(ttk.Frame):
         t_start = time.perf_counter()
 
         def infer_from_meta(meta: Dict[str, Any]) -> Tuple[bool, str, Optional[str], Optional[str]]:
+            """Implement the `infer_from_meta` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             x_units = None if not isinstance(meta, dict) else meta.get("XUNITS")
             y_units = None if not isinstance(meta, dict) else meta.get("YUNITS")
             y_mode = "absorbance"
@@ -7024,6 +7684,10 @@ class FTIRView(ttk.Frame):
 
         # Worker: no Tk calls; communicate via queue polled by UI thread.
         def worker(raw_paths: List[str], existing_norm: Dict[str, str]) -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             t_plan0 = time.perf_counter()
             todo: List[str] = []
             activate_id: Optional[str] = None
@@ -7112,6 +7776,10 @@ class FTIRView(ttk.Frame):
         threading.Thread(target=worker, args=(selected, existing_by_norm), daemon=True).start()
 
     def _set_loading_status(self, i: int, n: int, name: str) -> None:
+        """Implement the `_set_loading_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._status_var.set(f"Loading FTIR {i}/{n}: {name}")
         except Exception:
@@ -7123,6 +7791,10 @@ class FTIRView(ttk.Frame):
 
     def _on_ftir_batch_loaded(self, results: List[Tuple[Any, ...]], *, activate_id: Optional[str]) -> None:
         # UI thread only.
+        """Implement the `_on_ftir_batch_loaded` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if activate_id:
                 ws = self._active_workspace()
@@ -7208,6 +7880,10 @@ class FTIRView(ttk.Frame):
         self._set_ftir_busy(False)
 
     def _read_table(self, path: Path) -> pd.DataFrame:
+        """Read and normalize input data.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(path).expanduser().resolve()
         # Robust + fast-ish heuristics:
         # - Avoid sep=None sniffing (can be extremely slow and can starve the UI via the GIL).
@@ -7322,6 +7998,10 @@ class FTIRView(ttk.Frame):
         return pd.read_csv(p, sep=r"\s+", engine="python", **common_kwargs)
 
     def _pick_xy(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, bool, str, Optional[str], Optional[str]]:
+        """Implement the `_pick_xy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if df.shape[1] < 2:
             raise ValueError("File must have at least 2 columns")
 
@@ -7337,6 +8017,10 @@ class FTIRView(ttk.Frame):
         col_lower = [c.strip().lower() for c in cols]
 
         def is_x_name(n: str) -> bool:
+            """Implement the `is_x_name` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return ("wavenumber" in n) or ("cm-1" in n) or ("cm^-1" in n) or ("cm⁻¹" in n) or (n in ("wn", "x"))
 
         x_candidates = [cols[i] for i, n in enumerate(col_lower) if is_x_name(n)]
@@ -7428,6 +8112,10 @@ class FTIRView(ttk.Frame):
 
     def _load_ftir_file(self, path: Path) -> None:
         # Legacy sync loader (kept for any internal callers); prefer _load_ftir_files_async for UI.
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(path).expanduser().resolve()
         if not p.exists():
             messagebox.showerror("FTIR", f"File not found:\n{p}", parent=self.app)
@@ -7505,6 +8193,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _redraw(self) -> None:
+        """Implement the `_redraw` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax is None or self._canvas is None:
             return
         t0 = time.perf_counter()
@@ -7876,6 +8568,10 @@ class FTIRView(ttk.Frame):
         # No list refresh here: avoid redraw<->refresh recursion.
 
     def _active_dataset(self) -> Optional[FTIRDataset]:
+        """Implement the `_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             g = self._get_active_overlay_group()
             if g is not None and (getattr(g, "members", None) or []):
@@ -7893,6 +8589,10 @@ class FTIRView(ttk.Frame):
 
     def _get_plot_arrays(self, d: FTIRDataset) -> Tuple[np.ndarray, np.ndarray]:
         # Prefer precomputed display arrays.
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             x2 = np.asarray(getattr(d, "x_disp", []), dtype=float)
             y2 = np.asarray(getattr(d, "y_disp", []), dtype=float)
@@ -7935,6 +8635,10 @@ class FTIRView(ttk.Frame):
         *,
         order: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> Tuple[float, float]:
+        """Implement the `_overlay_offset_for_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             mode = str(self._overlay_offset_mode_var.get() or "Normal")
         except Exception:
@@ -7963,6 +8667,10 @@ class FTIRView(ttk.Frame):
         return 0.0, 0.0
 
     def _selected_dataset_id(self) -> Optional[str]:
+        """Implement the `_selected_dataset_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._tree
         if tree is None:
             return None
@@ -7974,6 +8682,10 @@ class FTIRView(ttk.Frame):
 
     def _set_active_by_id(self, dataset_id: str) -> None:
         # Legacy entrypoint; treat as same-workspace selection.
+        """Implement the `_set_active_by_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._set_active_dataset(str(self.active_workspace_id), str(dataset_id), reason="same_workspace_select")
 
     def _set_active_dataset(
@@ -7991,14 +8703,6 @@ class FTIRView(ttk.Frame):
         ds_id = (None if not dataset_id else str(dataset_id))
         if not ws_id or ws_id not in (self.workspaces or {}):
             return
-
-        prev_ws_id = str(self.active_workspace_id or "")
-        prev_ds_id: Optional[str] = None
-        try:
-            prev_ws = self.workspaces.get(prev_ws_id) if prev_ws_id else None
-            prev_ds_id = (None if prev_ws is None else (None if not getattr(prev_ws, "active_dataset_id", None) else str(prev_ws.active_dataset_id)))
-        except Exception:
-            prev_ds_id = None
 
         # Choose default dataset id if not provided.
         try:
@@ -8037,6 +8741,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _on_tree_select_set_active(self) -> None:
+        """Implement the `_on_tree_select_set_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_ignore_tree_select", False)):
             return
         sid = self._selected_dataset_id()
@@ -8051,6 +8759,10 @@ class FTIRView(ttk.Frame):
             self._set_active_dataset(str(self.active_workspace_id), str(sid), reason="same_workspace_select")
 
     def _on_toggle_reverse(self) -> None:
+        """Implement the `_on_toggle_reverse` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         aid = None
         try:
             aid = self._active_workspace().active_dataset_id
@@ -8064,6 +8776,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def remove_selected(self) -> None:
+        """Implement the `remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         sid = self._selected_dataset_id() or getattr(ws, "active_dataset_id", None)
         if not sid:
@@ -8102,6 +8818,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def clear_all(self) -> None:
+        """Implement the `clear_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         ids = [str(getattr(d, "id", "")) for d in (getattr(ws, "datasets", []) or [])]
         try:
@@ -8128,6 +8848,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _ensure_tree_menu(self) -> None:
+        """Implement the `_ensure_tree_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._tree_menu is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -8138,6 +8862,10 @@ class FTIRView(ttk.Frame):
         self._tree_menu = m
 
     def _on_tree_right_click(self, evt) -> None:
+        """Implement the `_on_tree_right_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._tree
         if tree is None:
             return
@@ -8159,6 +8887,10 @@ class FTIRView(ttk.Frame):
                 pass
 
     def _rename_selected(self) -> None:
+        """Implement the `_rename_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         sid = self._selected_dataset_id() or getattr(ws, "active_dataset_id", None)
         if not sid:
@@ -8188,6 +8920,10 @@ class FTIRView(ttk.Frame):
         self.refresh_from_workspace(select_active=True)
 
     def save_plot_dialog(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             snapshot, stem = self._snapshot_export_state()
         except Exception as exc:
@@ -8417,6 +9153,10 @@ class FTIRView(ttk.Frame):
         return snap, stem
 
     def cycle_active(self, delta: int) -> None:
+        """Implement the `cycle_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         ds = list(getattr(ws, "datasets", []) or [])
         if not ds:
@@ -8433,6 +9173,10 @@ class FTIRView(ttk.Frame):
     # --- Peak picking UI ---
 
     def _open_peaks_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._peaks_dialog is not None and bool(self._peaks_dialog.winfo_exists()):
             try:
                 self._sync_peaks_vars_from_active_dataset()
@@ -8451,6 +9195,10 @@ class FTIRView(ttk.Frame):
         self._peaks_dialog = w
 
         def _on_close() -> None:
+            """Close resources and finalize state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._peaks_dialog = None
             except Exception:
@@ -8548,6 +9296,10 @@ class FTIRView(ttk.Frame):
         self._sync_peaks_vars_from_active_dataset()
 
     def _unhide_all_peaks(self) -> None:
+        """Implement the `_unhide_all_peaks` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = self._active_dataset()
         if d is None:
             return
@@ -8558,6 +9310,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _ensure_export_peaks_menu(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._export_peaks_menu is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -8567,6 +9323,10 @@ class FTIRView(ttk.Frame):
 
     def _export_peaks_dialog(self) -> None:
         # Minimal export dialog with a single option toggle.
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._export_peaks_dialog_win is not None and bool(self._export_peaks_dialog_win.winfo_exists()):
                 try:
@@ -8617,6 +9377,10 @@ class FTIRView(ttk.Frame):
         btns.columnconfigure(1, weight=1)
 
         def _close() -> None:
+            """Close resources and finalize state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 if self._export_peaks_dialog_win is not None:
                     self._export_peaks_dialog_win.destroy()
@@ -8625,11 +9389,19 @@ class FTIRView(ttk.Frame):
             self._export_peaks_dialog_win = None
 
         def _do_active_csv() -> None:
+            """Implement the `_do_active_csv` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             include = bool(self._export_include_candidates_var.get())
             _close()
             self._export_active_peaks_csv(include_candidates=include)
 
         def _do_all_excel() -> None:
+            """Implement the `_do_all_excel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             include = bool(self._export_include_candidates_var.get())
             _close()
             self._export_all_peaks_excel(include_candidates=include)
@@ -8667,6 +9439,10 @@ class FTIRView(ttk.Frame):
     # --- Bond labels ---
 
     def _on_ftir_keypress(self, evt) -> None:
+        """Implement the `_on_ftir_keypress` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         key = str(getattr(evt, "key", "") or "")
         if not key:
             return
@@ -8682,6 +9458,10 @@ class FTIRView(ttk.Frame):
 
     def _bond_common_presets(self) -> List[Dict[str, Any]]:
         # Small built-in fallback list.
+        """Implement the `_bond_common_presets` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return [
             {"id": "common:ester_co", "label": "Ester C=O", "range_cm1": (1760, 1735)},
             {"id": "common:carboxylic_acid_co", "label": "Carboxylic acid C=O", "range_cm1": (1725, 1700)},
@@ -8695,6 +9475,10 @@ class FTIRView(ttk.Frame):
         ]
 
     def _bond_presets(self) -> List[Dict[str, Any]]:
+        """Implement the `_bond_presets` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         presets: List[Dict[str, Any]] = []
         # Add library v2 entries if present
         try:
@@ -8734,6 +9518,10 @@ class FTIRView(ttk.Frame):
         return out
 
     def _open_add_bond_label_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._bond_dialog is not None and bool(self._bond_dialog.winfo_exists()):
                 self._bond_dialog.lift()
@@ -8798,6 +9586,10 @@ class FTIRView(ttk.Frame):
             dataset_choice_var.set(dataset_choices[0][0])
 
         def _xview() -> Tuple[float, float]:
+            """Implement the `_xview` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 lo, hi = self._ax.get_xlim()
                 return (float(min(lo, hi)), float(max(lo, hi)))
@@ -8805,6 +9597,10 @@ class FTIRView(ttk.Frame):
                 return (-float("inf"), float("inf"))
 
         def _fmt_preset(p: Dict[str, Any]) -> str:
+            """Implement the `_fmt_preset` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             r = p.get("range_cm1")
             try:
                 if not (isinstance(r, (list, tuple)) and len(r) == 2):
@@ -8817,6 +9613,10 @@ class FTIRView(ttk.Frame):
         preset_display_to_range: Dict[str, Tuple[float, float]] = {}
 
         def _refresh_presets() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             xmin, xmax = _xview()
             values: List[str] = []
             preset_display_to_id.clear()
@@ -8888,6 +9688,10 @@ class FTIRView(ttk.Frame):
         ttk.Checkbutton(root, text="Show vertical guide line", variable=vline_var).grid(row=7, column=0, sticky="w", pady=(8, 0))
 
         def _pick(var: tk.StringVar, title: str) -> None:
+            """Implement the `_pick` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
                 if c:
@@ -8929,6 +9733,10 @@ class FTIRView(ttk.Frame):
         ds_combo["values"] = [x[0] for x in dataset_choices]
 
         def _resolve_target_dataset_id() -> str:
+            """Implement the `_resolve_target_dataset_id` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             mode = str(attach_var.get() or "")
             if mode == "All overlayed":
                 return "__ALL_OVERLAY__"
@@ -8945,6 +9753,10 @@ class FTIRView(ttk.Frame):
             return str(getattr(ad, "id", "")) if ad is not None else ""
 
         def _build_opts() -> Dict[str, Any]:
+            """Build and return composed application state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             disp = str(preset_var.get() or "")
             preset_id = preset_display_to_id.get(disp)
             r = preset_display_to_range.get(disp)
@@ -8969,6 +9781,10 @@ class FTIRView(ttk.Frame):
             }
 
         def _close() -> None:
+            """Close resources and finalize state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 if self._bond_dialog is not None:
                     self._bond_dialog.destroy()
@@ -8977,6 +9793,10 @@ class FTIRView(ttk.Frame):
             self._bond_dialog = None
 
         def _place() -> None:
+            """Implement the `_place` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             opts = _build_opts()
             if not str(opts.get("text") or "").strip():
                 return
@@ -9012,6 +9832,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _bond_cancel_placement(self, *, reason: str = "") -> None:
+        """Implement the `_bond_cancel_placement` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(getattr(self, "_bond_placement_active", False)):
             return
         self._bond_placement_active = False
@@ -9034,6 +9858,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _bond_begin_placement(self, opts: Dict[str, Any]) -> None:
+        """Implement the `_bond_begin_placement` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._canvas is None:
             return
         # Cancel any existing placement
@@ -9057,11 +9885,19 @@ class FTIRView(ttk.Frame):
             self._bond_place_cid_key = None
 
     def _on_bond_place_key(self, evt) -> None:
+        """Implement the `_on_bond_place_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         key = str(getattr(evt, "key", "") or "")
         if key.lower() == "escape":
             self._bond_cancel_placement(reason="esc")
 
     def _on_bond_place_click(self, evt) -> None:
+        """Implement the `_on_bond_place_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(getattr(self, "_bond_placement_active", False)):
             return
         try:
@@ -9116,6 +9952,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _bond_add_annotation(self, opts: Dict[str, Any], *, x_cm1: float, y_value: float, xytext: Tuple[float, float]) -> None:
+        """Implement the `_bond_add_annotation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._active_workspace()
         try:
             target = str(opts.get("target_dataset_id") or "").strip()
@@ -9141,6 +9981,10 @@ class FTIRView(ttk.Frame):
             return
 
     def _bond_autoplace(self, opts: Dict[str, Any]) -> None:
+        """Implement the `_bond_autoplace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = self._effective_active_dataset()
         if d is None:
             return
@@ -9263,6 +10107,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _build_peaks_export_rows(self, d: FTIRDataset) -> List[Dict[str, Any]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         peaks = list(getattr(d, "peaks", None) or [])
         if not peaks:
             return []
@@ -9573,6 +10421,10 @@ class FTIRView(ttk.Frame):
         return main, expanded
 
     def _export_active_peaks_csv(self, *, include_candidates: Optional[bool] = None) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = self._active_dataset()
         if d is None:
             messagebox.showinfo("Export Peaks", "Load an FTIR dataset first.", parent=self.app)
@@ -9617,6 +10469,10 @@ class FTIRView(ttk.Frame):
             messagebox.showerror("Export Peaks", f"Failed to export CSV:\n\n{exc}", parent=self.app)
 
     def _export_all_peaks_excel(self, *, include_candidates: Optional[bool] = None) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = list(getattr(self.workspace, "ftir_datasets", []) or [])
         if not ds:
             messagebox.showinfo("Export Peaks", "No FTIR datasets loaded.", parent=self.app)
@@ -9652,6 +10508,10 @@ class FTIRView(ttk.Frame):
             return
 
         def _sheet_name(base: str, used: set[str]) -> str:
+            """Implement the `_sheet_name` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             s = str(base or "dataset").strip() or "dataset"
             # Excel sheet name constraints
             bad = set('[]:*?/\\')
@@ -9701,6 +10561,10 @@ class FTIRView(ttk.Frame):
             messagebox.showerror("Export Peaks", f"Failed to export Excel workbook:\n\n{exc}", parent=self.app)
 
     def _sync_peaks_vars_from_active_dataset(self) -> None:
+        """Implement the `_sync_peaks_vars_from_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = self._active_dataset()
         if d is None:
             return
@@ -9720,6 +10584,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _apply_peaks_dialog(self) -> None:
+        """Handle dialog setup and user responses.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = self._active_dataset()
         if d is None:
             messagebox.showinfo("FTIR Peaks", "Load an FTIR dataset first.", parent=self.app)
@@ -9758,6 +10626,10 @@ class FTIRView(ttk.Frame):
 
     def _apply_peaks_dialog_all(self) -> None:
         # Apply current peaks settings to ALL datasets in ALL FTIR workspaces.
+        """Handle dialog setup and user responses.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         keys = list(self._all_dataset_keys() or [])
         if not keys:
             messagebox.showinfo("FTIR Peaks", "No FTIR datasets loaded.", parent=self.app)
@@ -9809,6 +10681,10 @@ class FTIRView(ttk.Frame):
         self._start_peaks_batch_worker(keys, settings)
 
     def _start_peaks_worker(self, dataset_id: str, wn: np.ndarray, y: np.ndarray, y_mode: str, settings: Dict[str, Any]) -> None:
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not dataset_id:
             return
 
@@ -9829,6 +10705,10 @@ class FTIRView(ttk.Frame):
             pass
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             t0 = time.perf_counter()
             try:
                 x = np.asarray(wn, dtype=float)
@@ -9916,6 +10796,10 @@ class FTIRView(ttk.Frame):
 
     def _start_peaks_batch_worker(self, keys: Sequence[Tuple[str, str]], settings: Dict[str, Any]) -> None:
         # Compute peaks for many datasets, sequentially, on one worker thread.
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         keys2: List[Tuple[str, str]] = [
             (str(k[0]), str(k[1])) for k in (keys or []) if isinstance(k, (list, tuple)) and len(k) == 2
         ]
@@ -9937,6 +10821,10 @@ class FTIRView(ttk.Frame):
             pass
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             t0 = time.perf_counter()
             done = 0
             try:
@@ -10040,6 +10928,10 @@ class FTIRView(ttk.Frame):
 
     def _on_peaks_ready_for_key(self, key: Tuple[str, str], peak_settings: Any, peaks: Any) -> None:
         # UI thread only. Applies peaks to the specified dataset (across any workspace).
+        """Implement the `_on_peaks_ready_for_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = (str(key[0]), str(key[1]))
         d = self._get_dataset_by_key(k)
         if d is None:
@@ -10106,6 +10998,10 @@ class FTIRView(ttk.Frame):
 
     def _on_peaks_batch_done(self, done: int, total: int) -> None:
         # UI thread only.
+        """Implement the `_on_peaks_batch_done` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._peaks_batch_active = False
         except Exception:
@@ -10125,6 +11021,10 @@ class FTIRView(ttk.Frame):
 
     def _on_peaks_ready(self, dataset_id: str, peak_settings: Any, peaks: Any) -> None:
         # UI thread only.
+        """Implement the `_on_peaks_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._peaks_busy = False
         try:
             if self._btn_peaks is not None:
@@ -10203,6 +11103,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _clear_peak_artists(self) -> None:
+        """Implement the `_clear_peak_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for t in list(self._peak_texts):
             try:
                 t.remove()
@@ -10225,6 +11129,10 @@ class FTIRView(ttk.Frame):
         self._peak_artist_to_info = {}
 
     def _clear_bond_artists(self) -> None:
+        """Implement the `_clear_bond_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for t in list(getattr(self, "_bond_texts", []) or []):
             try:
                 t.remove()
@@ -10356,6 +11264,10 @@ class FTIRView(ttk.Frame):
                 continue
 
     def _get_peak_color(self) -> str:
+        """Implement the `_get_peak_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._peak_color:
             return str(self._peak_color)
         try:
@@ -10387,6 +11299,10 @@ class FTIRView(ttk.Frame):
             return str(base)
 
     def _peak_color_for_key(self, key: Optional[Tuple[str, str]]) -> str:
+        """Implement the `_peak_color_for_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if key is not None:
                 ln = self._line_artists.get((str(key[0]), str(key[1])))
@@ -10397,6 +11313,10 @@ class FTIRView(ttk.Frame):
         return self._tint_color_close(self._get_peak_color())
 
     def _prune_overlay_peak_display_cache(self) -> None:
+        """Implement the `_prune_overlay_peak_display_cache` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         keep: set[Tuple[str, str]] = set()
         try:
             for g in (self._overlay_groups or {}).values():
@@ -10415,6 +11335,10 @@ class FTIRView(ttk.Frame):
         }
 
     def _get_overlay_display_peak_ids(self, key: Tuple[str, str], d: FTIRDataset, *, default_max: int = 0) -> List[str]:
+        """Implement the `_get_overlay_display_peak_ids` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         k = (str(key[0]), str(key[1]))
         if k in (self._overlay_peak_display_ids_by_key or {}):
             return list(self._overlay_peak_display_ids_by_key.get(k) or [])
@@ -10430,6 +11354,10 @@ class FTIRView(ttk.Frame):
         ]
 
         def _sort_key(p: Dict[str, Any]) -> Tuple[float, float, str]:
+            """Implement the `_sort_key` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 prom = float(p.get("prominence", 0.0) or 0.0)
             except Exception:
@@ -10470,6 +11398,10 @@ class FTIRView(ttk.Frame):
         include_peak_ids: Optional[Sequence[str]] = None,
         overlay_order: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if clear_first:
             self._clear_peak_artists()
         peak_color = str(peak_color or self._get_peak_color())
@@ -10492,6 +11424,7 @@ class FTIRView(ttk.Frame):
         else:
             # Optional clutter control for overlay labels.
             if int(max_peaks or 0) > 0 and len(shown) > int(max_peaks or 0):
+                # Helper function for `_prom` workflow behavior.
                 def _prom(p: Dict[str, Any]) -> float:
                     try:
                         return float(p.get("prominence", 0.0) or 0.0)
@@ -10676,6 +11609,10 @@ class FTIRView(ttk.Frame):
 
     def _on_peak_drag_press(self, evt) -> None:
         # During bond placement mode, ignore drag logic.
+        """Implement the `_on_peak_drag_press` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if bool(getattr(self, "_bond_placement_active", False)):
                 return
@@ -10747,6 +11684,10 @@ class FTIRView(ttk.Frame):
 
     def _on_peak_drag_motion(self, evt) -> None:
         # Bond drag
+        """Implement the `_on_peak_drag_motion` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if getattr(self, "_drag_bond_idx", None) is not None and getattr(self, "_drag_bond_artist", None) is not None:
             try:
                 if evt is None or getattr(evt, "inaxes", None) is None:
@@ -10848,6 +11789,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _on_peak_drag_release(self, evt) -> None:
+        """Implement the `_on_peak_drag_release` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._drag_bond_key = None
         self._drag_bond_idx = None
         self._drag_bond_artist = None
@@ -10861,6 +11806,10 @@ class FTIRView(ttk.Frame):
         self._drag_dy = 0.0
 
     def _ensure_peak_menu(self) -> None:
+        """Implement the `_ensure_peak_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._peak_menu is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -10872,6 +11821,10 @@ class FTIRView(ttk.Frame):
         self._peak_menu = m
 
     def _ensure_bond_menu(self) -> None:
+        """Implement the `_ensure_bond_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if getattr(self, "_bond_menu", None) is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -10882,6 +11835,10 @@ class FTIRView(ttk.Frame):
         self._bond_menu = m
 
     def _get_workspace_by_id(self, ws_id: str) -> Optional[FTIRWorkspace]:
+        """Implement the `_get_workspace_by_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if isinstance(getattr(self, "workspaces", None), dict):
                 return (self.workspaces or {}).get(str(ws_id))
@@ -10982,6 +11939,7 @@ class FTIRView(ttk.Frame):
             ttk.Checkbutton(outer, text="Show vertical guide line", variable=show_vline_var).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 0))
             row += 1
 
+            # Helper function for `_pick` workflow behavior.
             def _pick(var: tk.StringVar, title: str) -> None:
                 try:
                     c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
@@ -11012,6 +11970,10 @@ class FTIRView(ttk.Frame):
         btns.grid(row=row, column=0, columnspan=2, sticky="e", pady=(12, 0))
 
         def _save() -> None:
+            """Save output/state to persistent storage.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if kind == "peak" and d is not None:
                 new_label = str(text_var.get() or "")
                 if not new_label.strip():
@@ -11049,6 +12011,10 @@ class FTIRView(ttk.Frame):
                 return
 
         def _delete_bond() -> None:
+            """Implement the `_delete_bond` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if kind != "bond" or ws is None or ann_index is None:
                 return
             try:
@@ -11074,6 +12040,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _bond_menu_edit_label(self) -> None:
+        """Implement the `_bond_menu_edit_label` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = getattr(self, "_bond_menu_last_info", None)
         if not info:
             return
@@ -11081,6 +12051,10 @@ class FTIRView(ttk.Frame):
         self._open_label_editor(kind="bond", ws_id=ws_id, ann_index=int(idx))
 
     def _bond_menu_toggle_vline(self) -> None:
+        """Implement the `_bond_menu_toggle_vline` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = getattr(self, "_bond_menu_last_info", None)
         if not info:
             return
@@ -11095,6 +12069,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _bond_menu_delete(self) -> None:
+        """Implement the `_bond_menu_delete` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = getattr(self, "_bond_menu_last_info", None)
         if not info:
             return
@@ -11108,6 +12086,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _on_peak_pick_event(self, evt) -> None:
+        """Implement the `_on_peak_pick_event` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             artist = evt.artist
             # Bond labels first
@@ -11204,6 +12186,10 @@ class FTIRView(ttk.Frame):
             pass
 
     def _peak_menu_edit_label(self) -> None:
+        """Implement the `_peak_menu_edit_label` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = self._peak_menu_last_info
         if not info:
             return
@@ -11211,6 +12197,10 @@ class FTIRView(ttk.Frame):
         self._open_label_editor(kind="peak", ws_id=ws_id, ds_id=ds_id, peak_id=pid)
 
     def _peak_menu_hide(self) -> None:
+        """Implement the `_peak_menu_hide` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = self._peak_menu_last_info
         if not info:
             return
@@ -11229,6 +12219,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _peak_menu_show(self) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = self._peak_menu_last_info
         if not info:
             return
@@ -11247,6 +12241,10 @@ class FTIRView(ttk.Frame):
         self._schedule_redraw()
 
     def _peak_menu_delete(self) -> None:
+        """Implement the `_peak_menu_delete` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         info = self._peak_menu_last_info
         if not info:
             return
@@ -11276,6 +12274,10 @@ class FTIRView(ttk.Frame):
 class App(tb.Window):
     @staticmethod
     def _normalize_theme_name(value: Any) -> str:
+        """Implement the `_normalize_theme_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             s = str(value or "").strip().lower()
         except Exception:
@@ -11287,6 +12289,10 @@ class App(tb.Window):
         return "flatly"
 
     def __init__(self) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         theme_name = App._normalize_theme_name(settings.get("theme"))
         super().__init__(themename=theme_name)
@@ -11305,6 +12311,10 @@ class App(tb.Window):
 
         # Surface Tk callback exceptions to users (common when running without a console).
         def _report_callback_exception(exc, val, tb) -> None:
+            """Implement the `_report_callback_exception` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             msg = "".join(traceback.format_exception(exc, val, tb))
 
             # Also persist to a crash log so we can debug issues that only show up in UI flows.
@@ -11559,10 +12569,10 @@ class App(tb.Window):
         self.poly_adduct_formate_var = tk.BooleanVar(value=False)
         self.poly_adduct_acetate_var = tk.BooleanVar(value=False)
         self.poly_charges_var = tk.StringVar(value="1")
-        self.poly_max_dp_var = tk.IntVar(value=12)
-        self.poly_tol_value_var = tk.DoubleVar(value=0.02)
+        self.poly_max_dp_var = tk.IntVar(value=20)
+        self.poly_tol_value_var = tk.DoubleVar(value=0.5)
         self.poly_tol_unit_var = tk.StringVar(value="Da")  # Da|ppm
-        self.poly_min_rel_int_var = tk.DoubleVar(value=0.01)  # fraction of max intensity
+        self.poly_min_rel_int_var = tk.DoubleVar(value=0.05)  # fraction of max intensity
 
         self._busy_dialog: Optional[tk.Toplevel] = None
         self._busy_bar: Optional[ttk_native.Progressbar] = None
@@ -11675,6 +12685,10 @@ class App(tb.Window):
             pass
 
     def destroy(self) -> None:
+        """Implement the `destroy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._recovery_autosave_after is not None:
                 self.after_cancel(self._recovery_autosave_after)
@@ -11744,6 +12758,10 @@ class App(tb.Window):
         return Path(root)
 
     def _update_status_by_tab(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         nb = getattr(self, "_module_notebook", None)
         if nb is None:
             self._update_status_current()
@@ -11786,6 +12804,10 @@ class App(tb.Window):
         self._update_status_current()
 
     def _build_ui(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._apply_theme()
 
         self._load_brand_logo()
@@ -11882,6 +12904,10 @@ class App(tb.Window):
         self._update_app_chrome_context(status_text="Open an mzML file to begin")
 
     def _build_diagnostics_panel(self, parent: tk.Widget) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(1, weight=1)
 
@@ -11965,6 +12991,10 @@ class App(tb.Window):
         self._diag_text = txt
 
     def _apply_diag_panel_visibility(self) -> None:
+        """Implement the `_apply_diag_panel_visibility` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paned = getattr(self, "_plot_paned", None)
         frame = getattr(self, "_diag_frame", None)
         if paned is None or frame is None:
@@ -11985,6 +13015,10 @@ class App(tb.Window):
             pass
 
     def _log(self, level: str, message: str, exc: Optional[Union[BaseException, str]] = None) -> None:
+        """Implement the `_log` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lvl = (level or "INFO").upper()
         if exc is not None:
             if isinstance(exc, str):
@@ -11996,6 +13030,10 @@ class App(tb.Window):
         self._diag_append(lvl, msg)
 
     def _warn(self, message: str) -> None:
+        """Implement the `_warn` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._ctx_warn_var.set(f"Warning: {message}")
         except Exception:
@@ -12003,6 +13041,10 @@ class App(tb.Window):
         self._diag_append("WARN", str(message))
 
     def _diag_append(self, level: str, message: str) -> None:
+        """Implement the `_diag_append` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         lvl = (level or "INFO").upper()
         msg = str(message)
@@ -12010,12 +13052,20 @@ class App(tb.Window):
         self._diag_refresh_text(append_last=True)
 
     def _diag_refresh_text(self, append_last: bool = False) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         txt = self._diag_text
         if txt is None:
             return
         warnings_only = bool(self._diag_filter_warnings_only_var.get())
 
         def include(rec: Tuple[str, str, str]) -> bool:
+            """Implement the `include` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not warnings_only:
                 return True
             return rec[1] in ("WARN", "WARNING", "ERROR")
@@ -12049,10 +13099,18 @@ class App(tb.Window):
                 pass
 
     def _diag_clear(self) -> None:
+        """Implement the `_diag_clear` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._diag_log_records.clear()
         self._diag_refresh_text(append_last=False)
 
     def _diag_copy(self) -> None:
+        """Implement the `_diag_copy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         txt = self._diag_text
         if txt is None:
             return
@@ -12069,6 +13127,10 @@ class App(tb.Window):
             pass
 
     def _diag_save(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         txt = self._diag_text
         if txt is None:
             return
@@ -12095,6 +13157,10 @@ class App(tb.Window):
             messagebox.showerror("Save log", f"Failed to save log:\n\n{exc}", parent=self)
 
     def _register_lcms_action_widget(self, key: str, widget: Any) -> None:
+        """Implement the `_register_lcms_action_widget` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not key or widget is None:
             return
         items = self._lcms_action_widgets.setdefault(str(key), [])
@@ -12102,6 +13168,10 @@ class App(tb.Window):
             items.append(widget)
 
     def _set_widget_enabled(self, widget: Any, enabled: bool) -> None:
+        """Implement the `_set_widget_enabled` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if widget is None:
             return
         try:
@@ -12110,6 +13180,10 @@ class App(tb.Window):
             pass
 
     def _has_recoverable_workspace_state(self) -> bool:
+        """Implement the `_has_recoverable_workspace_state` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._sessions or self._uv_sessions:
                 return True
@@ -12123,6 +13197,10 @@ class App(tb.Window):
         return False
 
     def _recovery_snapshot_path(self) -> Path:
+        """Implement the `_recovery_snapshot_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
         root = base / "Main MFP lab analysis code" / "recovery"
         try:
@@ -12132,6 +13210,10 @@ class App(tb.Window):
         return root / "workspace_autorecover.json"
 
     def _clear_recovery_snapshot(self) -> None:
+        """Implement the `_clear_recovery_snapshot` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = self._recovery_snapshot_path()
         try:
             if path.exists():
@@ -12140,6 +13222,10 @@ class App(tb.Window):
             pass
 
     def _schedule_recovery_autosave(self) -> None:
+        """Implement the `_schedule_recovery_autosave` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(self._recovery_restore_in_progress):
             return
         try:
@@ -12157,6 +13243,10 @@ class App(tb.Window):
             self._recovery_autosave_after = None
 
     def _autosave_recovery_snapshot(self) -> None:
+        """Implement the `_autosave_recovery_snapshot` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._recovery_autosave_after = None
         if bool(self._recovery_restore_in_progress) or not self._has_recoverable_workspace_state():
             return
@@ -12167,6 +13257,10 @@ class App(tb.Window):
             return
 
     def _offer_recovery_restore(self) -> None:
+        """Implement the `_offer_recovery_restore` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = self._recovery_snapshot_path()
         try:
             if not path.exists() or path.stat().st_size <= 0:
@@ -12213,6 +13307,10 @@ class App(tb.Window):
             self._clear_recovery_snapshot()
 
     def _capture_lcms_label_state(self) -> Dict[str, Any]:
+        """Implement the `_capture_lcms_label_state` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._save_active_session_state()
         except Exception:
@@ -12236,6 +13334,10 @@ class App(tb.Window):
         }
 
     def _push_lcms_undo_state(self, description: str) -> None:
+        """Implement the `_push_lcms_undo_state` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._sessions:
             return
         entry = {
@@ -12248,6 +13350,10 @@ class App(tb.Window):
         self._update_lcms_workflow_state()
 
     def _undo_last_lcms_label_change(self) -> None:
+        """Implement the `_undo_last_lcms_label_change` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._lcms_undo_stack:
             self._update_lcms_workflow_state()
             return
@@ -12306,6 +13412,10 @@ class App(tb.Window):
         self._schedule_recovery_autosave()
 
     def _update_lcms_workflow_state(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         has_mzml = bool(self._sessions)
         has_spectrum = bool(
             self._current_spectrum_meta is not None
@@ -12379,7 +13489,10 @@ class App(tb.Window):
         self._refresh_lcms_action_states()
 
     def _refresh_lcms_action_states(self) -> None:
-        has_sessions = bool(self._sessions)
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         has_active_session = bool(self._active_session_id and self._active_session_id in self._sessions)
         has_uv = bool(self._active_uv_session())
         has_selected_rt = bool(self._selected_rt_min is not None)
@@ -12409,6 +13522,10 @@ class App(tb.Window):
                 self._set_widget_enabled(widget, enabled)
 
     def _update_current_context_panel(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             mzml = self._active_session_display_name() if getattr(self, "_active_session_id", None) else (self.mzml_path.name if self.mzml_path else "(no mzML)")
         except Exception:
@@ -12492,9 +13609,17 @@ class App(tb.Window):
 
     def _on_root_configure(self, _evt) -> None:
         # Debounced redraw on window resize.
+        """Implement the `_on_root_configure` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._schedule_bg_redraw()
 
     def _schedule_bg_redraw(self) -> None:
+        """Implement the `_schedule_bg_redraw` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._bg_canvas is None:
             return
         try:
@@ -12508,6 +13633,10 @@ class App(tb.Window):
             self._bg_redraw_after = None
 
     def _redraw_bg_watermark(self) -> None:
+        """Implement the `_redraw_bg_watermark` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._bg_canvas is None:
             return
 
@@ -12642,6 +13771,10 @@ class App(tb.Window):
             return
 
     def _apply_theme(self) -> None:
+        """Implement the `_apply_theme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._apply_brand_theme()
 
     def _apply_brand_theme(self) -> None:
@@ -12684,6 +13817,10 @@ class App(tb.Window):
             pass
 
     def _set_theme(self, theme_name: str) -> None:
+        """Implement the `_set_theme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         theme_name = App._normalize_theme_name(theme_name)
         try:
             self.style.theme_use(theme_name)
@@ -12708,6 +13845,10 @@ class App(tb.Window):
 
 
     def _build_menu(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         menubar = tk.Menu(self)
 
         file_menu = tk.Menu(menubar, tearoff=0)
@@ -12772,6 +13913,10 @@ class App(tb.Window):
         )
 
         def _pick_matplotlib_bg() -> None:
+            """Implement the `_pick_matplotlib_bg` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 initial = (self._matplotlib_bg_var.get() or "").strip() or "#f5f5f5"
             except Exception:
@@ -12800,6 +13945,10 @@ class App(tb.Window):
         self.config(menu=menubar)
 
     def _show_shortcuts(self) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         messagebox.showinfo(
             "Shortcuts",
             "Ctrl+O  Open (routes to active tab)\n"
@@ -12827,6 +13976,10 @@ class App(tb.Window):
         )
 
     def _show_about(self) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         logo_path = _resolve_logo_path()
         logo_note = str(logo_path) if logo_path is not None else "(not found)"
         messagebox.showinfo(
@@ -12870,6 +14023,10 @@ class App(tb.Window):
             pass
 
     def _active_module_name(self) -> str:
+        """Implement the `_active_module_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         nb = self._module_notebook
         if nb is None:
             return "LCMS"
@@ -12881,18 +14038,34 @@ class App(tb.Window):
             return "LCMS"
 
     def _is_lcms_active(self) -> bool:
+        """Implement the `_is_lcms_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._active_module_name().upper() == "LCMS"
 
     def _is_ftir_active(self) -> bool:
+        """Implement the `_is_ftir_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._active_module_name().upper() == "FTIR"
 
     def _dispatch_open(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_ftir_active() and self._ftir_view is not None:
             self._ftir_view.load_ftir_dialog()
             return
         self._open_mzml()
 
     def _dispatch_open_many(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_ftir_active() and self._ftir_view is not None:
             # Minimal: FTIR supports one-at-a-time loading for now.
             self._ftir_view.load_ftir_dialog()
@@ -12900,27 +14073,47 @@ class App(tb.Window):
         self._open_mzml_many()
 
     def _dispatch_add_uv_single(self) -> None:
+        """Implement the `_dispatch_add_uv_single` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_lcms_active():
             return
         self._open_uv_csv_single()
 
     def _dispatch_add_uv_many(self) -> None:
+        """Implement the `_dispatch_add_uv_many` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_lcms_active():
             return
         self._open_uv_csv_many()
 
     def _dispatch_export_primary(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_ftir_active() and self._ftir_view is not None:
             self._ftir_view.save_plot_dialog()
             return
         self._export_spectrum_csv()
 
     def _dispatch_lcms_only(self, fn: Callable[[], None]) -> None:
+        """Implement the `_dispatch_lcms_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_lcms_active():
             return
         fn()
 
     def _dispatch_cycle(self, delta: int) -> None:
+        """Implement the `_dispatch_cycle` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_ftir_active() and self._ftir_view is not None:
             self._ftir_view.cycle_active(int(delta))
             return
@@ -12943,6 +14136,10 @@ class App(tb.Window):
         peak_suppressed: Optional[List[str]] = None,
         peak_label_positions: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Implement the `_add_ftir_from_path_async` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(csv_path).expanduser().resolve()
         if not p.exists():
             messagebox.showerror("FTIR", f"File not found:\n{p}", parent=self)
@@ -12985,6 +14182,10 @@ class App(tb.Window):
         self._set_status(f"Loading FTIR: {p.name}")
 
         def infer_from_meta(meta: Dict[str, Any]) -> Tuple[str, Optional[str], Optional[str]]:
+            """Implement the `infer_from_meta` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             x_units = None if not isinstance(meta, dict) else meta.get("XUNITS")
             y_units = None if not isinstance(meta, dict) else meta.get("YUNITS")
             y_mode_inferred = "absorbance"
@@ -12999,6 +14200,10 @@ class App(tb.Window):
             return str(y_mode_inferred), (None if x_units is None else str(x_units)), (None if y_units is None else str(y_units))
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 # Use the same XY-only parser as the FTIR workstation.
                 meta: Dict[str, Any] = {}
@@ -13045,7 +14250,7 @@ class App(tb.Window):
             except Exception as exc:
                 self.after(
                     0,
-                    lambda: self._on_ftir_ready(
+                    lambda exc=exc: self._on_ftir_ready(
                         p,
                         None,
                         None,
@@ -13086,6 +14291,10 @@ class App(tb.Window):
         peak_label_positions: Optional[Dict[str, Any]],
         err: Optional[Exception],
     ) -> None:
+        """Implement the `_on_ftir_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if err is not None or x is None or y is None:
             try:
                 messagebox.showerror("FTIR", f"Failed to load FTIR CSV:\n{path}\n\n{err}", parent=self)
@@ -13377,6 +14586,10 @@ class App(tb.Window):
             pass
 
     def _apply_ftir_workspace_dict(self, state: Dict[str, Any]) -> None:
+        """Implement the `_apply_ftir_workspace_dict` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not isinstance(state, dict):
             raise ValueError("FTIR workspace JSON must be an object")
 
@@ -13469,6 +14682,10 @@ class App(tb.Window):
         self._maybe_finalize_ftir_only_restore(ctx)
 
     def _maybe_finalize_ftir_only_restore(self, ctx: Dict[str, Any]) -> None:
+        """Implement the `_maybe_finalize_ftir_only_restore` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not isinstance(ctx, dict):
             return
         if int(ctx.get("done_ftir", 0)) < int(ctx.get("expected_ftir", 0)):
@@ -13503,6 +14720,10 @@ class App(tb.Window):
             pass
 
     def _save_ftir_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             state = self._ftir_state_to_dict()
         except Exception as exc:
@@ -13529,6 +14750,10 @@ class App(tb.Window):
         messagebox.showinfo("Save FTIR Workspace", f"Saved FTIR workspace:\n\n{path}", parent=self)
 
     def _load_ftir_workspace(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             parent=self,
             title="Load FTIR Workspace",
@@ -13552,6 +14777,10 @@ class App(tb.Window):
 
     def _bind_shortcuts(self) -> None:
         # File
+        """Implement the `_bind_shortcuts` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.bind_all("<Control-o>", lambda e: (self._dispatch_open(), "break"))
         self.bind_all("<Control-Shift-O>", lambda e: (self._dispatch_open_many(), "break"))
         self.bind_all("<Control-Shift-o>", lambda e: (self._dispatch_open_many(), "break"))
@@ -13601,6 +14830,10 @@ class App(tb.Window):
         self.bind_all("<S>", self._on_key_sim, add=True)
 
     def _cycle_active_session(self, delta: int) -> None:
+        """Implement the `_cycle_active_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._session_order:
             return
         if self._active_session_id not in self._session_order:
@@ -13615,6 +14848,10 @@ class App(tb.Window):
         self._set_active_session(self._session_order[int(j)])
 
     def _cycle_overlay_active_dataset(self, delta: int) -> None:
+        """Implement the `_cycle_overlay_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_overlay_active():
             return
         ids = self._overlay_dataset_ids()
@@ -13633,6 +14870,10 @@ class App(tb.Window):
         self._set_active_session(str(ids[int(j)]))
 
     def _toggle_advanced(self) -> None:
+        """Implement the `_toggle_advanced` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cur = bool(self._advanced_expanded_var.get())
         try:
             self._advanced_expanded_var.set(not cur)
@@ -13641,6 +14882,10 @@ class App(tb.Window):
         self._apply_advanced_visibility()
 
     def _apply_advanced_visibility(self) -> None:
+        """Implement the `_apply_advanced_visibility` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         expanded = bool(self._advanced_expanded_var.get())
         if self._advanced_toggle_btn is not None:
             try:
@@ -13682,6 +14927,10 @@ class App(tb.Window):
                 pass
 
     def _open_jump_to_mz_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = tk.Toplevel(self)
         dlg.title("Jump to m/z")
         dlg.resizable(False, False)
@@ -13718,6 +14967,10 @@ class App(tb.Window):
         buttons.grid(row=3, column=0, columnspan=3, sticky="e", pady=(14, 0))
 
         def do_jump() -> None:
+            """Implement the `do_jump` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._mz_find_mode_var.set("Nearest")
                 self._mz_find_min_int_var.set("0")
@@ -13783,6 +15036,10 @@ class App(tb.Window):
             return
 
         def _on_focus_in(_evt=None) -> None:
+            """Implement the `_on_focus_in` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 if win in self._nonmodal_dialog_stack:
                     self._nonmodal_dialog_stack.remove(win)
@@ -13791,6 +15048,10 @@ class App(tb.Window):
                 pass
 
         def _on_destroy(_evt=None) -> None:
+            """Implement the `_on_destroy` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 if win in self._nonmodal_dialog_stack:
                     self._nonmodal_dialog_stack.remove(win)
@@ -13834,54 +15095,90 @@ class App(tb.Window):
         return False
 
     def _on_key_find_mz(self, event=None):
+        """Implement the `_on_key_find_mz` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._open_find_mz_dialog()
         return "break"
 
     def _on_key_sim(self, event=None):
+        """Implement the `_on_key_sim` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._open_sim_dialog()
         return "break"
 
     def _on_key_auto_align(self, event=None):
+        """Implement the `_on_key_auto_align` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._auto_align_uv_ms()
         return "break"
 
     def _on_key_diagnostics(self, event=None):
+        """Implement the `_on_key_diagnostics` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._open_diagnostics_window()
         return "break"
 
     def _on_key_step_coarse_back(self, event=None):
+        """Implement the `_on_key_step_coarse_back` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._step_spectrum(-10)
         return "break"
 
     def _on_key_step_coarse_fwd(self, event=None):
+        """Implement the `_on_key_step_coarse_fwd` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._step_spectrum(+10)
         return "break"
 
     def _on_key_step_medium_back(self, event=None):
+        """Implement the `_on_key_step_medium_back` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._step_spectrum(-5)
         return "break"
 
     def _on_key_step_medium_fwd(self, event=None):
+        """Implement the `_on_key_step_medium_fwd` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         self._step_spectrum(+5)
         return "break"
 
     def _on_key_focus_rt_jump(self, event=None):
+        """Implement the `_on_key_focus_rt_jump` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is not None and self._shortcut_in_text_input(getattr(event, "widget", None)):
             return None
         ent = self._rt_jump_entry
@@ -13895,10 +15192,18 @@ class App(tb.Window):
         return "break"
 
     def _on_key_escape_close(self, _event=None):
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         closed = self._close_topmost_nonmodal_dialog()
         return "break" if closed else None
 
     def _open_diagnostics_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._diagnostics_win is not None:
             try:
                 if bool(self._diagnostics_win.winfo_exists()):
@@ -13920,6 +15225,10 @@ class App(tb.Window):
         self._diagnostics_vars = {}
 
         def mk_row(r: int, label: str, key: str) -> None:
+            """Implement the `mk_row` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             ttk.Label(frm, text=label).grid(row=r, column=0, sticky="w", pady=(0, 6))
             var = tk.StringVar(value="")
             self._diagnostics_vars[key] = var
@@ -13952,6 +15261,10 @@ class App(tb.Window):
         self._refresh_diagnostics_window()
 
     def _refresh_diagnostics_window(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not isinstance(self._diagnostics_vars, dict) or not self._diagnostics_vars:
             return
 
@@ -14003,12 +15316,20 @@ class App(tb.Window):
             pass
 
         def _var_get(var: Any, default: Any) -> Any:
+            """Implement the `_var_get` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return var.get()
             except Exception:
                 return default
 
         def _encode_custom_labels(custom: Dict[str, List[CustomLabel]]) -> Dict[str, Any]:
+            """Implement the `_encode_custom_labels` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Any] = {}
             for spec_id, items in (custom or {}).items():
                 rows: List[Dict[str, Any]] = []
@@ -14021,6 +15342,10 @@ class App(tb.Window):
             return out
 
         def _encode_overrides(overrides: Dict[str, Dict[Tuple[str, float], Optional[str]]]) -> Dict[str, Any]:
+            """Implement the `_encode_overrides` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Any] = {}
             for spec_id, m in (overrides or {}).items():
                 items: List[Dict[str, Any]] = []
@@ -14033,6 +15358,10 @@ class App(tb.Window):
             return out
 
         def _encode_positions(positions: Dict[str, Any]) -> Dict[str, Any]:
+            """Implement the `_encode_positions` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Any] = {}
             for spec_id, items in (positions or {}).items():
                 rows: List[Dict[str, Any]] = []
@@ -14059,6 +15388,10 @@ class App(tb.Window):
 
         def _encode_uv_labels_by_uv_id(uv_labels_by_uv_id: Dict[str, Any]) -> Dict[str, Any]:
             # Convert UV-id keys to UV-path keys so restoration survives new UUIDs.
+            """Implement the `_encode_uv_labels_by_uv_id` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Any] = {}
             for uv_id, labels_by_uvrt in (uv_labels_by_uv_id or {}).items():
                 uv_sess = self._uv_sessions.get(str(uv_id))
@@ -14614,6 +15947,10 @@ class App(tb.Window):
 
         # Restore Microscopy workspaces (best-effort; older sessions may not have these fields)
         def _safe_dirname(s: str) -> str:
+            """Implement the `_safe_dirname` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             t = "".join(ch for ch in str(s) if ch.isalnum() or ch in ("-", "_", " ")).strip().replace(" ", "_")
             return t or "item"
 
@@ -14701,6 +16038,10 @@ class App(tb.Window):
 
         # Other UI state (best-effort)
         def _set_var(var: Any, val: Any) -> None:
+            """Implement the `_set_var` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 var.set(val)
             except Exception:
@@ -14949,6 +16290,10 @@ class App(tb.Window):
         self._maybe_finalize_workspace_restore()
 
     def _maybe_finalize_workspace_restore(self) -> None:
+        """Implement the `_maybe_finalize_workspace_restore` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ctx = getattr(self, "_workspace_restore_ctx", None)
         if not isinstance(ctx, dict):
             return
@@ -14969,6 +16314,10 @@ class App(tb.Window):
         uv_load_order_by_path: Dict[str, int] = ctx.get("uv_load_order_by_path") or {}
 
         def _decode_custom_labels(payload: Any) -> Dict[str, List[CustomLabel]]:
+            """Implement the `_decode_custom_labels` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, List[CustomLabel]] = {}
             if not isinstance(payload, dict):
                 return out
@@ -14989,6 +16338,10 @@ class App(tb.Window):
             return out
 
         def _decode_overrides(payload: Any) -> Dict[str, Dict[Tuple[str, float], Optional[str]]]:
+            """Implement the `_decode_overrides` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Dict[Tuple[str, float], Optional[str]]] = {}
             if not isinstance(payload, dict):
                 return out
@@ -15012,6 +16365,10 @@ class App(tb.Window):
             return out
 
         def _decode_positions(payload: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
+            """Implement the `_decode_positions` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Dict[str, Dict[str, Any]]] = {}
             if not isinstance(payload, dict):
                 return out
@@ -15033,78 +16390,6 @@ class App(tb.Window):
                         except Exception:
                             continue
                 out[str(spec_id)] = rows
-            return out
-
-        def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
-            out: Dict[float, List[UVLabelState]] = {}
-            if not isinstance(payload, list):
-                return out
-            for row in payload:
-                if not isinstance(row, dict):
-                    continue
-                try:
-                    uv_rt_raw = row.get("uv_rt")
-                    if uv_rt_raw is None:
-                        continue
-                    uv_rt = float(uv_rt_raw)
-                except Exception:
-                    continue
-                labels: List[UVLabelState] = []
-                for st in (row.get("labels") or []):
-                    if not isinstance(st, dict):
-                        continue
-                    try:
-                        xy = st.get("xytext") or [0.0, 0.0]
-                        labels.append(
-                            UVLabelState(
-                                text=str(st.get("text", "")),
-                                xytext=(float(xy[0]), float(xy[1])),
-                                confidence=float(st.get("confidence", 0.0) or 0.0),
-                                rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
-                                uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
-                                tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
-                                locked=bool(st.get("locked", False)),
-                            )
-                        )
-                    except Exception:
-                        continue
-                out[float(uv_rt)] = labels
-            return out
-
-        def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
-            out: Dict[float, List[UVLabelState]] = {}
-            if not isinstance(payload, list):
-                return out
-            for row in payload:
-                if not isinstance(row, dict):
-                    continue
-                try:
-                    uv_rt_raw = row.get("uv_rt")
-                    if uv_rt_raw is None:
-                        continue
-                    uv_rt = float(uv_rt_raw)
-                except Exception:
-                    continue
-                labels: List[UVLabelState] = []
-                for st in (row.get("labels") or []):
-                    if not isinstance(st, dict):
-                        continue
-                    try:
-                        xy = st.get("xytext") or [0.0, 0.0]
-                        labels.append(
-                            UVLabelState(
-                                text=str(st.get("text", "")),
-                                xytext=(float(xy[0]), float(xy[1])),
-                                confidence=float(st.get("confidence", 0.0) or 0.0),
-                                rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
-                                uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
-                                tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
-                                locked=bool(st.get("locked", False)),
-                            )
-                        )
-                    except Exception:
-                        continue
-                out[float(uv_rt)] = labels
             return out
 
         # Restore mzML order as saved
@@ -15231,7 +16516,7 @@ class App(tb.Window):
                     uv_id = uv_path_to_id.get(uv_path)
                     if not uv_id:
                         continue
-                    sess.uv_labels_by_uv_id[str(uv_id)] = _decode_uv_labels(payload)
+                    sess.uv_labels_by_uv_id[str(uv_id)] = decode_uv_label_payload(payload)
 
             try:
                 self._refresh_ws_tree_row(str(sid))
@@ -15356,6 +16641,10 @@ class App(tb.Window):
             self._workspace_restore_ctx = None  # type: ignore[attr-defined]
 
     def _maybe_finalize_lcms_workspace_restore(self) -> None:
+        """Implement the `_maybe_finalize_lcms_workspace_restore` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ctx = getattr(self, "_lcms_workspace_restore_ctx", None)
         if not isinstance(ctx, dict):
             return
@@ -15373,6 +16662,10 @@ class App(tb.Window):
                 continue
 
         def _decode_annotations(payload: Any) -> Tuple[Dict[str, List[CustomLabel]], Dict[str, Dict[Tuple[str, float], Optional[str]]]]:
+            """Implement the `_decode_annotations` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             custom_out: Dict[str, List[CustomLabel]] = {}
             overrides_out: Dict[str, Dict[Tuple[str, float], Optional[str]]] = {}
             if not isinstance(payload, dict):
@@ -15409,6 +16702,10 @@ class App(tb.Window):
             return custom_out, overrides_out
 
         def _decode_positions(payload: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
+            """Implement the `_decode_positions` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, Dict[str, Dict[str, Any]]] = {}
             if not isinstance(payload, dict):
                 return out
@@ -15430,42 +16727,6 @@ class App(tb.Window):
                         except Exception:
                             continue
                 out[str(spec_id)] = rows
-            return out
-
-        def _decode_uv_labels(payload: Any) -> Dict[float, List[UVLabelState]]:
-            out: Dict[float, List[UVLabelState]] = {}
-            if not isinstance(payload, list):
-                return out
-            for row in payload:
-                if not isinstance(row, dict):
-                    continue
-                try:
-                    uv_rt_raw = row.get("uv_rt")
-                    if uv_rt_raw is None:
-                        continue
-                    uv_rt = float(uv_rt_raw)
-                except Exception:
-                    continue
-                labels: List[UVLabelState] = []
-                for st in (row.get("labels") or []):
-                    if not isinstance(st, dict):
-                        continue
-                    try:
-                        xy = st.get("xytext") or [0.0, 0.0]
-                        labels.append(
-                            UVLabelState(
-                                text=str(st.get("text", "")),
-                                xytext=(float(xy[0]), float(xy[1])),
-                                confidence=float(st.get("confidence", 0.0) or 0.0),
-                                rt_delta_min=float(st.get("rt_delta_min", 0.0) or 0.0),
-                                uv_peak_score=float(st.get("uv_peak_score", 0.0) or 0.0),
-                                tic_peak_score=float(st.get("tic_peak_score", 0.0) or 0.0),
-                                locked=bool(st.get("locked", False)),
-                            )
-                        )
-                    except Exception:
-                        continue
-                out[float(uv_rt)] = labels
             return out
 
         # Apply per-session saved fields now that UV sessions are loaded
@@ -15509,7 +16770,7 @@ class App(tb.Window):
                     uv_id = uv_path_to_id.get(str(uv_path))
                     if not uv_id:
                         continue
-                    sess.uv_labels_by_uv_id[str(uv_id)] = _decode_uv_labels(payload)
+                    sess.uv_labels_by_uv_id[str(uv_id)] = decode_uv_label_payload(payload)
 
             # Restore linked UV per session (if saved)
             try:
@@ -15595,6 +16856,10 @@ class App(tb.Window):
             self._lcms_workspace_restore_ctx = None
 
     def _save_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         initial_dir = self._default_lcms_workspace_dir()
         path = filedialog.asksaveasfilename(
             parent=self,
@@ -15648,6 +16913,10 @@ class App(tb.Window):
         self._add_recent_lcms_workspace(save_path)
 
     def _get_active_microscopy_workspace(self) -> Optional[MicroscopyWorkspace]:
+        """Implement the `_get_active_microscopy_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             wss = getattr(self.workspace, "microscopy_workspaces", None) or []
         except Exception:
@@ -15667,6 +16936,10 @@ class App(tb.Window):
         return wss[0]
 
     def _encode_microscopy_workspace(self, ws_obj: MicroscopyWorkspace) -> Dict[str, Any]:
+        """Implement the `_encode_microscopy_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds_rows: List[Dict[str, Any]] = []
         for d in (getattr(ws_obj, "datasets", None) or []):
             ds_rows.append(
@@ -15684,7 +16957,15 @@ class App(tb.Window):
         return {"id": str(getattr(ws_obj, "id", "")), "name": str(getattr(ws_obj, "name", "Workspace")), "datasets": ds_rows}
 
     def _decode_microscopy_workspace(self, row: Dict[str, Any], *, fallback_root: Path) -> MicroscopyWorkspace:
+        """Implement the `_decode_microscopy_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _safe_dirname(s: str) -> str:
+            """Implement the `_safe_dirname` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             t = "".join(ch for ch in str(s) if ch.isalnum() or ch in ("-", "_", " ")).strip().replace(" ", "_")
             return t or "item"
 
@@ -15729,6 +17010,10 @@ class App(tb.Window):
         return ws_obj
 
     def _save_microscopy_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_obj = self._get_active_microscopy_workspace()
         if ws_obj is None:
             messagebox.showinfo("Save Microscopy Workspace", "No microscopy workspace to save.")
@@ -15768,6 +17053,10 @@ class App(tb.Window):
             messagebox.showerror("Save Microscopy Workspace", f"Failed to save:\n\n{exc}")
 
     def _load_microscopy_workspace(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             title="Load Microscopy Workspace",
             filetypes=[("Microscopy workspace", "*.microscopy.json"), ("JSON", "*.json"), ("All files", "*.*")],
@@ -15867,6 +17156,10 @@ class App(tb.Window):
         messagebox.showinfo("Save Workspace", f"Saved workspace:\n\n{path}", parent=self)
 
     def _load_workspace(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._sessions or self._uv_sessions:
             if not messagebox.askyesno(
                 "Load LCMS Workspace",
@@ -15888,6 +17181,10 @@ class App(tb.Window):
         self._load_lcms_workspace_from_path(Path(path))
 
     def _default_lcms_workspace_dir(self) -> Optional[Path]:
+        """Implement the `_default_lcms_workspace_dir` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._last_lcms_workspace_dir is not None:
             return self._last_lcms_workspace_dir
         try:
@@ -15902,6 +17199,10 @@ class App(tb.Window):
             return None
 
     def _ensure_lcms_workspace_extension(self, path: Path) -> Path:
+        """Implement the `_ensure_lcms_workspace_extension` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(path)
         low = str(p).lower()
         if low.endswith(".lcms_workspace.json"):
@@ -15911,6 +17212,10 @@ class App(tb.Window):
         return p.with_name(p.name + ".lcms_workspace.json")
 
     def _add_recent_lcms_workspace(self, path: Path) -> None:
+        """Implement the `_add_recent_lcms_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             p = Path(path).expanduser().resolve()
         except Exception:
@@ -15925,6 +17230,10 @@ class App(tb.Window):
         self._refresh_recent_lcms_menu()
 
     def _refresh_recent_lcms_menu(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         menu = self._recent_lcms_menu
         if menu is None:
             return
@@ -15943,6 +17252,10 @@ class App(tb.Window):
             menu.add_command(label=label, command=lambda path=p: self._load_lcms_workspace_from_path(Path(path)))
 
     def _reveal_lcms_workspace_in_explorer(self) -> None:
+        """Implement the `_reveal_lcms_workspace_in_explorer` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self.lcms_workspace_path is None:
             self._set_status("No LCMS workspace path available.")
             return
@@ -15952,6 +17265,10 @@ class App(tb.Window):
             messagebox.showerror("Reveal LCMS Workspace", f"Failed to open Explorer:\n\n{exc}", parent=self)
 
     def _load_lcms_workspace_from_path(self, path: Path) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -16022,6 +17339,10 @@ class App(tb.Window):
         base_dir = Path(path).expanduser().resolve().parent
 
         def _resolve_path(p: str) -> Path:
+            """Implement the `_resolve_path` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             pp = Path(p).expanduser()
             return pp if pp.is_absolute() else (base_dir / pp)
 
@@ -16073,6 +17394,7 @@ class App(tb.Window):
         try:
             indexed_mzml_rows = list(enumerate(list(mzml_rows)))
 
+            # Helper function for `_load_order_key` workflow behavior.
             def _load_order_key(item: Tuple[int, Any]) -> Tuple[int, int, int]:
                 i, row0 = item
                 row = (row0 if isinstance(row0, dict) else {})
@@ -16121,6 +17443,7 @@ class App(tb.Window):
         try:
             indexed_uv_rows = list(enumerate(list(uv_rows)))
 
+            # Helper function for `_uv_load_order_key` workflow behavior.
             def _uv_load_order_key(item: Tuple[int, Any]) -> Tuple[int, int, int]:
                 i, row0 = item
                 row = (row0 if isinstance(row0, dict) else {})
@@ -16227,6 +17550,10 @@ class App(tb.Window):
         self._maybe_finalize_lcms_workspace_restore()
 
     def _open_instructions_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._instructions_win is not None:
             try:
                 if bool(self._instructions_win.winfo_exists()):
@@ -16244,6 +17571,10 @@ class App(tb.Window):
         self._instructions_win = win
 
     def _set_status(self, text: str) -> None:
+        """Implement the `_set_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         msg = str(text)
         try:
             self._status.configure(text=msg)
@@ -16255,6 +17586,10 @@ class App(tb.Window):
             pass
 
     def _update_app_chrome_context(self, status_text: Optional[str] = None) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         chrome = getattr(self, "_app_chrome", None)
         if chrome is None:
             return
@@ -16306,6 +17641,10 @@ class App(tb.Window):
                 pass
 
     def _update_status_current(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mzml = self._active_session_display_name() if getattr(self, "_active_session_id", None) else (self.mzml_path.name if self.mzml_path else "(no mzML)")
         uv_sess = self._active_uv_session()
         uv = uv_sess.path.name if uv_sess is not None else "(no UV linked)"
@@ -16330,6 +17669,10 @@ class App(tb.Window):
         self._update_current_context_panel()
 
     def _update_now_viewing_header(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             detail_var = getattr(self, "_now_view_var", None)
             stage_var = getattr(self, "_now_stage_var", None)
@@ -16359,6 +17702,10 @@ class App(tb.Window):
         self._update_current_context_panel()
 
     def _apply_quick_annotate_settings(self) -> None:
+        """Implement the `_apply_quick_annotate_settings` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             top_n = int(self.annotate_top_n_var.get())
             if top_n < 0:
@@ -16382,6 +17729,10 @@ class App(tb.Window):
         self._update_status_current()
 
     def _apply_uv_ms_labels_to_selected_rt(self) -> None:
+        """Implement the `_apply_uv_ms_labels_to_selected_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(self.uv_label_from_ms_var.get()):
             messagebox.showinfo("UV labels", "Enable UV label transfer first.", parent=self)
             return
@@ -16405,6 +17756,10 @@ class App(tb.Window):
 
     def _reset_view_all(self) -> None:
         # Clear axis limits and reset toolbar zoom.
+        """Implement the `_reset_view_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for v in [
             self.tic_xlim_min_var,
             self.tic_xlim_max_var,
@@ -16432,12 +17787,20 @@ class App(tb.Window):
 
     # --- Workspace / multi-mzML sessions ---
     def _active_session_display_name(self) -> str:
+        """Implement the `_active_session_display_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = getattr(self, "_active_session_id", None)
         if sid and sid in self._sessions:
             return str(self._sessions[sid].display_name)
         return self.mzml_path.name if self.mzml_path else "(no mzML)"
 
     def _get_session_id_by_path(self, path: Path) -> Optional[str]:
+        """Implement the `_get_session_id_by_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(path).expanduser().resolve()
         for sid, sess in self._sessions.items():
             try:
@@ -16448,6 +17811,10 @@ class App(tb.Window):
         return None
 
     def _open_mzml_many(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths = filedialog.askopenfilenames(
             title="Select one or more mzML files",
             filetypes=[("mzML files", "*.mzML"), ("All files", "*.*")],
@@ -16457,6 +17824,10 @@ class App(tb.Window):
         self._add_mzml_paths([Path(p) for p in paths], make_first_active=(self._active_session_id is None))
 
     def _add_mzml_paths(self, paths: Sequence[Path], *, make_first_active: bool) -> None:
+        """Implement the `_add_mzml_paths` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         make_active_next = bool(make_first_active)
         for p in paths:
             mzml_path = Path(p).expanduser().resolve()
@@ -16481,6 +17852,10 @@ class App(tb.Window):
             make_active_next = False
 
     def _add_session_from_path_async(self, mzml_path: Path, *, make_active: bool) -> None:
+        """Implement the `_add_session_from_path_async` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         session_id = uuid.uuid4().hex
         self._session_load_counter += 1
         load_order = int(self._session_load_counter)
@@ -16496,12 +17871,16 @@ class App(tb.Window):
         rt_unit = self.rt_unit_var.get()
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 idx = MzMLTICIndex(mzml_path, rt_unit=rt_unit)
                 idx.build()
                 self.after(0, lambda: self._on_session_index_ready(session_id, mzml_path, idx, load_order, make_active, None))
             except Exception as exc:
-                self.after(0, lambda: self._on_session_index_ready(session_id, mzml_path, None, load_order, make_active, exc))
+                self.after(0, lambda exc=exc: self._on_session_index_ready(session_id, mzml_path, None, load_order, make_active, exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -16514,6 +17893,10 @@ class App(tb.Window):
         make_active: bool,
         err: Optional[Exception],
     ) -> None:
+        """Implement the `_on_session_index_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if err is not None or idx is None:
             try:
                 if self._ws_tree is not None and self._ws_tree.exists(session_id):
@@ -16600,10 +17983,6 @@ class App(tb.Window):
         except Exception:
             pass
 
-        rt_txt = "—"
-        if rt_min is not None and rt_max is not None:
-            rt_txt = f"{rt_min:.2f}..{rt_max:.2f} ({pol_sum})"
-
         if self._ws_tree is not None:
             try:
                 active_mark = "●" if (self._active_session_id == session_id) else ""
@@ -16646,6 +18025,10 @@ class App(tb.Window):
             self._maybe_finalize_lcms_workspace_restore()
 
     def _save_active_session_state(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._active_session_id
         if sid is None or sid not in self._sessions:
             return
@@ -16662,6 +18045,10 @@ class App(tb.Window):
         sess.spec_label_positions = self._spec_label_positions
 
     def _set_active_session(self, session_id: str) -> None:
+        """Implement the `_set_active_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not session_id or session_id not in self._sessions:
             return
         if self._active_session_id == session_id:
@@ -16760,6 +18147,10 @@ class App(tb.Window):
         self._notify_active_session_changed()
 
     def _selected_session_id_from_tree(self) -> Optional[str]:
+        """Implement the `_selected_session_id_from_tree` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_tree is None:
             return None
         try:
@@ -16769,6 +18160,10 @@ class App(tb.Window):
             return None
 
     def _set_active_from_workspace(self) -> None:
+        """Implement the `_set_active_from_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_session_id_from_tree()
         if not sid:
             messagebox.showinfo("Workspace", "Select an mzML in the Workspace list.", parent=self)
@@ -16776,17 +18171,29 @@ class App(tb.Window):
         self._set_active_session(sid)
 
     def _remove_selected_session(self) -> None:
+        """Implement the `_remove_selected_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_session_id_from_tree() or self._active_session_id
         if not sid:
             return
         self._remove_session(sid)
 
     def _close_active_session(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._active_session_id is None:
             return
         self._remove_session(self._active_session_id)
 
     def _remove_session(self, session_id: str) -> None:
+        """Implement the `_remove_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id not in self._sessions:
             return
         sess = self._sessions[session_id]
@@ -16884,6 +18291,10 @@ class App(tb.Window):
             self._update_status_current()
 
     def _rename_session(self, session_id: str) -> None:
+        """Implement the `_rename_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id not in self._sessions:
             return
         sess = self._sessions[session_id]
@@ -16909,6 +18320,10 @@ class App(tb.Window):
         self._update_status_current()
 
     def _copy_session_path(self, session_id: str) -> None:
+        """Implement the `_copy_session_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id not in self._sessions:
             return
         p = str(self._sessions[session_id].path)
@@ -16920,6 +18335,10 @@ class App(tb.Window):
         self._set_status(f"Copied path: {p}")
 
     def _ensure_ws_menu(self) -> None:
+        """Implement the `_ensure_ws_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_menu is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -16933,6 +18352,10 @@ class App(tb.Window):
         self._ws_menu = m
 
     def _on_ws_right_click(self, evt) -> None:
+        """Implement the `_on_ws_right_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_tree is None:
             return
         try:
@@ -16953,6 +18376,10 @@ class App(tb.Window):
                 pass
 
     def _overlay_palette(self) -> List[str]:
+        """Implement the `_overlay_palette` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = [str(c) for c in mcolors.TABLEAU_COLORS.values()]
         extra = [
             "#1f77b4",
@@ -16969,6 +18396,10 @@ class App(tb.Window):
         return base + [c for c in extra if c not in base]
 
     def _overlay_scheme_options(self) -> List[str]:
+        """Implement the `_overlay_scheme_options` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return [
             "Auto (Tableau)",
             "Manual (per-dataset)",
@@ -16986,6 +18417,10 @@ class App(tb.Window):
         ]
 
     def _on_overlay_scheme_changed(self) -> None:
+        """Implement the `_on_overlay_scheme_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._apply_overlay_color_scheme()
         except Exception:
@@ -16997,6 +18432,10 @@ class App(tb.Window):
             pass
 
     def _pick_overlay_single_hue_color(self) -> None:
+        """Implement the `_pick_overlay_single_hue_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         current = str(self._overlay_single_hue_color or "#1f77b4")
         try:
             picked = colorchooser.askcolor(color=(current or None), title="Pick overlay hue", parent=self)[1]
@@ -17012,6 +18451,10 @@ class App(tb.Window):
         self._on_overlay_scheme_changed()
 
     def _overlay_colors_for_scheme(self, scheme: str, n: int) -> List[str]:
+        """Implement the `_overlay_colors_for_scheme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if n <= 0:
             return []
         scheme = str(scheme or "").strip()
@@ -17024,9 +18467,9 @@ class App(tb.Window):
             except Exception:
                 base_rgb = (0.12, 0.47, 0.71)
             try:
-                h, l, s = colorsys.rgb_to_hls(*base_rgb)
+                h, _, s = colorsys.rgb_to_hls(*base_rgb)
             except Exception:
-                h, l, s = (0.58, 0.45, 0.65)
+                h, _, s = (0.58, 0.45, 0.65)
             lo = 0.22
             hi = 0.88
             vals = np.linspace(lo, hi, n)
@@ -17044,6 +18487,10 @@ class App(tb.Window):
         return [mcolors.to_hex(cmap(float(x))) for x in xs]
 
     def _apply_overlay_color_scheme(self, *, ids: Optional[List[str]] = None) -> None:
+        """Implement the `_apply_overlay_color_scheme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         scheme = str(self._overlay_scheme_var.get() or "").strip()
         if scheme == "Manual (per-dataset)":
             return
@@ -17082,6 +18529,10 @@ class App(tb.Window):
                 pass
 
     def _next_overlay_color(self) -> str:
+        """Implement the `_next_overlay_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         used = {str(getattr(s, "overlay_color", "")) for s in self._sessions.values() if getattr(s, "overlay_color", "")}
         for c in self._overlay_palette():
             if c not in used:
@@ -17089,6 +18540,10 @@ class App(tb.Window):
         return "#4e79a7"
 
     def _ensure_overlay_color(self, session_id: str) -> str:
+        """Implement the `_ensure_overlay_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id not in self._sessions:
             return "#4e79a7"
         sess = self._sessions[session_id]
@@ -17102,6 +18557,10 @@ class App(tb.Window):
         return str(col)
 
     def _configure_lcms_tree(self, tree: Optional[Any]) -> None:
+        """Implement the `_configure_lcms_tree` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if tree is None:
             return
         try:
@@ -17119,6 +18578,10 @@ class App(tb.Window):
                 pass
 
     def _refresh_lcms_tree_stripes(self, tree: Optional[Any], *, active_id: Optional[str] = None) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if tree is None:
             return
         self._configure_lcms_tree(tree)
@@ -17141,6 +18604,10 @@ class App(tb.Window):
                 pass
 
     def _refresh_ws_tree_row(self, session_id: str) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_tree is None or session_id not in self._sessions:
             return
         if not self._ws_tree.exists(session_id):
@@ -17164,6 +18631,10 @@ class App(tb.Window):
         self._refresh_lcms_tree_stripes(self._ws_tree, active_id=self._active_session_id)
 
     def _on_ws_left_click(self, evt) -> Optional[str]:
+        """Implement the `_on_ws_left_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_tree is None:
             return None
         try:
@@ -17227,6 +18698,10 @@ class App(tb.Window):
         return None
 
     def _open_selected_mzml_folder(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_session_id_from_tree()
         if not sid or sid not in self._sessions:
             return
@@ -17246,6 +18721,10 @@ class App(tb.Window):
                 pass
 
     def _link_uv_from_context_menu(self) -> None:
+        """Implement the `_link_uv_from_context_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_session_id_from_tree()
         if not sid:
             return
@@ -17276,6 +18755,10 @@ class App(tb.Window):
         btns.grid(row=2, column=0, sticky="e", pady=(12, 0))
 
         def do_link() -> None:
+            """Implement the `do_link` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             sel_name = (choice.get() or "").strip()
             picked = None
             for uid, nm in uv_items:
@@ -17299,6 +18782,10 @@ class App(tb.Window):
 
     # --- UV workspace (multi-UV sessions, linked per mzML session) ---
     def _selected_uv_id_from_tree(self) -> Optional[str]:
+        """Implement the `_selected_uv_id_from_tree` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._uv_ws_tree is None:
             return None
         try:
@@ -17308,6 +18795,10 @@ class App(tb.Window):
             return None
 
     def _get_uv_id_by_path(self, path: Path) -> Optional[str]:
+        """Implement the `_get_uv_id_by_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(path).expanduser().resolve()
         for uid, sess in self._uv_sessions.items():
             try:
@@ -17318,6 +18809,10 @@ class App(tb.Window):
         return None
 
     def _uv_display_name(self, uv_id: Optional[str]) -> str:
+        """Implement the `_uv_display_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not uv_id:
             return "—"
         sess = self._uv_sessions.get(str(uv_id))
@@ -17330,9 +18825,17 @@ class App(tb.Window):
 
     def _update_ws_row_uv(self, session_id: str) -> None:
         # Backward-compatible hook: link display moved to the UV list.
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._refresh_uv_tree_links()
 
     def _sync_active_uv_id(self) -> None:
+        """Implement the `_sync_active_uv_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._active_session_id
         if not sid or sid not in self._sessions:
             self._active_uv_id = None
@@ -17344,18 +18847,30 @@ class App(tb.Window):
             self._active_uv_id = None
 
     def _active_uv_session(self) -> Optional[UVSession]:
+        """Implement the `_active_uv_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._sync_active_uv_id()
         if not self._active_uv_id:
             return None
         return self._uv_sessions.get(str(self._active_uv_id))
 
     def _active_uv_xy(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Implement the `_active_uv_xy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv = self._active_uv_session()
         if uv is None:
             return None, None
         return uv.rt_min, uv.signal
 
     def _active_uv_labels_by_uvrt(self, *, create: bool) -> Dict[float, List[UVLabelState]]:
+        """Implement the `_active_uv_labels_by_uvrt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._active_session_id
         if not sid or sid not in self._sessions:
             return {}
@@ -17369,6 +18884,10 @@ class App(tb.Window):
         return mzsess.uv_labels_by_uv_id.get(str(uv_id), {})
 
     def _update_uv_ws_controls(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         btn = self._uv_ws_link_btn
         if btn is not None:
             uv_id = self._selected_uv_id_from_tree()
@@ -17381,6 +18900,10 @@ class App(tb.Window):
         self._refresh_lcms_action_states()
 
     def _on_ws_select(self, _evt=None) -> None:
+        """Implement the `_on_ws_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_ws_ignore_select", False)):
             return
         sid = self._selected_session_id_from_tree()
@@ -17391,6 +18914,10 @@ class App(tb.Window):
         self._set_active_session(str(sid))
 
     def _refresh_ws_active_markers(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws_tree is None:
             return
         try:
@@ -17407,6 +18934,10 @@ class App(tb.Window):
             self._refresh_lcms_tree_stripes(self._ws_tree, active_id=self._active_session_id)
 
     def _uv_linked_to_summary(self, uv_id: str) -> str:
+        """Implement the `_uv_linked_to_summary` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         linked_names: List[str] = []
         for _sid, mzsess in (self._sessions or {}).items():
             try:
@@ -17421,6 +18952,10 @@ class App(tb.Window):
         return f"{len(linked_names)} mzML"
 
     def _refresh_uv_tree_links(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._uv_ws_tree is None:
             return
         self._sync_active_uv_id()
@@ -17438,6 +18973,10 @@ class App(tb.Window):
             self._refresh_lcms_tree_stripes(self._uv_ws_tree, active_id=self._active_uv_id)
 
     def _link_uv_to_mzml(self, *, session_id: str, uv_id: str) -> None:
+        """Implement the `_link_uv_to_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not session_id or session_id not in self._sessions:
             return
         if not uv_id or uv_id not in self._uv_sessions:
@@ -17460,6 +18999,10 @@ class App(tb.Window):
             self._update_status_current()
 
     def _link_selected_uv_to_selected_mzml(self) -> None:
+        """Implement the `_link_selected_uv_to_selected_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_id = self._selected_uv_id_from_tree()
         if not uv_id:
             messagebox.showinfo("Link UV", "Select a UV CSV in the UV list.", parent=self)
@@ -17471,6 +19014,10 @@ class App(tb.Window):
         self._link_uv_to_mzml(session_id=str(sid), uv_id=str(uv_id))
 
     def _open_uv_csv_single(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             title="Select a UV chromatogram CSV",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
@@ -17480,6 +19027,10 @@ class App(tb.Window):
         self._add_uv_paths([Path(path)])
 
     def _open_uv_csv_many(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths = filedialog.askopenfilenames(
             title="Select one or more UV chromatogram CSV files",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
@@ -17489,6 +19040,10 @@ class App(tb.Window):
         self._add_uv_paths([Path(p) for p in paths])
 
     def _add_uv_paths(self, paths: Sequence[Path]) -> None:
+        """Implement the `_add_uv_paths` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for p in paths:
             csv_path = Path(p).expanduser().resolve()
             if not csv_path.exists():
@@ -17510,6 +19065,10 @@ class App(tb.Window):
         self._update_uv_ws_controls()
 
     def _add_uv_session_from_path_async(self, csv_path: Path) -> None:
+        """Implement the `_add_uv_session_from_path_async` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_id = uuid.uuid4().hex
         self._uv_load_counter += 1
         load_order = int(self._uv_load_counter)
@@ -17532,10 +19091,18 @@ class App(tb.Window):
             unit_guess: str,
             reason: str,
         ) -> Tuple[str, str, str]:
+            """Implement the `prompt_settings` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             result: Dict[str, str] = {"x": default_x, "y": default_y, "unit": unit_guess}
             done = threading.Event()
 
             def ui() -> None:
+                """Implement the `ui` behavior for this module.
+
+                Text-only documentation note: modify internal logic here to change behavior.
+                """
                 dlg = tk.Toplevel(self)
                 dlg.title("UV import settings")
                 dlg.resizable(True, False)
@@ -17580,6 +19147,10 @@ class App(tb.Window):
                 btns.grid(row=6, column=0, columnspan=2, sticky="e", pady=(12, 0))
 
                 def ok() -> None:
+                    """Implement the `ok` behavior for this module.
+
+                    Text-only documentation note: modify internal logic here to change behavior.
+                    """
                     result["x"] = (xvar.get() or default_x)
                     result["y"] = (yvar.get() or default_y)
                     result["unit"] = (uvar.get() or unit_guess)
@@ -17590,6 +19161,10 @@ class App(tb.Window):
                         pass
 
                 def cancel() -> None:
+                    """Implement the `cancel` behavior for this module.
+
+                    Text-only documentation note: modify internal logic here to change behavior.
+                    """
                     done.set()
                     try:
                         dlg.destroy()
@@ -17613,15 +19188,17 @@ class App(tb.Window):
             return (str(result["x"]), str(result["y"]), str(result["unit"]))
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 df = pd.read_csv(csv_path)
                 info = infer_uv_columns(df)
-                cols = list(info.get("cols") or [])
                 xcol = str(info.get("xcol") or "")
                 ycol = str(info.get("ycol") or "")
                 unit_guess = str(info.get("unit_guess") or "minutes")
-
-                preview_rows: List[Tuple[Any, ...]] = preview_dataframe_rows(df, n=10)
+                preview_dataframe_rows(df, n=10)
 
                 if bool(info.get("low_conf")):
                     try:
@@ -17644,7 +19221,7 @@ class App(tb.Window):
                 )
                 self.after(0, lambda: self._on_uv_session_ready(sess, None))
             except Exception as exc:
-                self.after(0, lambda: self._on_uv_session_ready(None, exc, uv_id=str(uv_id), csv_path=Path(csv_path)))
+                self.after(0, lambda exc=exc: self._on_uv_session_ready(None, exc, uv_id=str(uv_id), csv_path=Path(csv_path)))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -17656,6 +19233,10 @@ class App(tb.Window):
         uv_id: Optional[str] = None,
         csv_path: Optional[Path] = None,
     ) -> None:
+        """Implement the `_on_uv_session_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if err is not None or sess is None:
             try:
                 if self._uv_ws_tree is not None and uv_id and self._uv_ws_tree.exists(str(uv_id)):
@@ -17734,6 +19315,10 @@ class App(tb.Window):
             self._maybe_finalize_lcms_workspace_restore()
 
     def _link_uv_to_active_mzml(self, uv_id: str) -> None:
+        """Implement the `_link_uv_to_active_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._active_session_id
         if not sid:
             messagebox.showinfo("Link UV", "Load and activate an mzML session first.", parent=self)
@@ -17741,6 +19326,10 @@ class App(tb.Window):
         self._link_uv_to_mzml(session_id=str(sid), uv_id=str(uv_id))
 
     def _link_selected_uv_to_active_mzml(self) -> None:
+        """Implement the `_link_selected_uv_to_active_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_id = self._selected_uv_id_from_tree()
         if not uv_id:
             messagebox.showinfo("Link UV", "Select a UV CSV in the UV Workspace list.", parent=self)
@@ -17750,12 +19339,20 @@ class App(tb.Window):
         self._link_uv_to_active_mzml(str(uv_id))
 
     def _remove_selected_uv(self) -> None:
+        """Implement the `_remove_selected_uv` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_id = self._selected_uv_id_from_tree()
         if not uv_id:
             return
         self._remove_uv(str(uv_id))
 
     def _remove_uv(self, uv_id: str) -> None:
+        """Implement the `_remove_uv` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if uv_id not in self._uv_sessions:
             return
         sess = self._uv_sessions[uv_id]
@@ -17796,6 +19393,10 @@ class App(tb.Window):
         self._refresh_uv_tree_links()
 
     def _normalize_stem(self, s: str) -> str:
+        """Implement the `_normalize_stem` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = (s or "").strip().lower()
         out = []
         prev_us = False
@@ -17811,6 +19412,10 @@ class App(tb.Window):
         return norm
 
     def _auto_link_uv_by_name(self) -> None:
+        """Implement the `_auto_link_uv_by_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._sessions:
             messagebox.showinfo("Auto-link", "Load mzML sessions first.", parent=self)
             return
@@ -17865,6 +19470,10 @@ class App(tb.Window):
         messagebox.showinfo("Auto-link by name", msg, parent=self)
 
     def _copy_uv_path(self, uv_id: str) -> None:
+        """Implement the `_copy_uv_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if uv_id not in self._uv_sessions:
             return
         p = str(self._uv_sessions[uv_id].path)
@@ -17876,6 +19485,10 @@ class App(tb.Window):
         self._set_status(f"Copied path: {p}")
 
     def _ensure_uv_ws_menu(self) -> None:
+        """Implement the `_ensure_uv_ws_menu` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._uv_ws_menu is not None:
             return
         m = tk.Menu(self, tearoff=0)
@@ -17886,6 +19499,10 @@ class App(tb.Window):
         self._uv_ws_menu = m
 
     def _on_uv_ws_right_click(self, evt) -> None:
+        """Implement the `_on_uv_ws_right_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._uv_ws_tree is None:
             return
         try:
@@ -17906,11 +19523,19 @@ class App(tb.Window):
                 pass
 
     def _on_panels_changed(self) -> None:
+        """Implement the `_on_panels_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._rebuild_plot_axes()
         # Re-plot without blowing away selection.
         self._redraw_all()
 
     def _rebuild_plot_axes(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._fig is None or self._canvas is None:
             return
 
@@ -17981,6 +19606,10 @@ class App(tb.Window):
             pass
 
     def _apply_uv_ms_offset(self) -> None:
+        """Implement the `_apply_uv_ms_offset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (self.uv_ms_rt_offset_var.get() or "").strip()
         if not raw:
             raw = f"{self._uv_ms_rt_offset_min:.3f}"
@@ -18009,6 +19638,10 @@ class App(tb.Window):
         self._update_status_current()
 
     def _overlay_offset_step(self, max_global: float) -> float:
+        """Implement the `_overlay_offset_step` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             scale = float(getattr(self, "_overlay_offset_scale", 0.12) or 0.12)
         except Exception:
@@ -18019,6 +19652,10 @@ class App(tb.Window):
         return 1.0 if scale > 0 else 0.0
 
     def _apply_overlay_offset_scale(self) -> None:
+        """Implement the `_apply_overlay_offset_scale` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (self._overlay_offset_scale_var.get() or "").strip()
         if not raw:
             raw = f"{float(getattr(self, '_overlay_offset_scale', 0.12)):.2f}"
@@ -18039,6 +19676,10 @@ class App(tb.Window):
             self._refresh_overlay_view()
 
     def _has_uv_ms_alignment(self) -> bool:
+        """Implement the `_has_uv_ms_alignment` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return (
             self._uv_ms_align_uv_rts is not None
             and self._uv_ms_align_ms_rts is not None
@@ -18047,6 +19688,10 @@ class App(tb.Window):
         )
 
     def _map_uv_to_ms_rt(self, uv_rt_min: float) -> float:
+        """Implement the `_map_uv_to_ms_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_rt = float(uv_rt_min)
         off = float(self._uv_ms_rt_offset_min)
         if bool(self.uv_ms_align_enabled_var.get()) and self._has_uv_ms_alignment():
@@ -18059,6 +19704,10 @@ class App(tb.Window):
         return uv_rt + off
 
     def _map_ms_to_uv_rt(self, ms_rt_min: float) -> float:
+        """Implement the `_map_ms_to_uv_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ms_rt = float(ms_rt_min)
         off = float(self._uv_ms_rt_offset_min)
         if bool(self.uv_ms_align_enabled_var.get()) and self._has_uv_ms_alignment():
@@ -18071,6 +19720,10 @@ class App(tb.Window):
         return ms_rt - off
 
     def _on_uv_ms_align_enabled_changed(self) -> None:
+        """Implement the `_on_uv_ms_align_enabled_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(self.uv_ms_align_enabled_var.get()):
             if not self._has_uv_ms_alignment():
                 messagebox.showinfo(
@@ -18091,6 +19744,10 @@ class App(tb.Window):
         self._update_status_current()
 
     def _open_alignment_diagnostics(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._has_uv_ms_alignment():
             messagebox.showinfo(
                 "Alignment Diagnostics",
@@ -18119,6 +19776,10 @@ class App(tb.Window):
         self._alignment_diag_win = win
 
     def _smooth_1d(self, y: np.ndarray, window: int) -> np.ndarray:
+        """Implement the `_smooth_1d` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         arr = np.asarray(y, dtype=float)
         if arr.size < 5:
             return arr
@@ -18144,6 +19805,10 @@ class App(tb.Window):
         min_spacing_min: float = 0.20,
         smooth_target_min: float = 0.02,
     ) -> Tuple[np.ndarray, np.ndarray]:
+        """Implement the `_pick_peaks_time_series` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
         if x.size < 5 or y.size < 5:
@@ -18225,6 +19890,10 @@ class App(tb.Window):
         window_min: float = 1.5,
         amp_weight: float = 0.2,
     ) -> List[Tuple[int, int]]:
+        """Match candidates using configured rules.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_rts = np.asarray(uv_rts, dtype=float)
         uv_h = np.asarray(uv_h, dtype=float)
         ms_rts = np.asarray(ms_rts, dtype=float)
@@ -18241,6 +19910,10 @@ class App(tb.Window):
         prev_move = np.full((n + 1, m + 1), 0, dtype=np.int8)  # 1 skip uv, 2 skip ms, 3 match
 
         def better(ns: float, nc: int, os: float, oc: int) -> bool:
+            """Implement the `better` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if ns > os + 1e-12:
                 return True
             if abs(ns - os) <= 1e-12 and nc > oc:
@@ -18300,6 +19973,10 @@ class App(tb.Window):
         return pairs
 
     def _auto_align_uv_ms(self) -> None:
+        """Implement the `_auto_align_uv_ms` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._active_uv_session() is None:
             messagebox.showerror("Auto-align", "Link a UV CSV to the active mzML session first.", parent=self)
             return
@@ -18323,6 +20000,10 @@ class App(tb.Window):
         result_box: Dict[str, Any] = {}
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 uv_peaks_x, uv_peaks_h = self._pick_peaks_time_series(uv_x0, uv_y0, top_n=25)
                 ms_peaks_x, ms_peaks_h = self._pick_peaks_time_series(ms_x0, ms_y0, top_n=25)
@@ -18370,6 +20051,10 @@ class App(tb.Window):
                 result_box["error"] = str(exc)
 
         def done() -> None:
+            """Implement the `done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._hide_busy()
             err = result_box.get("error")
             if err:
@@ -18408,6 +20093,10 @@ class App(tb.Window):
         t.start()
 
         def poll() -> None:
+            """Implement the `poll` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if t.is_alive():
                 self.after(200, poll)
             else:
@@ -18488,6 +20177,10 @@ class App(tb.Window):
         search_half_window_min: float,
         crowd_half_window_min: float,
     ) -> Tuple[Optional[float], int]:
+        """Implement the `_nearest_apex_distance_and_crowding` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         peaks = self._local_maxima_indices(
             rt,
             signal,
@@ -18560,6 +20253,10 @@ class App(tb.Window):
         }
 
     def _format_uv_label_display_text(self, st: UVLabelState) -> str:
+        """Implement the `_format_uv_label_display_text` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = str(getattr(st, "text", "") or "").strip()
         try:
             conf = float(getattr(st, "confidence", 0.0) or 0.0)
@@ -18574,16 +20271,28 @@ class App(tb.Window):
         return f"{base}  [{conf:.0f}%]"
 
     def _go_to_index(self, idx: int) -> None:
+        """Implement the `_go_to_index` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._filtered_meta:
             return
         self._show_spectrum_for_index(int(idx))
 
     def _go_last(self) -> None:
+        """Implement the `_go_last` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._filtered_meta:
             return
         self._show_spectrum_for_index(len(self._filtered_meta) - 1)
 
     def _step_spectrum(self, delta: int) -> None:
+        """Implement the `_step_spectrum` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._filtered_meta:
             return
         if self._current_scan_index is None:
@@ -18592,6 +20301,10 @@ class App(tb.Window):
         self._show_spectrum_for_index(int(self._current_scan_index) + int(delta))
 
     def _jump_to_rt(self) -> None:
+        """Implement the `_jump_to_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._filtered_rts is None or self._filtered_rts.size == 0:
             return
         raw = (self._rt_jump_var.get() or "").strip()
@@ -18607,10 +20320,18 @@ class App(tb.Window):
 
     # --- EIC (Extracted Ion Chromatogram) ---
     def _register_ms_position_listener(self, cb: Callable[[Optional[float]], None]) -> None:
+        """Implement the `_register_ms_position_listener` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if cb not in self._ms_position_listeners:
             self._ms_position_listeners.append(cb)
 
     def _unregister_ms_position_listener(self, cb: Callable[[Optional[float]], None]) -> None:
+        """Implement the `_unregister_ms_position_listener` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if cb in self._ms_position_listeners:
                 self._ms_position_listeners.remove(cb)
@@ -18618,10 +20339,18 @@ class App(tb.Window):
             pass
 
     def _register_active_session_listener(self, cb: Callable[[], None]) -> None:
+        """Implement the `_register_active_session_listener` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if cb not in self._active_session_listeners:
             self._active_session_listeners.append(cb)
 
     def _unregister_active_session_listener(self, cb: Callable[[], None]) -> None:
+        """Implement the `_unregister_active_session_listener` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if cb in self._active_session_listeners:
                 self._active_session_listeners.remove(cb)
@@ -18629,6 +20358,10 @@ class App(tb.Window):
             pass
 
     def _notify_ms_position_changed(self) -> None:
+        """Implement the `_notify_ms_position_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rt_min: Optional[float] = None
         try:
             meta = self._current_spectrum_meta
@@ -18643,6 +20376,10 @@ class App(tb.Window):
                 continue
 
     def _notify_active_session_changed(self) -> None:
+        """Implement the `_notify_active_session_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for cb in list(self._active_session_listeners):
             try:
                 cb()
@@ -18650,6 +20387,10 @@ class App(tb.Window):
                 continue
 
     def _open_sim_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._index is None or self.mzml_path is None:
             messagebox.showinfo("EIC", "Open an mzML file first.", parent=self)
             return
@@ -18731,6 +20472,10 @@ class App(tb.Window):
         style_secondary(cancel_btn)
 
         def on_run() -> None:
+            """Run this workflow end-to-end.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 target_mz = float((target_var.get() or "").strip())
             except Exception:
@@ -18771,6 +20516,10 @@ class App(tb.Window):
             pass
 
     def _sim_cache_key(self, *, mzml_path: Path, polarity_filter: str, target_mz: float, tol_value: float, unit: str) -> Tuple[str, str, float, float, str]:
+        """Implement the `_sim_cache_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return (
             str(Path(mzml_path).expanduser().resolve()),
             str(polarity_filter or "all"),
@@ -18780,6 +20529,10 @@ class App(tb.Window):
         )
 
     def _run_sim_for_window(self, win: "SIMWindow") -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._index is None or self.mzml_path is None:
             try:
                 win.set_data(mzml_path=Path(""), rts=np.asarray([], dtype=float), intensities=np.asarray([], dtype=float), polarity_filter="all")
@@ -18847,6 +20600,10 @@ class App(tb.Window):
                 continue
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             reader = None
             try:
                 reader = mzml.MzML(str(mzml_path))
@@ -18907,7 +20664,7 @@ class App(tb.Window):
                     ),
                 )
             except Exception as exc:
-                self.after(0, lambda: self._on_sim_error(token=token, err=exc))
+                self.after(0, lambda exc=exc: self._on_sim_error(token=token, err=exc))
             finally:
                 try:
                     if reader is not None:
@@ -18918,6 +20675,10 @@ class App(tb.Window):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_sim_error(self, *, token: int, err: Exception) -> None:
+        """Implement the `_on_sim_error` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._hide_busy()
         except Exception:
@@ -18935,6 +20696,10 @@ class App(tb.Window):
         ints: np.ndarray,
         win: "SIMWindow",
     ) -> None:
+        """Implement the `_on_sim_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._hide_busy()
         except Exception:
@@ -18956,6 +20721,10 @@ class App(tb.Window):
             pass
 
     def _mz_find_history_format(self, entry: Tuple[float, float, str, str, float]) -> str:
+        """Implement the `_mz_find_history_format` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mz_v, tol_v, unit, mode, min_int = entry
         unit = (unit or "ppm").strip()
         mode = (mode or "Nearest").strip()
@@ -18968,6 +20737,10 @@ class App(tb.Window):
         return f"m/z {mz_v:.4f} ± {tol_v:g} Da ({mode}){min_part}"
 
     def _mz_find_history_refresh_combobox(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         combo = getattr(self, "_mz_find_history_combo", None)
         if combo is None:
             return
@@ -18983,6 +20756,10 @@ class App(tb.Window):
             pass
 
     def _mz_find_history_on_select(self, _evt=None) -> None:
+        """Implement the `_mz_find_history_on_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         key = (self._mz_find_history_var.get() or "").strip()
         if not key:
             return
@@ -18997,6 +20774,10 @@ class App(tb.Window):
         self._mz_find_min_int_var.set(f"{float(min_int):g}")
 
     def _open_find_mz_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg0 = getattr(self, "_mz_find_dialog", None)
         if dlg0 is not None:
             try:
@@ -19054,6 +20835,10 @@ class App(tb.Window):
         close_btn.grid(row=0, column=1)
 
         def _on_close() -> None:
+            """Close resources and finalize state.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._mz_find_dialog = None
             except Exception:
@@ -19088,6 +20873,10 @@ class App(tb.Window):
             pass
 
     def _clear_mz_find_highlight(self) -> None:
+        """Implement the `_clear_mz_find_highlight` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._mz_find_highlight_artist is not None:
                 self._mz_find_highlight_artist.remove()
@@ -19098,6 +20887,10 @@ class App(tb.Window):
         self._mz_find_highlight_tol_da = None
 
     def _draw_mz_find_highlight(self, peak_mz: float) -> None:
+        """Implement the `_draw_mz_find_highlight` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         self._clear_mz_find_highlight()
@@ -19112,6 +20905,10 @@ class App(tb.Window):
             pass
 
     def _mz_find_cache_key(self, target_mz: float, tol_value: float, tol_unit: str, min_intensity: float) -> Tuple[str, str, float, float, str, float]:
+        """Implement the `_mz_find_cache_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mzml_path = str(self.mzml_path) if self.mzml_path is not None else ""
         pol = (self.polarity_var.get() or "all").strip()
         mz_r = float(round(float(target_mz), 4))
@@ -19119,6 +20916,10 @@ class App(tb.Window):
         return (mzml_path, str(pol), float(mz_r), float(tol_value), str(unit), float(min_intensity))
 
     def _mz_find_tol_da(self, target_mz: float, tol_value: float, tol_unit: str) -> float:
+        """Implement the `_mz_find_tol_da` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         unit = (tol_unit or "ppm").strip().lower()
         if unit == "ppm":
             return abs(float(target_mz)) * float(tol_value) * 1e-6
@@ -19126,6 +20927,10 @@ class App(tb.Window):
 
     def _mz_find_update_history(self, params: Tuple[float, float, str, str, float]) -> None:
         # unique by full tuple, most recent first
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._mz_find_history = [p for p in self._mz_find_history if p != params]
         except Exception:
@@ -19151,6 +20956,10 @@ class App(tb.Window):
         target_mz: float,
         peak_cache: Dict[int, Tuple[float, float, float]],
     ) -> Optional[int]:
+        """Implement the `_mz_find_pick_target_index` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not matches:
             return None
         matches_sorted = sorted(set(int(i) for i in matches))
@@ -19201,6 +21010,10 @@ class App(tb.Window):
         return int(best_i) if best_i is not None else None
 
     def _find_mz_jump(self) -> None:
+        """Implement the `_find_mz_jump` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._index is None or not self._filtered_meta:
             messagebox.showinfo("Find m/z", "Open an mzML file first.", parent=self)
             return
@@ -19256,6 +21069,10 @@ class App(tb.Window):
         self._show_busy("Searching scans for m/z…")
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 matches: List[int] = []
                 peak_info: Dict[int, Tuple[float, float, float]] = {}
@@ -19330,6 +21147,7 @@ class App(tb.Window):
                             matches.append(int(idx))
                             peak_info[int(idx)] = (float(mz_s[best_j]), float(int_s[best_j]), float(err))
 
+                # Helper function for `done` workflow behavior.
                 def done() -> None:
                     self._hide_busy()
                     self._mz_find_cache[key] = sorted(set(int(i) for i in matches))
@@ -19341,7 +21159,7 @@ class App(tb.Window):
 
                 self.after(0, done)
             except Exception as exc:
-                self.after(0, lambda: (self._hide_busy(), messagebox.showerror("Error", f"Find m/z failed:\n{exc}", parent=self)))
+                self.after(0, lambda exc=exc: (self._hide_busy(), messagebox.showerror("Error", f"Find m/z failed:\n{exc}", parent=self)))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -19358,6 +21176,10 @@ class App(tb.Window):
         *,
         same_params: bool,
     ) -> None:
+        """Implement the `_mz_find_finish_jump` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not matches:
             messagebox.showinfo("Find m/z", "No scan contains m/z within tolerance.", parent=self)
             return
@@ -19404,6 +21226,10 @@ class App(tb.Window):
                 pass
 
     def _export_spectrum_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._current_spectrum_meta is None or self._current_spectrum_mz is None or self._current_spectrum_int is None:
             messagebox.showerror("No spectrum", "Load a spectrum first (click TIC/UV).", parent=self)
             return
@@ -19453,6 +21279,10 @@ class App(tb.Window):
         messagebox.showinfo("Exported", f"Saved:\n{path}", parent=self)
 
     def _export_overlay_tic_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_overlay_active():
             messagebox.showinfo("Overlay", "Overlay mode is not active.", parent=self)
             return
@@ -19515,6 +21345,10 @@ class App(tb.Window):
         messagebox.showinfo("Exported", f"Saved:\n{path}", parent=self)
 
     def _export_overlay_spectra(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_overlay_active():
             messagebox.showinfo("Overlay", "Overlay mode is not active.", parent=self)
             return
@@ -19569,33 +21403,57 @@ class App(tb.Window):
 
         msg = f"Saved overlay spectra with base:\n{base}"
         if skipped:
-            msg += f"\n\nSkipped (no scan near RT):\n" + "\n".join(skipped)
+            msg += "\n\nSkipped (no scan near RT):\n" + "\n".join(skipped)
         messagebox.showinfo("Exported", msg, parent=self)
 
     def _safe_filename(self, name: str) -> str:
+        """Implement the `_safe_filename` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = "".join(ch for ch in str(name) if ch.isalnum() or ch in ("-", "_", " ")).strip()
         return (raw or "dataset").replace(" ", "_")
 
     def _snapshot_labeling_settings(self) -> LabelingSettings:
+        """Implement the `_snapshot_labeling_settings` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _get_float(var, default: float) -> float:
+            """Implement the `_get_float` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return float(var.get())
             except Exception:
                 return float(default)
 
         def _get_int(var, default: int) -> int:
+            """Implement the `_get_int` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return int(var.get())
             except Exception:
                 return int(default)
 
         def _get_bool(var, default: bool) -> bool:
+            """Implement the `_get_bool` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return bool(var.get())
             except Exception:
                 return bool(default)
 
         def _get_str(var, default: str) -> str:
+            """Implement the `_get_str` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return str(var.get())
             except Exception:
@@ -19649,6 +21507,10 @@ class App(tb.Window):
         seen: set[Tuple[float, str, str]] = set()
 
         def add(mz_v: float, kind: str, text: str, intensity: Optional[float]) -> None:
+            """Implement the `add` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             mz_k = float(self._mz_key(float(mz_v)))
             kind = str(kind)
             text = (text or "").strip()
@@ -19754,11 +21616,19 @@ class App(tb.Window):
         return out
 
     def _collect_labels_for_export(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> Dict[float, List[Tuple[str, str]]]:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         meta = self._current_spectrum_meta
         spectrum_id = str(meta.spectrum_id) if meta is not None else "__no_spectrum__"
         return self._collect_labels_for_spectrum(spectrum_id, meta, mz_vals, int_vals)
 
     def _export_all_labels_xlsx(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._index is None or not self._filtered_meta:
             messagebox.showinfo("Export", "Open an mzML file first.", parent=self)
             return
@@ -19794,9 +21664,14 @@ class App(tb.Window):
         self._show_busy("Exporting all labels…")
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 rows: List[Dict[str, Any]] = []
 
+                # Helper function for `get_spectrum_by_id` workflow behavior.
                 def get_spectrum_by_id(reader: mzml.MzML, spectrum_id: str) -> Dict[str, Any]:
                     try:
                         return cast(Dict[str, Any], reader.get_by_id(spectrum_id))
@@ -19896,17 +21771,25 @@ class App(tb.Window):
                     ),
                 )
             except Exception as exc:
-                self.after(0, lambda: (self._hide_busy(), messagebox.showerror("Error", f"Failed to export Excel:\n{exc}", parent=self)))
+                self.after(0, lambda exc=exc: (self._hide_busy(), messagebox.showerror("Error", f"Failed to export Excel:\n{exc}", parent=self)))
 
         threading.Thread(target=worker, daemon=True).start()
 
     def _parse_optional_float(self, raw: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (raw or "").strip()
         if not raw:
             return None
         return float(raw)
 
     def _trace_global_max(self, y: Optional[np.ndarray]) -> float:
+        """Implement the `_trace_global_max` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if y is None or y.size == 0:
             return 0.0
         try:
@@ -19953,11 +21836,19 @@ class App(tb.Window):
 
     def _accept_apex(self, apex_y: float, y_global_max: float) -> bool:
         # Avoid selecting baseline/noise.
+        """Implement the `_accept_apex` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if y_global_max <= 0:
             return False
         return float(apex_y) >= (0.01 * float(y_global_max))
 
     def _style_mpl_toolbar(self, toolbar: Optional[Any]) -> None:
+        """Implement the `_style_mpl_toolbar` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if toolbar is None:
             return
         try:
@@ -19987,6 +21878,10 @@ class App(tb.Window):
             pass
 
     def _update_lcms_empty_state(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             panel = getattr(self, "_lcms_empty_state", None)
         except Exception:
@@ -20025,6 +21920,10 @@ class App(tb.Window):
             pass
 
     def _dismiss_lcms_empty_state(self) -> None:
+        """Implement the `_dismiss_lcms_empty_state` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._lcms_empty_state_dismissed = True
         try:
             panel = getattr(self, "_lcms_empty_state", None)
@@ -20034,6 +21933,10 @@ class App(tb.Window):
             pass
 
     def _sync_lcms_axis_layout(self) -> None:
+        """Implement the `_sync_lcms_axis_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         axes = [ax for ax in (self._ax_tic, self._ax_spec, self._ax_uv) if ax is not None]
         if not axes:
             return
@@ -20072,6 +21975,10 @@ class App(tb.Window):
             pass
 
     def _apply_plot_style_to_axes(self, fig: Optional[Figure], axes: Sequence[Any]) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         bg = (self._matplotlib_bg_var.get() or "").strip()
         try:
             if not bg:
@@ -20161,6 +22068,10 @@ class App(tb.Window):
             pass
 
     def _apply_plot_style(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None and self._ax_spec is None and self._ax_uv is None:
             return
         axes = [ax for ax in [self._ax_tic, self._ax_spec, self._ax_uv] if ax is not None]
@@ -20241,6 +22152,10 @@ class App(tb.Window):
                     self._ax_uv.set_ylim(bottom=(y_min - headroom), top=(y_max + headroom))
 
     def _apply_matplotlib_bg(self, fig: Optional[Figure], canvas: Optional[Any]) -> None:
+        """Implement the `_apply_matplotlib_bg` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if fig is None:
             return
         bg = (self._matplotlib_bg_var.get() or "").strip()
@@ -20261,6 +22176,10 @@ class App(tb.Window):
             pass
 
     def _apply_matplotlib_bg_current(self) -> None:
+        """Implement the `_apply_matplotlib_bg_current` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = self._active_module_name().strip().lower()
         if tab == "lcms":
             self._apply_matplotlib_bg(self._fig, self._canvas)
@@ -20291,6 +22210,10 @@ class App(tb.Window):
             return
 
     def _open_graph_settings(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = tk.Toplevel(self)
         dlg.title("Graph Settings")
         dlg.resizable(False, False)
@@ -20370,6 +22293,10 @@ class App(tb.Window):
         bg_ent.grid(row=0, column=1, sticky="w", padx=(8, 0))
 
         def _pick_plot_bg() -> None:
+            """Prepare plotting data and visual elements.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 current = (self._matplotlib_bg_var.get() or "").strip() or "#ffffff"
                 picked = colorchooser.askcolor(color=current, title="Pick plot background", parent=dlg)[1]
@@ -20432,6 +22359,10 @@ class App(tb.Window):
         uv_ymax.grid(row=5, column=2, pady=(6, 0))
 
         def on_reset() -> None:
+            """Implement the `on_reset` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self.title_fontsize_var.set(12)
             self.label_fontsize_var.set(10)
             self.tick_fontsize_var.set(9)
@@ -20469,6 +22400,10 @@ class App(tb.Window):
             self._redraw_all()
 
         def on_apply() -> None:
+            """Implement the `on_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 # Validate numeric fields (optional)
                 for raw in [
@@ -20547,6 +22482,10 @@ class App(tb.Window):
         ToolTip.attach(close_btn, TOOLTIP_TEXT["gs_close"])
 
     def _open_annotation_settings(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = tk.Toplevel(self)
         dlg.title("Peak Annotations")
         dlg.resizable(False, False)
@@ -20610,6 +22549,10 @@ class App(tb.Window):
         show_conf.grid(row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         def on_apply() -> None:
+            """Implement the `on_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 top_n = int(self.annotate_top_n_var.get())
                 if top_n < 0:
@@ -20661,6 +22604,10 @@ class App(tb.Window):
         ToolTip.attach(close_btn, TOOLTIP_TEXT["pa_close"])
 
     def _open_custom_labels(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = tk.Toplevel(self)
         dlg.title("Custom Labels")
         dlg.resizable(False, False)
@@ -20691,12 +22638,20 @@ class App(tb.Window):
         lst.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(8, 0))
 
         def _current_spectrum_key() -> str:
+            """Implement the `_current_spectrum_key` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             meta = self._current_spectrum_meta
             if meta is None:
                 return "__no_spectrum__"
             return str(meta.spectrum_id)
 
         def refresh_list() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             lst.delete(0, tk.END)
             for item in self._custom_labels_by_spectrum.get(_current_spectrum_key(), []):
                 snap = "snap" if item.snap_to_nearest_peak else "free"
@@ -20719,6 +22674,10 @@ class App(tb.Window):
         snap_cb.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def on_add() -> None:
+            """Implement the `on_add` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             label = (label_var.get() or "").strip()
             if not label:
                 messagebox.showerror("Invalid", "Label cannot be empty.", parent=dlg)
@@ -20738,6 +22697,10 @@ class App(tb.Window):
             self._update_current_context_panel()
 
         def on_remove() -> None:
+            """Implement the `on_remove` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             sel = lst.curselection()
             if not sel:
                 return
@@ -20755,6 +22718,10 @@ class App(tb.Window):
                 self._update_current_context_panel()
 
         def on_clear() -> None:
+            """Implement the `on_clear` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not self._custom_labels_by_spectrum.get(_current_spectrum_key()):
                 return
             self._push_lcms_undo_state("Clear custom labels")
@@ -20794,6 +22761,10 @@ class App(tb.Window):
         ToolTip.attach(close_btn, TOOLTIP_TEXT["cl_close"])
 
     def _open_polymer_match(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = tk.Toplevel(self)
         dlg.title("Polymer / Reaction Match")
         dlg.resizable(False, False)
@@ -20923,10 +22894,18 @@ class App(tb.Window):
         minrel_ent.grid(row=15, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
         def sync_bond(*_) -> None:
+            """Implement the `sync_bond` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             choice = bond_choice.get()
             if choice in presets:
                 bond_custom.set(str(presets[choice]))
         def sync_extra(*_) -> None:
+            """Implement the `sync_extra` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             choice = extra_choice.get()
             if choice in extra_presets:
                 extra_custom.set(str(extra_presets[choice]))
@@ -20937,6 +22916,10 @@ class App(tb.Window):
         sync_extra()
 
         def on_reset() -> None:
+            """Implement the `on_reset` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self.poly_enabled_var.set(False)
             self.poly_monomers_text_var.set("")
             txt.delete("1.0", tk.END)
@@ -20962,6 +22945,10 @@ class App(tb.Window):
             self._redraw_spectrum_only()
 
         def on_apply() -> None:
+            """Implement the `on_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self.poly_monomers_text_var.set(txt.get("1.0", tk.END).strip())
                 self.poly_bond_delta_var.set(float(bond_custom.get().strip()))
@@ -20976,6 +22963,10 @@ class App(tb.Window):
             self._redraw_spectrum_only()
 
         def on_match_region() -> None:
+            """Match candidates using configured rules.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             on_apply()
             try:
                 if not bool(self.poly_enabled_var.get()):
@@ -21033,6 +23024,10 @@ class App(tb.Window):
         ToolTip.attach(close_btn, TOOLTIP_TEXT["pm_close"])
 
     def _show_busy(self, message: str) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._busy_dialog is not None:
             return
         dlg = tk.Toplevel(self)
@@ -21051,6 +23046,10 @@ class App(tb.Window):
         self._busy_bar = bar
 
     def _hide_busy(self) -> None:
+        """Implement the `_hide_busy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._busy_bar is not None:
             try:
                 self._busy_bar.stop()
@@ -21066,6 +23065,10 @@ class App(tb.Window):
         self._busy_bar = None
 
     def _open_mzml(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             title="Select an mzML file",
             filetypes=[("mzML files", "*.mzML"), ("All files", "*.*")],
@@ -21076,9 +23079,17 @@ class App(tb.Window):
 
     def _open_uv_csv(self) -> None:
         # Backward-compatible wrapper (Ctrl+U now uses _open_uv_csv_single).
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._open_uv_csv_single()
 
     def _plot_uv(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_uv is None or self._canvas is None:
             return
 
@@ -21172,6 +23183,10 @@ class App(tb.Window):
         self._canvas.draw()
 
     def _save_axis_image(self, ax, default_stem: str) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._fig is None or self._canvas is None or ax is None:
             return
 
@@ -21199,6 +23214,10 @@ class App(tb.Window):
         messagebox.showinfo("Saved", f"Saved:\n{path}")
 
     def _reset_spectrum_view(self) -> None:
+        """Implement the `_reset_spectrum_view` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None or self._canvas is None:
             return
         meta = self._current_spectrum_meta
@@ -21209,6 +23228,10 @@ class App(tb.Window):
         self._plot_spectrum(meta, mz, inten)
 
     def _capture_axes_limits(self, ax) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        """Implement the `_capture_axes_limits` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ax is None:
             return None
         try:
@@ -21217,6 +23240,10 @@ class App(tb.Window):
             return None
 
     def _restore_axes_limits(self, ax, lim: Optional[Tuple[Tuple[float, float], Tuple[float, float]]]) -> None:
+        """Implement the `_restore_axes_limits` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ax is None or lim is None:
             return
         try:
@@ -21226,6 +23253,10 @@ class App(tb.Window):
             pass
 
     def _capture_axes_limits_map(self, axes: Sequence[Any]) -> Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]]:
+        """Implement the `_capture_axes_limits_map` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]] = {}
         for ax in list(axes or []):
             if ax is None:
@@ -21237,6 +23268,10 @@ class App(tb.Window):
         return out
 
     def _restore_axes_limits_map(self, lims: Dict[Any, Tuple[Tuple[float, float], Tuple[float, float]]]) -> None:
+        """Implement the `_restore_axes_limits_map` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ax, lim in list((lims or {}).items()):
             try:
                 ax.set_xlim(lim[0])
@@ -21245,6 +23280,10 @@ class App(tb.Window):
                 continue
 
     def _save_tic_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None:
             return
         if not self._is_overlay_active():
@@ -21259,6 +23298,10 @@ class App(tb.Window):
         ExportEditor(self, kind="tic", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _save_spectrum_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         if self._current_spectrum_meta is None or self._current_spectrum_mz is None or self._current_spectrum_int is None:
@@ -21272,6 +23315,10 @@ class App(tb.Window):
         ExportEditor(self, kind="spectrum", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _save_uv_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_uv is None:
             return
         uv_sess = self._active_uv_session()
@@ -21286,6 +23333,10 @@ class App(tb.Window):
         ExportEditor(self, kind="uv", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _open_tic_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None:
             return
         if not self._is_overlay_active():
@@ -21300,6 +23351,10 @@ class App(tb.Window):
         ExportEditor(self, kind="tic", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _open_spectrum_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         if self._current_spectrum_meta is None or self._current_spectrum_mz is None or self._current_spectrum_int is None:
@@ -21313,6 +23368,10 @@ class App(tb.Window):
         ExportEditor(self, kind="spectrum", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _open_uv_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_uv is None:
             return
         uv_sess = self._active_uv_session()
@@ -21327,6 +23386,10 @@ class App(tb.Window):
         ExportEditor(self, kind="uv", default_stem=stem, tooltip_text=TOOLTIP_TEXT)
 
     def _on_loaded(self, mzml_path: Path, idx: MzMLTICIndex) -> None:
+        """Implement the `_on_loaded` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._hide_busy()
 
         # Close previous reader
@@ -21354,15 +23417,27 @@ class App(tb.Window):
         self._update_status_current()
 
     def _on_load_error(self, exc: Exception) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._hide_busy()
         messagebox.showerror("Error", str(exc))
         self._status.configure(text="Open an mzML file to begin")
         self._update_status_current()
 
     def _is_overlay_active(self) -> bool:
+        """Implement the `_is_overlay_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return bool(self._overlay_session is not None and len(self._overlay_session.dataset_ids) >= 2)
 
     def _overlay_dataset_ids(self) -> List[str]:
+        """Implement the `_overlay_dataset_ids` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._overlay_session is not None and self._overlay_session.dataset_ids:
             ids = [str(i) for i in self._overlay_session.dataset_ids if str(i) in self._sessions]
             return [sid for sid in self._session_order if sid in ids]
@@ -21371,10 +23446,18 @@ class App(tb.Window):
         return [sid for sid in self._session_order if sid in ids]
 
     def _overlay_selected_ids_from_flags(self) -> List[str]:
+        """Implement the `_overlay_selected_ids_from_flags` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ids = [sid for sid, sess in self._sessions.items() if bool(getattr(sess, "overlay_selected", False))]
         return [sid for sid in self._session_order if sid in ids]
 
     def _refresh_overlay_view(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._is_overlay_active():
             try:
                 if self._overlay_legend_frame is not None:
@@ -21427,6 +23510,10 @@ class App(tb.Window):
             self._plot_overlay_spectrum_for_rt(float(rt))
 
     def _overlay_find_nearest_dataset_id_by_rt(self, rt_min: float) -> Optional[str]:
+        """Implement the `_overlay_find_nearest_dataset_id_by_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         best_sid = None
         best_dt = None
         pol = str(self.polarity_var.get())
@@ -21442,6 +23529,10 @@ class App(tb.Window):
         return best_sid
 
     def _overlay_meta_for_session(self, session_id: str, pol: str) -> Tuple[List[SpectrumMeta], np.ndarray, np.ndarray]:
+        """Implement the `_overlay_meta_for_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         key = (str(session_id), str(pol))
         if key in self._overlay_tic_cache:
             return self._overlay_tic_cache[key]
@@ -21462,6 +23553,10 @@ class App(tb.Window):
         return out
 
     def _refresh_overlay_legend(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_legend_tree
         if tree is None:
             return
@@ -21511,6 +23606,10 @@ class App(tb.Window):
             pass
 
     def _overlay_display_names(self, ids: Sequence[str]) -> Dict[str, str]:
+        """Implement the `_overlay_display_names` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         out: Dict[str, str] = {}
         names: List[str] = []
         for sid in ids:
@@ -21535,6 +23634,10 @@ class App(tb.Window):
         return out
 
     def _set_active_overlay_from_legend(self) -> None:
+        """Implement the `_set_active_overlay_from_legend` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._overlay_legend_tree
         if tree is None:
             return
@@ -21549,6 +23652,10 @@ class App(tb.Window):
             self._set_active_session(str(sid))
 
     def _refresh_overlay_tic(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None or self._canvas is None:
             return
 
@@ -21646,6 +23753,10 @@ class App(tb.Window):
         self._refresh_overlay_legend()
 
     def _plot_uv_overlay(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_uv is None or self._canvas is None:
             return
 
@@ -21786,6 +23897,10 @@ class App(tb.Window):
         self._canvas.draw()
 
     def _get_overlay_reader(self, session_id: str) -> Optional[mzml.MzML]:
+        """Implement the `_get_overlay_reader` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id == self._active_session_id:
             return self._reader
         if session_id in self._overlay_readers:
@@ -21801,6 +23916,10 @@ class App(tb.Window):
         return rdr
 
     def _get_spectrum_for_rt(self, session_id: str, target_rt: float) -> Optional[Tuple[SpectrumMeta, np.ndarray, np.ndarray, float]]:
+        """Implement the `_get_spectrum_for_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pol = str(self.polarity_var.get())
         meta, rts, _tics = self._overlay_meta_for_session(str(session_id), pol)
         if rts is None or rts.size == 0 or not meta:
@@ -21840,6 +23959,10 @@ class App(tb.Window):
         return m, mz_vals, int_vals, dt
 
     def _plot_overlay_spectrum_for_rt(self, target_rt: float) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None or self._canvas is None:
             return
         ids = self._overlay_dataset_ids()
@@ -21929,6 +24052,10 @@ class App(tb.Window):
         self._refresh_overlay_legend()
 
     def _apply_labels_for_session(self, session_id: str, meta: SpectrumMeta, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
+        """Implement the `_apply_labels_for_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id not in self._sessions:
             return
         sess = self._sessions[session_id]
@@ -21959,6 +24086,10 @@ class App(tb.Window):
             self._current_spectrum_int = prev_int
 
     def _start_overlay_selected(self) -> None:
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ids = [sid for sid in self._overlay_dataset_ids() if sid in self._sessions]
         if len(ids) < 2:
             messagebox.showinfo("Overlay", "Select at least two mzML files for overlay.", parent=self)
@@ -22009,6 +24140,10 @@ class App(tb.Window):
 
     def _clear_overlay(self) -> None:
         # Close overlay readers
+        """Implement the `_clear_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for sid, rdr in list(self._overlay_readers.items()):
             try:
                 rdr.close()
@@ -22036,6 +24171,10 @@ class App(tb.Window):
         self._log("INFO", "Overlay cleared")
 
     def _refresh_tic(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_overlay_active():
             self._refresh_overlay_tic()
             return
@@ -22138,10 +24277,18 @@ class App(tb.Window):
 
     def _redraw_all(self) -> None:
         # Redraw TIC and current spectrum using current settings
+        """Implement the `_redraw_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._refresh_tic()
         self._plot_uv()
 
     def _redraw_spectrum_only(self) -> None:
+        """Implement the `_redraw_spectrum_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._is_overlay_active():
             rt = self._overlay_selected_ms_rt
             if rt is None and self._current_spectrum_meta is not None:
@@ -22154,6 +24301,10 @@ class App(tb.Window):
         self._plot_spectrum(self._current_spectrum_meta, self._current_spectrum_mz, self._current_spectrum_int)
 
     def _on_plot_click(self, event) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if bool(getattr(event, "dblclick", False)):
                 if event is not None and event.inaxes == self._ax_spec:
@@ -22337,6 +24488,10 @@ class App(tb.Window):
 
     def _on_plot_motion(self, event) -> None:
         # Update TIC region span while dragging
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_tic_region_dragging", False)) and self._ax_tic is not None and event.inaxes == self._ax_tic:
             if event.xdata is None:
                 return
@@ -22398,6 +24553,10 @@ class App(tb.Window):
 
     def _on_plot_release(self, event) -> None:
         # Finish TIC region selection
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(getattr(self, "_tic_region_dragging", False)):
             self._tic_region_dragging = False
             if self._tic_region_start_rt is None or self._tic_region_end_rt is None:
@@ -22442,10 +24601,18 @@ class App(tb.Window):
 
     def _on_tic_region_select_changed(self) -> None:
         # If the user turns off the mode mid-drag, cancel the drag.
+        """Implement the `_on_tic_region_select_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(self.tic_region_select_var.get()):
             self._tic_region_dragging = False
 
     def _set_tic_region_clear_btn_state(self, enabled: bool) -> None:
+        """Implement the `_set_tic_region_clear_btn_state` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         btn = getattr(self, "_tic_region_clear_btn", None)
         if btn is None:
             return
@@ -22456,6 +24623,10 @@ class App(tb.Window):
 
     def _clear_tic_region_selection(self, *, restore_scan: bool = True) -> None:
         # Clear span + state. Keep current scan marker as-is.
+        """Implement the `_clear_tic_region_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._tic_region_dragging = False
         self._tic_region_start_rt = None
         self._tic_region_end_rt = None
@@ -22481,6 +24652,10 @@ class App(tb.Window):
             pass
 
     def _draw_tic_region_span(self) -> None:
+        """Implement the `_draw_tic_region_span` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None:
             return
         if self._tic_region_active_rt is None:
@@ -22489,6 +24664,10 @@ class App(tb.Window):
         self._set_tic_region_span(float(a), float(b))
 
     def _set_tic_region_span(self, rt_a: float, rt_b: float) -> None:
+        """Implement the `_set_tic_region_span` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_tic is None:
             return
         a = float(min(rt_a, rt_b))
@@ -22510,6 +24689,10 @@ class App(tb.Window):
             pass
 
     def _compute_region_summed_spectrum(self, rt_a: float, rt_b: float) -> None:
+        """Compute derived values from inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self.mzml_path is None or self._index is None:
             return
         if not self._filtered_meta:
@@ -22542,6 +24725,10 @@ class App(tb.Window):
         bin_w = 0.01
 
         def worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             reader = None
             try:
                 reader = mzml.MzML(str(mzml_path))
@@ -22589,7 +24776,7 @@ class App(tb.Window):
 
                 self.after(0, lambda: self._on_region_spectrum_ready(rt_a=a, rt_b=b, pol_filter=pol_filter, mz=mz_out, inten=int_out))
             except Exception as exc:
-                self.after(0, lambda: self._on_region_spectrum_error(exc))
+                self.after(0, lambda exc=exc: self._on_region_spectrum_error(exc))
             finally:
                 try:
                     if reader is not None:
@@ -22600,6 +24787,10 @@ class App(tb.Window):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_region_spectrum_error(self, exc: Exception) -> None:
+        """Implement the `_on_region_spectrum_error` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._hide_busy()
         except Exception:
@@ -22607,6 +24798,10 @@ class App(tb.Window):
         messagebox.showerror("TIC region", f"Failed to sum region spectrum:\n\n{exc}", parent=self)
 
     def _on_region_spectrum_ready(self, *, rt_a: float, rt_b: float, pol_filter: str, mz: np.ndarray, inten: np.ndarray) -> None:
+        """Implement the `_on_region_spectrum_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._hide_busy()
         except Exception:
@@ -22661,12 +24856,20 @@ class App(tb.Window):
             pass
 
     def _mz_key(self, mz: float) -> float:
+        """Implement the `_mz_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return float(round(float(mz), 4))
         except Exception:
             return float(mz)
 
     def _spec_label_storage_key(self, spec_key: Tuple[Any, ...]) -> Optional[str]:
+        """Implement the `_spec_label_storage_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not isinstance(spec_key, tuple) or not spec_key:
             return None
         kind = str(spec_key[0])
@@ -22682,6 +24885,10 @@ class App(tb.Window):
         return None
 
     def _get_spec_label_position_entry(self, spectrum_id: str, spec_key: Tuple[Any, ...]) -> Optional[Dict[str, Any]]:
+        """Implement the `_get_spec_label_position_entry` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         store_key = self._spec_label_storage_key(spec_key)
         if not store_key:
             return None
@@ -22701,6 +24908,10 @@ class App(tb.Window):
             return None
 
     def _get_spec_label_xytext(self, spectrum_id: str, spec_key: Tuple[Any, ...], default_xytext: Tuple[float, float]) -> Tuple[float, float]:
+        """Implement the `_get_spec_label_xytext` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         entry = self._get_spec_label_position_entry(spectrum_id, spec_key)
         if entry is None:
             return float(default_xytext[0]), float(default_xytext[1])
@@ -22708,6 +24919,10 @@ class App(tb.Window):
         return float(xy[0]), float(xy[1])
 
     def _store_spec_label_xytext(self, spectrum_id: str, spec_key: Tuple[Any, ...], xytext: Tuple[float, float], *, locked: bool) -> None:
+        """Implement the `_store_spec_label_xytext` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         store_key = self._spec_label_storage_key(spec_key)
         if not store_key:
             return
@@ -22717,6 +24932,10 @@ class App(tb.Window):
         }
 
     def _remove_spec_label_position(self, spectrum_id: str, spec_key: Tuple[Any, ...]) -> None:
+        """Implement the `_remove_spec_label_position` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         store_key = self._spec_label_storage_key(spec_key)
         if not store_key:
             return
@@ -22728,6 +24947,10 @@ class App(tb.Window):
             self._spec_label_positions.pop(str(spectrum_id), None)
 
     def _shift_custom_label_positions_after_delete(self, spectrum_id: str, deleted_idx: int) -> None:
+        """Implement the `_shift_custom_label_positions_after_delete` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rows = self._spec_label_positions.get(str(spectrum_id))
         if not isinstance(rows, dict) or not rows:
             return
@@ -22753,6 +24976,10 @@ class App(tb.Window):
             self._spec_label_positions.pop(str(spectrum_id), None)
 
     def _annotation_overlap_area(self, bbox_a: Bbox, bbox_b: Bbox) -> float:
+        """Implement the `_annotation_overlap_area` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         x0 = max(float(bbox_a.x0), float(bbox_b.x0))
         y0 = max(float(bbox_a.y0), float(bbox_b.y0))
         x1 = min(float(bbox_a.x1), float(bbox_b.x1))
@@ -22768,7 +24995,15 @@ class App(tb.Window):
         b0: Tuple[float, float],
         b1: Tuple[float, float],
     ) -> bool:
+        """Implement the `_line_segments_intersect` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _orient(p: Tuple[float, float], q: Tuple[float, float], r: Tuple[float, float]) -> float:
+            """Implement the `_orient` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return ((q[0] - p[0]) * (r[1] - p[1])) - ((q[1] - p[1]) * (r[0] - p[0]))
 
         o1 = _orient(a0, a1, b0)
@@ -22778,6 +25013,10 @@ class App(tb.Window):
         return bool((o1 == 0.0 and o2 == 0.0 and o3 == 0.0 and o4 == 0.0) or ((o1 <= 0.0 <= o2 or o2 <= 0.0 <= o1) and (o3 <= 0.0 <= o4 or o4 <= 0.0 <= o3)))
 
     def _debug_auto_arrange(self, message: str) -> None:
+        """Implement the `_debug_auto_arrange` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(str(os.environ.get("LAB_GUI_DEBUG_AUTO_ARRANGE", "")).strip()):
             return
         try:
@@ -22786,6 +25025,10 @@ class App(tb.Window):
             pass
 
     def _auto_arrange_x_shift(self, ax: Any) -> Tuple[float, float]:
+        """Implement the `_auto_arrange_x_shift` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             x0, x1 = ax.get_xlim()
             span = max(1e-9, abs(float(x1) - float(x0)))
@@ -22802,6 +25045,10 @@ class App(tb.Window):
         return float(dx), float(max_shift)
 
     def _auto_arrange_cluster_config(self, ax: Any) -> Dict[str, float]:
+        """Implement the `_auto_arrange_cluster_config` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lane_dx, max_shift = self._auto_arrange_x_shift(ax)
         try:
             x0, x1 = ax.get_xlim()
@@ -22824,6 +25071,10 @@ class App(tb.Window):
         }
 
     def _auto_arrange_lane_pattern(self, count: int) -> List[int]:
+        """Implement the `_auto_arrange_lane_pattern` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lanes: List[int] = []
         lane = 0
         while len(lanes) < max(0, int(count)):
@@ -22838,6 +25089,10 @@ class App(tb.Window):
         return lanes[: max(0, int(count))]
 
     def _cluster_annotation_items(self, items: List[Dict[str, Any]], cluster_gap: float) -> List[List[Dict[str, Any]]]:
+        """Implement the `_cluster_annotation_items` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sorted_items = sorted(
             items,
             key=lambda item: (
@@ -22864,12 +25119,20 @@ class App(tb.Window):
         return clusters
 
     def _auto_arrange_cluster_lane_dx(self, base_lane_dx: float, max_shift: float, cluster_size: int) -> float:
+        """Implement the `_auto_arrange_cluster_lane_dx` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if int(cluster_size) <= 1:
             return float(base_lane_dx)
         widen_factor = min(2.4, 1.0 + (max(0, int(cluster_size) - 2) * 0.16))
         return float(min(float(max_shift), float(base_lane_dx) * widen_factor))
 
     def _auto_arrange_cluster_row_count(self, base_rows: int, cluster_size: int) -> int:
+        """Implement the `_auto_arrange_cluster_row_count` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         extra_rows = 0
         if int(cluster_size) >= 6:
             extra_rows += 1
@@ -22878,6 +25141,10 @@ class App(tb.Window):
         return max(1, min(6, int(base_rows) + int(extra_rows)))
 
     def _auto_arrange_pair_length_score(self, *, ax: Any, left: Dict[str, Any], right: Dict[str, Any], left_y: float, right_y: float) -> float:
+        """Implement the `_auto_arrange_pair_length_score` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         data_to_disp = ax.transData.transform
         left_anchor = left.get("anchor_xy", (0.0, 0.0))
         right_anchor = right.get("anchor_xy", (0.0, 0.0))
@@ -22897,6 +25164,10 @@ class App(tb.Window):
         return float(score)
 
     def _auto_arrange_annotation_artists(self, *, canvas: Any, ax: Any, items: List[Dict[str, Any]], full_reflow: bool = False) -> Dict[str, Any]:
+        """Implement the `_auto_arrange_annotation_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         stats: Dict[str, Any] = {
             "changed": False,
             "renderer_ready": False,
@@ -22923,7 +25194,6 @@ class App(tb.Window):
                 self._debug_auto_arrange("renderer unavailable")
                 return stats
 
-        axis_bbox = ax.get_window_extent(renderer).expanded(0.98, 0.96)
         data_to_disp = ax.transData.transform
 
         visible_items: List[Dict[str, Any]] = []
@@ -23126,6 +25396,10 @@ class App(tb.Window):
         return stats
 
     def _auto_arrange_lcms_labels(self, *, preserve_manual: bool = True) -> Dict[str, Any]:
+        """Implement the `_auto_arrange_lcms_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items: List[Dict[str, Any]] = []
 
         for ann in list(getattr(self, "_spectrum_annotations", []) or []):
@@ -23246,6 +25520,10 @@ class App(tb.Window):
         return stats
 
     def _run_auto_arrange_lcms_labels(self, *, preserve_manual: bool = False) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._spectrum_annotations and not self._uv_annotations:
             try:
                 messagebox.showinfo("Auto Arrange Labels", "There are no visible LCMS labels to arrange.", parent=self)
@@ -23271,7 +25549,6 @@ class App(tb.Window):
                 pass
             return
 
-        total = int(stats.get("total", 0) or 0)
         moved = int(stats.get("moved", 0) or 0)
         crowded = int(stats.get("crowded", 0) or 0)
         msg = f"Auto-arranged {moved} labels"
@@ -23332,6 +25609,10 @@ class App(tb.Window):
             pass
 
         def do_apply() -> None:
+            """Implement the `do_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             new_text = (text_var.get() or "").strip()
             if not new_text:
                 messagebox.showerror("Invalid", "Label cannot be empty (use Delete to remove).", parent=dlg)
@@ -23380,6 +25661,10 @@ class App(tb.Window):
                     return
 
         def do_delete() -> None:
+            """Implement the `do_delete` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._push_lcms_undo_state("Delete label")
             if uv_key is not None:
                 uv_rt, j = uv_key
@@ -23434,6 +25719,10 @@ class App(tb.Window):
         ttk.Button(frm, text="Cancel", command=dlg.destroy).grid(row=2, column=3, sticky="e", pady=(10, 0))
 
     def _open_label_explanation(self, ann) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ann is None:
             return
         text = self._build_label_explanation_text(ann)
@@ -23465,10 +25754,18 @@ class App(tb.Window):
 
     def _build_label_explanation_text(self, ann) -> str:
         # Determine mapping
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         uv_key = self._uv_ann_key_by_objid.get(id(ann))
         spec_key = self._spec_ann_key_by_objid.get(id(ann))
 
         def safe_get_text() -> str:
+            """Implement the `safe_get_text` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 t = str(ann.get_text() or "")
             except Exception:
@@ -23745,6 +26042,10 @@ class App(tb.Window):
         polarity: Optional[str],
         settings: LabelingSettings,
     ) -> Optional[Dict[str, Any]]:
+        """Match candidates using configured rules.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         st = settings
         if not bool(st.poly_enabled):
             return None
@@ -23814,6 +26115,10 @@ class App(tb.Window):
             return None
 
     def _get_spectrum_by_id(self, spectrum_id: str) -> Dict[str, Any]:
+        """Implement the `_get_spectrum_by_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._reader is None:
             raise RuntimeError("No mzML reader available")
         try:
@@ -23823,6 +26128,10 @@ class App(tb.Window):
             return cast(Dict[str, Any], self._reader[spectrum_id])
 
     def _show_spectrum_for_index(self, idx: int) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._canvas is None:
             return
         if not self._filtered_meta:
@@ -23885,6 +26194,10 @@ class App(tb.Window):
         # so the initial auto-loaded spectrum doesn't clutter the UV plot.
 
     def _top_peaks_by_intensity(self, mz_vals: np.ndarray, int_vals: np.ndarray, top_n: int) -> List[float]:
+        """Implement the `_top_peaks_by_intensity` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if mz_vals.size == 0 or int_vals.size == 0 or top_n <= 0:
             return []
         mz = np.asarray(mz_vals, dtype=float)
@@ -23901,6 +26214,10 @@ class App(tb.Window):
         return [float(v) for v in mz[order].tolist()]
 
     def _top_peaks_sorted_indices(self, mz_vals_sorted: np.ndarray, int_vals_sorted: np.ndarray, top_n: int) -> List[int]:
+        """Implement the `_top_peaks_sorted_indices` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if mz_vals_sorted.size == 0 or int_vals_sorted.size == 0 or top_n <= 0:
             return []
         mz_s = np.asarray(mz_vals_sorted, dtype=float)
@@ -23915,6 +26232,10 @@ class App(tb.Window):
         return [int(i) for i in top_idx.tolist()]
 
     def _format_uv_id_label(self, label: str) -> str:
+        """Implement the `_format_uv_id_label` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = (label or "").strip()
         if " z=" in s:
             s = s.split(" z=", 1)[0].rstrip()
@@ -24000,6 +26321,10 @@ class App(tb.Window):
             return {}
 
     def _maybe_store_uv_ms_labels_for_current_spectrum(self, *, anchor_rt_min: Optional[float]) -> None:
+        """Implement the `_maybe_store_uv_ms_labels_for_current_spectrum` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(self.uv_label_from_ms_var.get()):
             return
         x, y = self._active_uv_xy()
@@ -24120,6 +26445,10 @@ class App(tb.Window):
         self._plot_uv()
 
     def _draw_uv_ms_peak_labels(self) -> None:
+        """Implement the `_draw_uv_ms_peak_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_uv is None:
             return
         x, y = self._active_uv_xy()
@@ -24179,6 +26508,10 @@ class App(tb.Window):
                 drawn += 1
 
     def _plot_spectrum(self, meta: SpectrumMeta, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None or self._canvas is None:
             return
 
@@ -24203,6 +26536,10 @@ class App(tb.Window):
         self._canvas.draw()
 
     def _annotate_peaks(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
+        """Implement the `_annotate_peaks` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         if mz_vals.size == 0 or int_vals.size == 0:
@@ -24269,6 +26606,10 @@ class App(tb.Window):
 
     def _clear_spectrum_annotations(self) -> None:
         # Remove any previously created annotations (auto/custom/polymer)
+        """Implement the `_clear_spectrum_annotations` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ann in getattr(self, "_spectrum_annotations", []):
             try:
                 ann.remove()
@@ -24278,6 +26619,10 @@ class App(tb.Window):
         self._spec_ann_key_by_objid = {}
 
     def _find_nearest_peak(self, mz_vals: np.ndarray, int_vals: np.ndarray, target_mz: float) -> Optional[Tuple[float, float]]:
+        """Implement the `_find_nearest_peak` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if mz_vals.size == 0:
             return None
         # Conservative snapping: treat as "nearest" using a small default window.
@@ -24303,6 +26648,10 @@ class App(tb.Window):
         return float(hit.matched_mz), float(hit.intensity)
 
     def _apply_custom_labels(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
+        """Implement the `_apply_custom_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         meta = self._current_spectrum_meta
@@ -24356,6 +26705,10 @@ class App(tb.Window):
             self._spec_ann_key_by_objid[id(ann)] = spec_key
 
     def _parse_charges(self, raw: str) -> List[int]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         vals: List[int] = []
         for part in (raw or "").replace(";", ",").split(","):
             part = part.strip()
@@ -24375,6 +26728,10 @@ class App(tb.Window):
         return out
 
     def _parse_monomers(self, raw: str) -> List[Tuple[str, float]]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lines = (raw or "").splitlines()
         monomers: List[Tuple[str, float]] = []
         auto_i = 1
@@ -24410,6 +26767,10 @@ class App(tb.Window):
         return monomers
 
     def _apply_polymer_matches(self, mz_vals: np.ndarray, int_vals: np.ndarray) -> None:
+        """Implement the `_apply_polymer_matches` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ax_spec is None:
             return
         if not bool(self.poly_enabled_var.get()):
@@ -24590,6 +26951,10 @@ def run_overlay_self_checks() -> Dict[str, Any]:
 
 
 def main() -> int:
+    """Implement the `main` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     app = App()
     app.mainloop()
     return 0

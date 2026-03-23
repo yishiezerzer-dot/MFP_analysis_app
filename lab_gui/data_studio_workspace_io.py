@@ -7,6 +7,10 @@ from lab_gui.data_studio_model import DataStudioDataset, DataStudioPlotDef, Data
 
 
 def encode_workspace(ws: DataStudioWorkspace) -> Dict[str, Any]:
+    """Implement the `encode_workspace` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     datasets: List[Dict[str, Any]] = []
     for ds_id in ws.order:
         ds = ws.datasets.get(ds_id)
@@ -81,6 +85,10 @@ def encode_workspace(ws: DataStudioWorkspace) -> Dict[str, Any]:
 
 
 def decode_workspace(payload: Dict[str, Any]) -> Tuple[DataStudioWorkspace, List[str]]:
+    """Implement the `decode_workspace` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     ws = DataStudioWorkspace()
     errors: List[str] = []
 

@@ -1,0 +1,4596 @@
+# Main MFP Codebase Explainer
+
+This document is a textual walkthrough of the runtime code. It explains each module, class, and function in practical terms, with hints on how to safely modify behavior.
+
+## How to use this guide
+
+- Start with entry points (`main.py`, `lab_gui/app.py`, `qt_app/main.py`).
+- For each function, read *Purpose* first, then *Change safely* before editing logic.
+- Keep public function signatures stable unless all call sites are updated.
+
+## lab_gui/__init__.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- This module is mostly constants/imports/bootstrap code.
+
+## lab_gui/ai_assistant.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `LLMClientProtocol` (inherits Protocol) (line 18)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `generate_reply(messages)` (line 21)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Class `AIAssistantResponse` (line 32)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `AIAssistant` (line 42)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 49)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `ask(user_message)` (line 62)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `mode_hint()` (line 107)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_has_api_key_configured()` (line 119)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_user_prompt(question, context)` (line 125)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mock_response(question)` (line 143)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/ai_context.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `build_ai_context(app, workspace)` (line 25)
+  - Purpose: Builds a composed object, view, or payload from smaller parts.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_safe_active_module_name(app)` (line 49)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_context_lcms(workspace)` (line 72)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_context_ftir(workspace)` (line 95)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_context_plate_reader(workspace)` (line 118)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_context_data_studio(app)` (line 142)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_collect_generic_filenames(workspace)` (line 186)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_name_from_path(value)` (line 207)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Class `AppAIContext` (line 9)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `to_prompt_dict()` (line 16)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/ai_ollama_client.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `OllamaChatClient` (line 10)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 17)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `mode_hint()` (line 29)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `generate_reply(messages)` (line 33)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/ai_openai_client.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `OpenAIChatClient` (line 7)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 16)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `mode_hint()` (line 31)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `generate_reply(messages)` (line 37)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/ai_panel.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `AIPanel` (inherits Frame) (line 20)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent, app, workspace)` (line 29)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `status_text()` (line 45)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_ui()` (line 52)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_submit()` (line 120)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_clear()` (line 156)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_append_message(speaker, text)` (line 165)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_busy(is_busy)` (line 176)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_current_input()` (line 186)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_input()` (line 195)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/app.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `json_default(obj)` (line 164)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `atomic_write_json(path, data)` (line 180)
+  - Purpose: Writes transformed data to files or streams.
+  - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+- Function `build_lcms_workspace_dict(app)` (line 198)
+  - Purpose: Builds a composed object, view, or payload from smaller parts.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_clamp_u8(v)` (line 1222)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_hex_to_rgb(hex_color)` (line 1226)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_rgb_to_hex(rgb)` (line 1238)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_adjust_color(hex_color, factor)` (line 1243)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_default_logo_path()` (line 1249)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_resolve_logo_path()` (line 1262)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `run_overlay_self_checks()` (line 24560)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `main()` (line 24592)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `_FTIRPeakCtor` (inherits Protocol) (line 126)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__call__()` (line 127)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `Workspace` (line 1315)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `FTIRExportEditor` (inherits Toplevel) (line 1329)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 1330)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_init_ui()` (line 1359)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_close()` (line 1555)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_parse_optional_float(raw)` (line 1569)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_open_controls_window()` (line 1575)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_controls_closed()` (line 1929)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_apply()` (line 1933)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_initial_plot()` (line 1947)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_style()` (line 2023)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_offset_for_key(key)` (line 2200)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_interp_y_on_line(key, wn)` (line 2233)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_peak_styles_only()` (line 2252)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_all_peaks()` (line 2292)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_should_show(dataset_id)` (line 2458)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_clear_bond_artists()` (line 2473)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_bond_visibility_only()` (line 2488)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_all_bonds()` (line 2501)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_tree()` (line 2576)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_toggle_overlay_tree_cell(evt)` (line 2611)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_selected_overlay_key()` (line 2691)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_color_for_selected()` (line 2707)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_selected_style_to_all()` (line 2735)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_press(evt)` (line 2753)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_motion(evt)` (line 2857)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_release(evt)` (line 2928)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_as()` (line 2938)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+- Class `AlignmentDiagnostics` (inherits Toplevel) (line 2959)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 2960)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_close()` (line 3089)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_anchors()` (line 3100)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_compute_residuals(uv, ms)` (line 3111)
+    - Purpose: Computes derived values from available inputs.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_update_stats(residuals)` (line 3118)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_plots()` (line 3138)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_table()` (line 3222)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `refresh()` (line 3248)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_select(event)` (line 3252)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_remove_selected()` (line 3304)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_export_csv()` (line 3358)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+- Class `SIMWindow` (inherits Toplevel) (line 3405)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 3406)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `sim_params()` (line 3522)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_close()` (line 3525)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_fmt_tol()` (line 3539)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `set_data()` (line 3545)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_header_text()` (line 3553)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_redraw_plot()` (line 3561)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_update_marker_from_app()` (line 3618)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_marker_rt(rt)` (line 3628)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_click(event)` (line 3668)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_app_ms_position_changed(rt_min)` (line 3683)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_app_active_session_changed()` (line 3686)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_export_csv()` (line 3689)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+- Class `InstructionWindow` (inherits Toplevel) (line 3720)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 3721)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_close()` (line 3854)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_section(section)` (line 3865)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_select_section(_evt)` (line 3875)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_copy_section()` (line 3892)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_search_highlights()` (line 3906)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_search()` (line 3921)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_scroll_to_match(pos)` (line 3955)
+    - Purpose: Matches candidate entities using domain-specific rules.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_jump_match(step)` (line 3974)
+    - Purpose: Matches candidate entities using domain-specific rules.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+- Class `LabelExplanationWindow` (inherits Toplevel) (line 3983)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 3984)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_content(text)` (line 4041)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_close()` (line 4054)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `LCMSView` (inherits Frame) (line 4066)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent, app, workspace)` (line 4073)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build()` (line 4079)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `FTIRView` (inherits Frame) (line 4976)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent, app, workspace)` (line 4979)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build()` (line 5096)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_init_ftir_workspaces_from_app_workspace()` (line 5666)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_workspace()` (line 5685)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_default_color_for_workspace_id(ws_id)` (line 5696)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_workspace_line_color(ws_id)` (line 5724)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_scheme_options()` (line 5738)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_overlay_color_scheme()` (line 5754)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_overlay_single_hue_color()` (line 5760)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_colors_for_scheme(scheme, n)` (line 5775)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_color_map_for_group(g)` (line 5804)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_ftir_overlay_offset_changed()` (line 5812)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_edit_active_workspace_graph_color()` (line 5818)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_find_workspace_id_by_name(name)` (line 5844)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_sync_active_workspace_to_app_workspace()` (line 5851)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_all_dataset_keys()` (line 5864)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_dataset_by_key(key)` (line 5874)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_unique_workspace_name(base)` (line 5887)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_workspace_selector()` (line 5903)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_workspace_by_id(ws_id)` (line 5916)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_workspace_selected()` (line 5930)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_new_workspace()` (line 5937)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_workspace()` (line 5944)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_duplicate_workspace()` (line 5958)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_workspace()` (line 6005)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_parse_overlay_iid(iid)` (line 6058)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_overlay_group_counter_next()` (line 6069)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_group_ws_indicator(members)` (line 6082)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_selected_overlay_group_id()` (line 6088)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_active_overlay_group()` (line 6098)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_effective_active_key()` (line 6104)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_effective_active_dataset()` (line 6126)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_selection_ordered_selected_keys()` (line 6132)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_default_overlay_group_name(members)` (line 6161)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_new_overlay_group_from_selection()` (line 6176)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_activate_selected_overlay_group()` (line 6200)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_active_overlay_group()` (line 6217)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_selected_overlay_group()` (line 6222)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_duplicate_selected_overlay_group()` (line 6238)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_selected_overlay_group()` (line 6269)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_overlay_member_from_selected()` (line 6289)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_overlay_group_list()` (line 6309)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_overlay_group_members_list()` (line 6346)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_overlay_selection_list()` (line 6375)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_dataset_key_from_overlay_groups(key)` (line 6410)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_remove_workspace_id_from_overlay_groups(ws_id)` (line 6427)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `refresh_from_workspace()` (line 6442)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_import_active_workspace_from_app_workspace()` (line 6483)
+    - Purpose: Imports external content into this application's structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `apply_restored_ftir_state(payload)` (line 6495)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `reset_for_load()` (line 6681)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_schedule_redraw()` (line 6763)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `load_ftir_dialog()` (line 6777)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_ftir_timing(label, seconds)` (line 6803)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_request_mpl_draw_idle(reason)` (line 6820)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_mpl_draw_event(evt)` (line 6855)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_ftir_busy(busy)` (line 6867)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_start_ftir_queue_poll()` (line 6877)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_poll_ftir_queue()` (line 6895)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_ftir_files_async(paths)` (line 6962)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_set_loading_status(i, n, name)` (line 7114)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_ftir_batch_loaded(results)` (line 7124)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_read_table(path)` (line 7210)
+    - Purpose: Reads structured input and normalizes it for downstream processing.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_pick_xy(df)` (line 7324)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_load_ftir_file(path)` (line 7429)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_redraw()` (line 7507)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_dataset()` (line 7878)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_plot_arrays(d)` (line 7894)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_overlay_offset_for_key(key)` (line 7932)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_selected_dataset_id()` (line 7965)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_by_id(dataset_id)` (line 7975)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_dataset(ws_id, dataset_id)` (line 7979)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_tree_select_set_active()` (line 8039)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_toggle_reverse()` (line 8053)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `remove_selected()` (line 8066)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `clear_all()` (line 8104)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_tree_menu()` (line 8130)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_tree_right_click(evt)` (line 8140)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_rename_selected()` (line 8161)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_plot_dialog()` (line 8190)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_snapshot_export_state()` (line 8202)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `cycle_active(delta)` (line 8419)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_peaks_dialog()` (line 8435)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_unhide_all_peaks()` (line 8550)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_export_peaks_menu()` (line 8560)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_peaks_dialog()` (line 8568)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_on_ftir_keypress(evt)` (line 8669)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_common_presets()` (line 8683)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_presets()` (line 8697)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_add_bond_label_dialog()` (line 8736)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_cancel_placement()` (line 9014)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_begin_placement(opts)` (line 9036)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_bond_place_key(evt)` (line 9059)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_bond_place_click(evt)` (line 9064)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_add_annotation(opts)` (line 9118)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_autoplace(opts)` (line 9143)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_peaks_export_rows(d)` (line 9265)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_build_peaks_export_tables(d)` (line 9340)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_active_peaks_csv()` (line 9575)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_all_peaks_excel()` (line 9619)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_sync_peaks_vars_from_active_dataset()` (line 9703)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_peaks_dialog()` (line 9722)
+    - Purpose: Coordinates dialog creation, defaults, and result handling.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_peaks_dialog_all()` (line 9759)
+    - Purpose: Coordinates dialog creation, defaults, and result handling.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_start_peaks_worker(dataset_id, wn, y, y_mode, settings)` (line 9811)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_start_peaks_batch_worker(keys, settings)` (line 9917)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_on_peaks_ready_for_key(key, peak_settings, peaks)` (line 10041)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peaks_batch_done(done, total)` (line 10107)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peaks_ready(dataset_id, peak_settings, peaks)` (line 10126)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_clear_peak_artists()` (line 10205)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_bond_artists()` (line 10227)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_bond_annotations(ax)` (line 10242)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_get_peak_color()` (line 10358)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_tint_color_close(base)` (line 10373)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_peak_color_for_key(key)` (line 10389)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_prune_overlay_peak_display_cache()` (line 10399)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_overlay_display_peak_ids(key, d)` (line 10417)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_render_peaks_on_axes(ax, d)` (line 10458)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_overlay_peak_markers(ax, dataset_keys, active_key)` (line 10642)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_peak_drag_press(evt)` (line 10677)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_drag_motion(evt)` (line 10748)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_drag_release(evt)` (line 10850)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_ensure_peak_menu()` (line 10863)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_bond_menu()` (line 10874)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_workspace_by_id(ws_id)` (line 10884)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_label_editor()` (line 10892)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_menu_edit_label()` (line 11076)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_menu_toggle_vline()` (line 11083)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_bond_menu_delete()` (line 11097)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_peak_pick_event(evt)` (line 11110)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_peak_menu_edit_label()` (line 11206)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_peak_menu_hide()` (line 11213)
+    - Purpose: Hides UI components while keeping state intact.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_peak_menu_show()` (line 11231)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_peak_menu_delete()` (line 11249)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `App` (inherits Window) (line 11276)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `_normalize_theme_name(value)` (line 11278)
+    - Purpose: Applies visual theme tokens/styles across UI components.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `__init__()` (line 11289)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `destroy()` (line 11677)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_default_session_root_dir()` (line 11706)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_session_root_dir_from_workspace_path(workspace_json_path)` (line 11722)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_session_root_dir()` (line 11734)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_status_by_tab()` (line 11746)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_ui()` (line 11788)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_diagnostics_panel(parent)` (line 11884)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_diag_panel_visibility()` (line 11967)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_log(level, message, exc)` (line 11987)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_warn(message)` (line 11998)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_diag_append(level, message)` (line 12005)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_diag_refresh_text(append_last)` (line 12012)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_diag_clear()` (line 12051)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_diag_copy()` (line 12055)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_diag_save()` (line 12071)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_register_lcms_action_widget(key, widget)` (line 12097)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_widget_enabled(widget, enabled)` (line 12104)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_has_recoverable_workspace_state()` (line 12112)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_recovery_snapshot_path()` (line 12125)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_recovery_snapshot()` (line 12134)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_recovery_autosave()` (line 12142)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_autosave_recovery_snapshot()` (line 12159)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_offer_recovery_restore()` (line 12169)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_capture_lcms_label_state()` (line 12215)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_push_lcms_undo_state(description)` (line 12238)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_undo_last_lcms_label_change()` (line 12250)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_lcms_workflow_state()` (line 12308)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_lcms_action_states()` (line 12381)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_current_context_panel()` (line 12411)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_brand_logo()` (line 12455)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_on_root_configure(_evt)` (line 12493)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_schedule_bg_redraw()` (line 12497)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_redraw_bg_watermark()` (line 12510)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_draw_mpl_watermark()` (line 12573)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_theme()` (line 12644)
+    - Purpose: Applies visual theme tokens/styles across UI components.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_brand_theme()` (line 12647)
+    - Purpose: Applies visual theme tokens/styles across UI components.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_set_theme(theme_name)` (line 12686)
+    - Purpose: Applies visual theme tokens/styles across UI components.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_menu()` (line 12710)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_show_shortcuts()` (line 12802)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_show_about()` (line 12829)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_chrome_open_view_menu()` (line 12842)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_chrome_open_help_menu()` (line 12857)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_module_name()` (line 12872)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_is_lcms_active()` (line 12883)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_is_ftir_active()` (line 12886)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dispatch_open()` (line 12889)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dispatch_open_many()` (line 12895)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dispatch_add_uv_single()` (line 12902)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dispatch_add_uv_many()` (line 12907)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dispatch_export_primary()` (line 12912)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_dispatch_lcms_only(fn)` (line 12918)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_dispatch_cycle(delta)` (line 12923)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_ftir_from_path_async(csv_path)` (line 12929)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_ftir_ready(path, x, y, make_active, restore_ctx, dataset_id, name, y_mode, x_units, y_units, peak_settings, peaks, peak_label_overrides, peak_suppressed, peak_label_positions, err)` (line 13070)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_ftir_state_to_dict()` (line 13209)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_ftir_for_load()` (line 13366)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply_ftir_workspace_dict(state)` (line 13379)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_maybe_finalize_ftir_only_restore(ctx)` (line 13471)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_ftir_workspace()` (line 13505)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_ftir_workspace()` (line 13531)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_bind_shortcuts()` (line 13553)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_cycle_active_session(delta)` (line 13603)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_cycle_overlay_active_dataset(delta)` (line 13617)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_toggle_advanced()` (line 13635)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_advanced_visibility()` (line 13643)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_jump_to_mz_dialog()` (line 13684)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_shortcut_in_text_input(widget)` (line 13756)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_register_nonmodal_dialog(win)` (line 13774)
+    - Purpose: Coordinates dialog creation, defaults, and result handling.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_close_topmost_nonmodal_dialog()` (line 13806)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_key_find_mz(event)` (line 13836)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_sim(event)` (line 13842)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_auto_align(event)` (line 13848)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_diagnostics(event)` (line 13854)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_step_coarse_back(event)` (line 13860)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_step_coarse_fwd(event)` (line 13866)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_step_medium_back(event)` (line 13872)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_step_medium_fwd(event)` (line 13878)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_focus_rt_jump(event)` (line 13884)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key_escape_close(_event)` (line 13897)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_diagnostics_window()` (line 13901)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_diagnostics_window()` (line 13954)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_workspace_state_to_dict()` (line 13998)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_workspace_for_load()` (line 14422)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_clear_lcms_for_load()` (line 14517)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply_workspace_dict(state)` (line 14600)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_maybe_finalize_workspace_restore()` (line 14951)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_maybe_finalize_lcms_workspace_restore()` (line 15358)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 15597)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_get_active_microscopy_workspace()` (line 15650)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_microscopy_workspace(ws_obj)` (line 15669)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_decode_microscopy_workspace(row)` (line 15686)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_microscopy_workspace()` (line 15731)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_microscopy_workspace()` (line 15770)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_load_workspace()` (line 15869)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_default_lcms_workspace_dir()` (line 15890)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_lcms_workspace_extension(path)` (line 15904)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_recent_lcms_workspace(path)` (line 15913)
+    - Purpose: Maintains and retrieves recent item history.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_recent_lcms_menu()` (line 15927)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reveal_lcms_workspace_in_explorer()` (line 15945)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_lcms_workspace_from_path(path)` (line 15954)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_open_instructions_window()` (line 16229)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_status(text)` (line 16246)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_app_chrome_context(status_text)` (line 16257)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_status_current()` (line 16308)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_now_viewing_header()` (line 16332)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_quick_annotate_settings()` (line 16361)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_uv_ms_labels_to_selected_rt()` (line 16384)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reset_view_all()` (line 16406)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_session_display_name()` (line 16434)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_session_id_by_path(path)` (line 16440)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_mzml_many()` (line 16450)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_add_mzml_paths(paths)` (line 16459)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_session_from_path_async(mzml_path)` (line 16483)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_session_index_ready(session_id, mzml_path, idx, load_order, make_active, err)` (line 16508)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_active_session_state()` (line 16648)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_set_active_session(session_id)` (line 16664)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_selected_session_id_from_tree()` (line 16762)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_from_workspace()` (line 16771)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_selected_session()` (line 16778)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_close_active_session()` (line 16784)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_session(session_id)` (line 16789)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_rename_session(session_id)` (line 16886)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_copy_session_path(session_id)` (line 16911)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_ensure_ws_menu()` (line 16922)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_ws_right_click(evt)` (line 16935)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_palette()` (line 16955)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_scheme_options()` (line 16971)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_scheme_changed()` (line 16988)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_overlay_single_hue_color()` (line 16999)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_colors_for_scheme(scheme, n)` (line 17014)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_overlay_color_scheme()` (line 17046)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_next_overlay_color()` (line 17084)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_overlay_color(session_id)` (line 17091)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_configure_lcms_tree(tree)` (line 17104)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_lcms_tree_stripes(tree)` (line 17121)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_ws_tree_row(session_id)` (line 17143)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_ws_left_click(evt)` (line 17166)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_selected_mzml_folder()` (line 17229)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_link_uv_from_context_menu()` (line 17248)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_uv_id_from_tree()` (line 17301)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_uv_id_by_path(path)` (line 17310)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_uv_display_name(uv_id)` (line 17320)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_ws_row_uv(session_id)` (line 17331)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_sync_active_uv_id()` (line 17335)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_uv_session()` (line 17346)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_uv_xy()` (line 17352)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_uv_labels_by_uvrt()` (line 17358)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_uv_ws_controls()` (line 17371)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_ws_select(_evt)` (line 17383)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_ws_active_markers()` (line 17393)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_uv_linked_to_summary(uv_id)` (line 17409)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_uv_tree_links()` (line 17423)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_link_uv_to_mzml()` (line 17440)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_link_selected_uv_to_selected_mzml()` (line 17462)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_csv_single()` (line 17473)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_csv_many()` (line 17482)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_add_uv_paths(paths)` (line 17491)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_uv_session_from_path_async(csv_path)` (line 17512)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_uv_session_ready(sess, err)` (line 17651)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_link_uv_to_active_mzml(uv_id)` (line 17736)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_link_selected_uv_to_active_mzml()` (line 17743)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_selected_uv()` (line 17752)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_uv(uv_id)` (line 17758)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_normalize_stem(s)` (line 17798)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_link_uv_by_name()` (line 17813)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_copy_uv_path(uv_id)` (line 17867)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_ensure_uv_ws_menu()` (line 17878)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_uv_ws_right_click(evt)` (line 17888)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_panels_changed()` (line 17908)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_plot_axes()` (line 17913)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_uv_ms_offset()` (line 17983)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_offset_step(max_global)` (line 18011)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_overlay_offset_scale()` (line 18021)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_has_uv_ms_alignment()` (line 18041)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_map_uv_to_ms_rt(uv_rt_min)` (line 18049)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_map_ms_to_uv_rt(ms_rt_min)` (line 18061)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_uv_ms_align_enabled_changed()` (line 18073)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_alignment_diagnostics()` (line 18093)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_smooth_1d(y, window)` (line 18121)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_pick_peaks_time_series(x, y)` (line 18137)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_match_peaks_monotonic(uv_rts, uv_h, ms_rts, ms_h)` (line 18217)
+    - Purpose: Matches candidate entities using domain-specific rules.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_auto_align_uv_ms()` (line 18302)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_local_maxima_indices(rt, signal)` (line 18418)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_nearest_apex_distance_and_crowding(rt, signal)` (line 18482)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_compute_confidence_for_uv_label(anchor_uv_rt, ms_rt)` (line 18506)
+    - Purpose: Computes derived values from available inputs.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_format_uv_label_display_text(st)` (line 18562)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_go_to_index(idx)` (line 18576)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_go_last()` (line 18581)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_step_spectrum(delta)` (line 18586)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_jump_to_rt()` (line 18594)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_register_ms_position_listener(cb)` (line 18609)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_unregister_ms_position_listener(cb)` (line 18613)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_register_active_session_listener(cb)` (line 18620)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_unregister_active_session_listener(cb)` (line 18624)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_notify_ms_position_changed()` (line 18631)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_notify_active_session_changed()` (line 18645)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_sim_dialog()` (line 18652)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_sim_cache_key()` (line 18773)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_run_sim_for_window(win)` (line 18782)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_on_sim_error()` (line 18920)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_sim_ready()` (line 18927)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_mz_find_history_format(entry)` (line 18958)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mz_find_history_refresh_combobox()` (line 18970)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_mz_find_history_on_select(_evt)` (line 18985)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_find_mz_dialog()` (line 18999)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_mz_find_highlight()` (line 19090)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_draw_mz_find_highlight(peak_mz)` (line 19100)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mz_find_cache_key(target_mz, tol_value, tol_unit, min_intensity)` (line 19114)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mz_find_tol_da(target_mz, tol_value, tol_unit)` (line 19121)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mz_find_update_history(params)` (line 19127)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mz_find_pick_target_index(matches)` (line 19142)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_find_mz_jump()` (line 19203)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_mz_find_finish_jump(target_mz, tol_value, unit, mode, tol_da, key, matches, peak_cache)` (line 19348)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_export_spectrum_csv()` (line 19406)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_overlay_tic_csv()` (line 19455)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_overlay_spectra()` (line 19517)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_safe_filename(name)` (line 19575)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_snapshot_labeling_settings()` (line 19579)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_collect_label_occurrences_for_spectrum(spectrum_id, meta, mz_vals, int_vals)` (line 19629)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_collect_labels_for_spectrum(spectrum_id, meta, mz_vals, int_vals)` (line 19727)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_collect_labels_for_export(mz_vals, int_vals)` (line 19756)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_all_labels_xlsx()` (line 19761)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_parse_optional_float(raw)` (line 19903)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_trace_global_max(y)` (line 19909)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_snap_index_to_local_max(x, y, x_clicked)` (line 19917)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_accept_apex(apex_y, y_global_max)` (line 19954)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_style_mpl_toolbar(toolbar)` (line 19960)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_lcms_empty_state()` (line 19989)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dismiss_lcms_empty_state()` (line 20027)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_sync_lcms_axis_layout()` (line 20036)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_plot_style_to_axes(fig, axes)` (line 20074)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_plot_style()` (line 20163)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_matplotlib_bg(fig, canvas)` (line 20243)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_matplotlib_bg_current()` (line 20263)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_graph_settings()` (line 20293)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_annotation_settings()` (line 20549)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_custom_labels()` (line 20663)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_polymer_match()` (line 20796)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_show_busy(message)` (line 21035)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_hide_busy()` (line 21053)
+    - Purpose: Hides UI components while keeping state intact.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_mzml()` (line 21068)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_csv()` (line 21077)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_plot_uv()` (line 21081)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_axis_image(ax, default_stem)` (line 21174)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_reset_spectrum_view()` (line 21201)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_capture_axes_limits(ax)` (line 21211)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_restore_axes_limits(ax, lim)` (line 21219)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_capture_axes_limits_map(axes)` (line 21228)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_restore_axes_limits_map(lims)` (line 21239)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_tic_plot()` (line 21247)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_spectrum_plot()` (line 21261)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_uv_plot()` (line 21274)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_open_tic_window()` (line 21288)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_spectrum_window()` (line 21302)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_window()` (line 21315)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_loaded(mzml_path, idx)` (line 21329)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_load_error(exc)` (line 21356)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_is_overlay_active()` (line 21362)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_dataset_ids()` (line 21365)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_selected_ids_from_flags()` (line 21373)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_view()` (line 21377)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_find_nearest_dataset_id_by_rt(rt_min)` (line 21429)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_meta_for_session(session_id, pol)` (line 21444)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_overlay_legend()` (line 21464)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_display_names(ids)` (line 21513)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_overlay_from_legend()` (line 21537)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_tic()` (line 21551)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_plot_uv_overlay()` (line 21648)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_get_overlay_reader(session_id)` (line 21788)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_spectrum_for_rt(session_id, target_rt)` (line 21803)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_plot_overlay_spectrum_for_rt(target_rt)` (line 21842)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_labels_for_session(session_id, meta, mz_vals, int_vals)` (line 21931)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_start_overlay_selected()` (line 21961)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_clear_overlay()` (line 22010)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_tic()` (line 22038)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_redraw_all()` (line 22139)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_redraw_spectrum_only()` (line 22144)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_plot_click(event)` (line 22156)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_motion(event)` (line 22338)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_release(event)` (line 22399)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_tic_region_select_changed()` (line 22443)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_tic_region_clear_btn_state(enabled)` (line 22448)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_clear_tic_region_selection()` (line 22457)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_draw_tic_region_span()` (line 22483)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_tic_region_span(rt_a, rt_b)` (line 22491)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_compute_region_summed_spectrum(rt_a, rt_b)` (line 22512)
+    - Purpose: Computes derived values from available inputs.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_on_region_spectrum_error(exc)` (line 22602)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_region_spectrum_ready()` (line 22609)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_mz_key(mz)` (line 22663)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_spec_label_storage_key(spec_key)` (line 22669)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_spec_label_position_entry(spectrum_id, spec_key)` (line 22684)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_spec_label_xytext(spectrum_id, spec_key, default_xytext)` (line 22703)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_store_spec_label_xytext(spectrum_id, spec_key, xytext)` (line 22710)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_remove_spec_label_position(spectrum_id, spec_key)` (line 22719)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_shift_custom_label_positions_after_delete(spectrum_id, deleted_idx)` (line 22730)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_annotation_overlap_area(bbox_a, bbox_b)` (line 22755)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_line_segments_intersect(a0, a1, b0, b1)` (line 22764)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_debug_auto_arrange(message)` (line 22780)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_x_shift(ax)` (line 22788)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_cluster_config(ax)` (line 22804)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_lane_pattern(count)` (line 22826)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_cluster_annotation_items(items, cluster_gap)` (line 22840)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_cluster_lane_dx(base_lane_dx, max_shift, cluster_size)` (line 22866)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_cluster_row_count(base_rows, cluster_size)` (line 22872)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_pair_length_score()` (line 22880)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_arrange_annotation_artists()` (line 22899)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_arrange_lcms_labels()` (line 23128)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_run_auto_arrange_lcms_labels()` (line 23248)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_open_label_editor(ann)` (line 23284)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_label_explanation(ann)` (line 23436)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_label_explanation_text(ann)` (line 23466)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_explain_polymer_best_match_for_peak(mz_s, int_s, peak_i, kind)` (line 23738)
+    - Purpose: Matches candidate entities using domain-specific rules.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_get_spectrum_by_id(spectrum_id)` (line 23816)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_show_spectrum_for_index(idx)` (line 23825)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_top_peaks_by_intensity(mz_vals, int_vals, top_n)` (line 23887)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_top_peaks_sorted_indices(mz_vals_sorted, int_vals_sorted, top_n)` (line 23903)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_format_uv_id_label(label)` (line 23917)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_compute_polymer_best_by_peak_sorted(mz_s, int_s)` (line 23923)
+    - Purpose: Computes derived values from available inputs.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_maybe_store_uv_ms_labels_for_current_spectrum()` (line 24002)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_draw_uv_ms_peak_labels()` (line 24122)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_plot_spectrum(meta, mz_vals, int_vals)` (line 24181)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_annotate_peaks(mz_vals, int_vals)` (line 24205)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_clear_spectrum_annotations()` (line 24270)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_find_nearest_peak(mz_vals, int_vals, target_mz)` (line 24280)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_custom_labels(mz_vals, int_vals)` (line 24305)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_parse_charges(raw)` (line 24358)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_parse_monomers(raw)` (line 24377)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply_polymer_matches(mz_vals, int_vals)` (line 24412)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/app_chrome.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `AppChrome` (inherits Frame) (line 41)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 51)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_status_ready(text)` (line 126)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_status_busy(text)` (line 129)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_status_error(text)` (line 132)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_context(primary, secondary)` (line 135)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_pill(text, bg, fg)` (line 145)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_chrome_button(parent, text, command)` (line 151)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_fire_view()` (line 171)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_fire_help()` (line 178)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/data_studio_export.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `DataStudioExportEditor` (inherits Toplevel) (line 23)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 24)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_controls()` (line 159)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_parse_optional_float(raw)` (line 389)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_overlay_scheme_options()` (line 395)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_overlay_single_hue_color()` (line 411)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_colors_for_scheme(scheme, n)` (line 425)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_replot()` (line 454)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_as()` (line 617)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_data()` (line 631)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+
+## lab_gui/data_studio_io.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `get_sheet_names(path)` (line 11)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_coerce_numeric(df)` (line 19)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_replace_decimal_commas(df)` (line 30)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `load_table(path)` (line 41)
+  - Purpose: Loads data from disk or external sources into in-memory models.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `numeric_columns(df)` (line 65)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `column_types_summary(df)` (line 76)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `column_type_map(df)` (line 86)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `schema_hash_from_columns(cols)` (line 96)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `normalize_series(values, mode)` (line 105)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `apply_transform_steps(df, steps)` (line 121)
+  - Purpose: Transforms data shape while preserving domain meaning.
+  - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+
+## lab_gui/data_studio_model.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `DataStudioDataset` (line 9)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `DataStudioPlotDef` (line 24)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `DataStudioWorkspace` (line 35)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/data_studio_view.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `_PreviewWindow` (inherits Toplevel) (line 60)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 61)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_prepare_columns()` (line 207)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_apply_filters()` (line 229)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_filter_var_changed()` (line 237)
+    - Purpose: Filters records based on conditions or thresholds.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_schedule_render(df)` (line 242)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_filters()` (line 274)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_sort()` (line 315)
+    - Purpose: Sorts collections to support deterministic outputs.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_sort(col)` (line 322)
+    - Purpose: Sorts collections to support deterministic outputs.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_sort_indicators()` (line 332)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_stats()` (line 343)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_filters()` (line 360)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_range_state(col)` (line 367)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_copy_selection()` (line 385)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_copy_filtered()` (line 404)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_help()` (line 423)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reload_sheet()` (line 442)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `DataStudioView` (inherits Frame) (line 458)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent, app, workspace)` (line 459)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `status_text()` (line 490)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_mark_dirty()` (line 496)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_dirty()` (line 502)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_plot_def()` (line 508)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_plot_def_name(pd)` (line 514)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_ui()` (line 519)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_toggle_y_panel()` (line 952)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_toggle_advanced_panel()` (line 955)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_data_options()` (line 966)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_y_selector()` (line 1005)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_canvas_resize(event)` (line 1160)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_files()` (line 1170)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_plot_def_for_dataset(dataset_id)` (line 1196)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_remove_plot_defs_for_dataset(dataset_id)` (line 1214)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_infer_schema_async(dataset_id)` (line 1221)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_dataset(dataset_id)` (line 1259)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_remove_selected()` (line 1282)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_workspace()` (line 1298)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 1304)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 1325)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_set_active_from_selection()` (line 1356)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_select()` (line 1365)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_plot_select()` (line 1373)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_set_active_plot_from_selection()` (line 1387)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_new_plot_def()` (line 1390)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_remove_plot_def()` (line 1409)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_preview_data()` (line 1418)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_overlay()` (line 1429)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_overlay()` (line 1467)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_select_all()` (line 1472)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_select_none()` (line 1477)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_make_active_first()` (line 1482)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_overlay_help()` (line 1489)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_mode_changed()` (line 1500)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_restore_y_selection_only()` (line 1510)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_overlay_refresh()` (line 1513)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_click(evt)` (line 1524)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_workspace()` (line 1532)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_recipes_ui()` (line 1550)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_recipe_id()` (line 1567)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_recipe()` (line 1573)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_rename_recipe()` (line 1591)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_recipe()` (line 1601)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_recipe()` (line 1613)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_recipes_help()` (line 1681)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_id(tree)` (line 1697)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_load_df(ds)` (line 1704)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_transform_steps_hash(steps)` (line 1717)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_get_transformed_df(ds)` (line 1724)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_plot_df(ds)` (line 1739)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_refresh_transform_list()` (line 1744)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_format_transform_step(step)` (line 1759)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_selected_transform_index()` (line 1792)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_on_transform_toggle()` (line 1799)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_open_transform_step_editor(step)` (line 1822)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_add_transform_step()` (line 1999)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_edit_transform_step()` (line 2017)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_remove_transform_step()` (line 2039)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_move_transform_step(delta)` (line 2057)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_clear_transform_steps()` (line 2082)
+    - Purpose: Transforms data shape while preserving domain meaning.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_open_transform_help()` (line 2101)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_populate_columns()` (line 2114)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_restore_config_for_active()` (line 2169)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_plot_for_selection()` (line 2238)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_pick_default_axes(dataset_id)` (line 2275)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_x_values(filter_text)` (line 2331)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_clear_x_search()` (line 2342)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_axes_both()` (line 2346)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_axes_y_only()` (line 2364)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_axes_help()` (line 2376)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_toggle_extra_fields()` (line 2386)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_y_list()` (line 2433)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_available_y_items(filter_text)` (line 2443)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_y_summary()` (line 2466)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_select_all_numeric_y()` (line 2477)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_y_selection()` (line 2496)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_plot_type_changed()` (line 2506)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_x_changed()` (line 2521)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_y_changed()` (line 2527)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reset_plot_builder()` (line 2533)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_collect_selected_y()` (line 2543)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_plot()` (line 2549)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_plot()` (line 2667)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_plot_series()` (line 2704)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_overlay_offset(series)` (line 2904)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_safe_float(value)` (line 2930)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_store_current_config()` (line 2936)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_export_plot()` (line 2968)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_export_transformed_csv()` (line 2975)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+
+## lab_gui/data_studio_workspace_io.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `encode_workspace(ws)` (line 9)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `decode_workspace(payload)` (line 83)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/export_editor.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `ExportEditor` (inherits Toplevel) (line 25)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(app)` (line 26)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_tt(key)` (line 60)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_source_axis()` (line 63)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_to_hex_color(value, fallback)` (line 69)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_grid_style_from_lines(lines)` (line 75)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_capture_live_style_snapshot()` (line 93)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_live_plot_theme()` (line 244)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_init_ui()` (line 317)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_close_export()` (line 561)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_on_controls_closed()` (line 575)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_controls_window()` (line 579)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_install_color_traces()` (line 1165)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_colors()` (line 1193)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_table_tree()` (line 1227)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_label_rt_for_number(n)` (line 1252)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_colors()` (line 1266)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_parse_optional_float(raw)` (line 1330)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_annotation_rotation()` (line 1336)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_annotation_orientation()` (line 1339)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_annotations()` (line 1351)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_add_annotation(text)` (line 1360)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_auto_arrange_labels()` (line 1383)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_sorted_export_annotations()` (line 1424)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_parse_annotation_selection(raw, total)` (line 1434)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_resolve_selected_annotations()` (line 1458)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_annotation_is_locked(ann)` (line 1472)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_distribute_annotations()` (line 1487)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_shift_annotations()` (line 1615)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_align_annotations()` (line 1665)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_distribute_labels_dialog()` (line 1760)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_initial_plot()` (line 1949)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_style_and_limits_impl()` (line 2411)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_style_and_limits()` (line 2443)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_style_only_impl()` (line 2446)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_legend()` (line 2485)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_install_live_style_traces()` (line 2537)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_gap_step(max_global)` (line 2565)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_install_overlay_gap_trace()` (line 2575)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_plot_rebuild()` (line 2594)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_rebuild_plot_now()` (line 2610)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_schedule_live_style_apply()` (line 2628)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_live_style_now()` (line 2644)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_label_rt_for_annotation(ann)` (line 2654)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_apply_numbering(redraw_only)` (line 2666)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_as()` (line 2753)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_open_editor_for_label(ann)` (line 2781)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_press(event)` (line 2837)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_motion(event)` (line 2862)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_release(event)` (line 2878)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/external_tools.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_get_imagej_help_text(exe_path)` (line 26)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_supports_dash_macro(exe_path)` (line 51)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `supports_fiji_dash_macro(exe_path)` (line 82)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `detect_imagej_engine(exe_path)` (line 87)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_try_get_short_path(path)` (line 135)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `normalize_path_for_imagej(path)` (line 164)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `run_fiji_open(exe_path, image_path)` (line 188)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `run_fiji_macro(exe_path, macro_path, image_path, out_dir, extra_args)` (line 194)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `best_effort_close_process_log(proc)` (line 290)
+  - Purpose: Closes handles, views, or sessions cleanly.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Class `ImageJEngineInfo` (inherits TypedDict) (line 14)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/ftir_analysis.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `preprocess_spectrum(wn, y)` (line 26)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_smooth(y)` (line 96)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_baseline_polyfit(x, y)` (line 136)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_normalize_max(y)` (line 152)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_normalize_area(x, y)` (line 163)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `format_peak_label(peak)` (line 194)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `pick_peaks(wn, y)` (line 215)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_sanitize_xy(wn, y)` (line 280)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_pick_candidates(x, y_orig, y_pick)` (line 309)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_pick_candidates_scipy(x, y_orig, y_pick)` (line 325)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_pick_candidates_fallback(x, y_orig, y_pick)` (line 396)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_approx_prominence(i, y)` (line 448)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_approx_prominence_with_bases(i, y)` (line 453)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_enforce_min_distance(peaks, min_distance_cm1)` (line 497)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_self_check_empty()` (line 522)
+  - Purpose: Performs lightweight verification before execution.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_self_check_simple_absorbance()` (line 527)
+  - Purpose: Performs lightweight verification before execution.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_self_check_transmittance_minima()` (line 537)
+  - Purpose: Performs lightweight verification before execution.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_self_check_nan_handling()` (line 549)
+  - Purpose: Performs lightweight verification before execution.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `run_self_checks()` (line 556)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Class `FTIRPeak` (line 177)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/ftir_assignment.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `assign_ftir_peaks(peaks, library, spectrum_context)` (line 18)
+  - Purpose: Assigns labels, classes, or identifiers based on heuristics.
+  - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+- Function `_normalize_peak(p)` (line 121)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_normalize_entry(e)` (line 146)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_score_entry()` (line 177)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_infer_peak_shape()` (line 265)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_infer_peak_intensity(p)` (line 290)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_to_float(x)` (line 314)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_finite(x)` (line 326)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_clamp(x, lo, hi)` (line 333)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/ftir_io.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_try_parse_float_pair(line)` (line 15)
+  - Purpose: Parses raw input into strongly-typed or normalized structures.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `_parse_ftir_xy_only(path_str)` (line 39)
+  - Purpose: Parses raw input into strongly-typed or normalized structures.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `_parse_ftir_xy_numpy(path_str)` (line 105)
+  - Purpose: Parses raw input into strongly-typed or normalized structures.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `_ftir_parse_for_executor(path_str)` (line 208)
+  - Purpose: Parses raw input into strongly-typed or normalized structures.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Class `FTIRLoadError` (inherits Exception) (line 11)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/ftir_library.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_entry()` (line 22)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `get_library_v2()` (line 438)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/ftir_model.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `FTIRBondAnnotation` (line 14)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `FTIRDataset` (line 29)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `FTIRWorkspace` (line 58)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `StyleState` (line 70)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `OverlayGroup` (line 76)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/lcms_io.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `preview_dataframe_rows(df)` (line 109)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `infer_uv_columns(df)` (line 119)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `parse_uv_arrays(df)` (line 183)
+  - Purpose: Parses raw input into strongly-typed or normalized structures.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Class `LCMSLoadError` (inherits Exception) (line 15)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `UVLoadError` (inherits Exception) (line 19)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `MzMLTICIndex` (line 23)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(mzml_path)` (line 31)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `build()` (line 37)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/lcms_model.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_safe_float(value)` (line 133)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_extract_ms_level(spectrum)` (line 142)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_extract_rt_minutes(spectrum, rt_unit)` (line 152)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_extract_polarity(spectrum)` (line 171)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_spectrum_id(spectrum)` (line 190)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Class `SpectrumMeta` (line 11)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `CustomLabel` (line 20)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `OverlaySession` (line 26)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `LabelingSettings` (line 39)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `UVLabelState` (line 66)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `MzMLSession` (line 77)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `UVSession` (line 107)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `LCMSDataset` (line 121)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/lcms_polymer_match.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `estimate_num_compositions(n_monomers, max_dp, min_dp)` (line 51)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `generate_polymer_compositions(n_monomers, max_dp, min_dp)` (line 69)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `generate_variants()` (line 112)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_auto_sign_proton_like(delta_mass, polarity)` (line 147)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `build_default_adduct_deltas()` (line 157)
+  - Purpose: Builds a composed object, view, or payload from smaller parts.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `find_best_peak_match(mz_array, inten_array, target_mz, tol_da, tol_ppm)` (line 206)
+  - Purpose: Matches candidate entities using domain-specific rules.
+  - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+- Function `_tol_to_da()` (line 318)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_kind_for_variant(tag)` (line 325)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `compute_polymer_best_by_peak_sorted(mz_sorted, int_sorted)` (line 340)
+  - Purpose: Computes derived values from available inputs.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `explain_best_match_for_peak_sorted(mz_sorted, int_sorted)` (line 677)
+  - Purpose: Matches candidate entities using domain-specific rules.
+  - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+- Function `run_polymer_self_checks()` (line 885)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Class `PolymerSearchTooLarge` (inherits RuntimeError) (line 24)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `IonCandidate` (line 29)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `Variant` (line 37)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `PeakMatch` (line 43)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## lab_gui/plate_reader_io.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `list_excel_sheets(path)` (line 10)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `read_plate_file(path)` (line 18)
+  - Purpose: Reads structured input and normalizes it for downstream processing.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `coerce_numeric_matrix(df)` (line 37)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `preview_dataframe(df)` (line 88)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/plate_reader_model.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_utc_now_iso()` (line 14)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `build_mic_wizard_config_and_result(df)` (line 386)
+  - Purpose: Builds a composed object, view, or payload from smaller parts.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `ensure_numeric(series)` (line 496)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `compute_mic(df)` (line 503)
+  - Purpose: Computes derived values from available inputs.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `compute_xy_plot(df)` (line 572)
+  - Purpose: Computes derived values from available inputs.
+  - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+- Function `detect_mic_wide_step_columns(df)` (line 605)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `default_mic_wide_step_to_conc(step_columns)` (line 630)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `build_mic_wide_long(df)` (line 676)
+  - Purpose: Builds a composed object, view, or payload from smaller parts.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `compute_mic_wide(df)` (line 737)
+  - Purpose: Computes derived values from available inputs.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `compute_mic_wide_od(df)` (line 879)
+  - Purpose: Computes derived values from available inputs.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Class `PlateReaderDataset` (line 19)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `current_df()` (line 71)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `render_current_plot(ax)` (line 77)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+- Class `PlateReaderAnalysisResult` (line 109)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `PlateReaderMICWizardConfig` (line 120)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `PlateReaderMICWizardResult` (line 168)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `render(ax)` (line 176)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+
+## lab_gui/plate_reader_view.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `_DataPreviewWindow` (inherits Toplevel) (line 40)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 41)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_close()` (line 102)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `set_df(df)` (line 108)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh()` (line 116)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render(df)` (line 123)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+- Class `PlateReaderRunWizard` (inherits Toplevel) (line 150)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 151)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_show_step(which)` (line 198)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_step_select()` (line 204)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_step_mic()` (line 227)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_wire_tick_autofill()` (line 375)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_auto_ticks_toggle()` (line 382)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_auto_ticks()` (line 393)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_cancel()` (line 417)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reload_df()` (line 423)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_from_dataset()` (line 450)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_populate_row_and_col_lists()` (line 495)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_preview_table()` (line 519)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_selected_rows(lb)` (line 543)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_selected_columns()` (line 549)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply()` (line 560)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `PlateReaderView` (inherits Frame) (line 602)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent, app, workspace)` (line 608)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `status_text()` (line 624)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_ui()` (line 630)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_buttons()` (line 820)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_dataset(ds)` (line 840)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_safe_dataclass_from_dict(cls, data)` (line 855)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_plate_reader_workspace()` (line 868)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_plate_reader_workspace()` (line 908)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_open_plot_editor()` (line 1018)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_style_applied()` (line 1024)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_restore_from_workspace()` (line 1029)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_dataset_df(ds)` (line 1072)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_labels()` (line 1095)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_workspace_list()` (line 1111)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_tree_select(_evt)` (line 1166)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_dataset(dataset_id)` (line 1179)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_unique_display_name(base)` (line 1199)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_files()` (line 1214)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_selected()` (line 1270)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_workspace()` (line 1309)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_selected()` (line 1332)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_preview()` (line 1354)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_wizard()` (line 1373)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_empty_plot()` (line 1398)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_from_dataset()` (line 1408)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+- Class `PlateReaderPlotEditor` (inherits Toplevel) (line 1419)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 1420)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_close()` (line 1557)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_parse_opt_float(s)` (line 1563)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply()` (line 1569)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_sample_color()` (line 1607)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_control_color()` (line 1615)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/plot_card.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_draw_rounded_rect(canvas, x1, y1, x2, y2, radius)` (line 56)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Class `PlotCard` (inherits Frame) (line 88)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 91)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `body()` (line 190)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `title_var()` (line 195)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `status_var()` (line 199)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `set_title(text)` (line 203)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_status(text)` (line 206)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_card_bg_configure(event)` (line 210)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_redraw_card_bg()` (line 219)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `register_canvas(canvas)` (line 247)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_canvas_configure(event)` (line 261)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_do_resize()` (line 270)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/runtime_paths.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `app_root()` (line 7)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `resource_path()` (line 14)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/settings.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `_appdata_dir()` (line 14)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `settings_path()` (line 26)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `load_settings()` (line 30)
+  - Purpose: Loads data from disk or external sources into in-memory models.
+  - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+- Function `save_settings(settings)` (line 90)
+  - Purpose: Persists the current state or results to disk.
+  - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+- Function `validate_imagej_exe_path(path)` (line 118)
+  - Purpose: Validates inputs and guards against invalid state.
+  - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+- Function `guess_imagej_initial_dirs()` (line 135)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## lab_gui/ui_theme.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Function `apply_global_styles(root)` (line 38)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_primary(btn)` (line 237)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_success(btn)` (line 242)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_danger(btn)` (line 247)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_secondary(btn)` (line 252)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_toolbar(btn)` (line 257)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `style_card_frame(frame)` (line 262)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Function `_apply_bootstyle(widget, bootstyle)` (line 276)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## lab_gui/ui_widgets.py
+
+- Module role: Legacy/primary Tkinter-based lab workflow logic and domain processing utilities.
+- Class `ToolTip` (line 11)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `set_style(cls)` (line 28)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `attach(cls, widget, text)` (line 35)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_cancel_scheduled(cls)` (line 79)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_schedule_show(cls)` (line 88)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `show(cls)` (line 99)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_place(cls)` (line 158)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `hide(cls)` (line 198)
+    - Purpose: Hides UI components while keeping state intact.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+- Class `MatplotlibNavigator` (line 209)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 212)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `attach()` (line 261)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `is_box_pending()` (line 273)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `update_home_from_artists()` (line 285)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_iter_axes()` (line 294)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_draw(_evt)` (line 309)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_status(text)` (line 317)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_format_coord(x, y)` (line 339)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_motion(event)` (line 350)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_press(event)` (line 408)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_can_box_zoom()` (line 465)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_start_box_pending(event)` (line 475)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_maybe_begin_box(event)` (line 498)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_box(event)` (line 540)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_finish_box(event)` (line 561)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_release(_event)` (line 602)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_key(event)` (line 628)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_scroll(event)` (line 640)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_tk_mousewheel(event)` (line 666)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_zoom_at(ax, x, y)` (line 702)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `reset_view(ax)` (line 735)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_event_xy(event, ax)` (line 756)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_pick_axes_from_tk(_event)` (line 768)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_tk_event_data(event, ax)` (line 774)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_compute_limits_from_artists(ax)` (line 787)
+    - Purpose: Computes derived values from available inputs.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_is_over_text(ax, event)` (line 856)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## main.py
+
+- Module role: Primary app entry point that wires startup configuration and launches the GUI.
+- Function `_maybe_run_polymer_selfchecks()` (line 8)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Function `_maybe_run_overlay_selfchecks()` (line 21)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+
+## qt_app/adapters/__init__.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- This module is mostly constants/imports/bootstrap code.
+
+## qt_app/adapters/data_studio_adapter.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `DataStudioAdapter` (line 52)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 53)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset()` (line 57)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `get_sheet_names(path)` (line 61)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `infer_schema(ds)` (line 64)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `load_df(ds)` (line 70)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `ensure_plot_def_for_dataset(dataset_id)` (line 77)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `remove_plot_defs_for_dataset(dataset_id)` (line 88)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `build_plot_series()` (line 95)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `apply_overlay_offset(series)` (line 294)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `open_export_editor(payload)` (line 313)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+
+## qt_app/adapters/ftir_adapter.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `FTIRAdapter` (line 6)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## qt_app/adapters/lcms_adapter.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `LCMSAdapter` (line 6)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+
+## qt_app/adapters/plate_reader_adapter.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `PlateReaderAdapter` (line 69)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 70)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `list_datasets()` (line 76)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `get_active_dataset()` (line 79)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `set_active_dataset_id(dataset_id)` (line 88)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_safe_dataclass_from_dict(cls, data)` (line 91)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_encode_dataset(ds)` (line 102)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `save_workspace(path)` (line 117)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `load_workspace(path)` (line 140)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `unique_display_name(base)` (line 212)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `load_files(paths)` (line 227)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `get_dataset_df(ds)` (line 258)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## qt_app/main.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Function `_init_logging()` (line 17)
+  - Purpose: Initializes state, wiring, and default values.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `_install_excepthook()` (line 32)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `main()` (line 42)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## qt_app/main_window.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `MainWindow` (inherits QMainWindow) (line 29)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 30)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_init_ui()` (line 51)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_menu()` (line 67)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_status_bar()` (line 101)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_busy(busy)` (line 107)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_progress(value)` (line 110)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_status(text)` (line 118)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_workspace()` (line 121)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 135)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_reset_layout()` (line 149)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_about()` (line 164)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_recent_menu()` (line 167)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_recent(path)` (line 180)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_reveal_in_explorer()` (line 193)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## qt_app/services/__init__.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- This module is mostly constants/imports/bootstrap code.
+
+## qt_app/services/dialog_service.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `DialogService` (line 6)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 7)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `info(title, message)` (line 10)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `warn(title, message)` (line 13)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `error(title, message)` (line 16)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `confirm(title, message)` (line 19)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## qt_app/services/recent_files_service.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `RecentFilesService` (line 9)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 10)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `list_recent()` (line 17)
+    - Purpose: Maintains and retrieves recent item history.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `add_recent(path)` (line 20)
+    - Purpose: Maintains and retrieves recent item history.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `clear()` (line 27)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_resolve_settings_path()` (line 31)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load()` (line 37)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_save()` (line 49)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+
+## qt_app/services/status_service.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `StatusService` (line 8)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 9)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `set_status(text)` (line 21)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_busy(busy)` (line 24)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_progress(value)` (line 36)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## qt_app/services/worker.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Function `_init_threadpool()` (line 22)
+  - Purpose: Initializes state, wiring, and default values.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Function `run_in_worker(fn, on_result, on_error, on_finished)` (line 86)
+  - Purpose: Executes a workflow or processing routine.
+  - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+- Class `_WorkerSignals` (inherits QObject) (line 39)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Methods: none
+- Class `WorkerHandle` (line 45)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 46)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `cancel()` (line 49)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `cancelled()` (line 53)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `_Worker` (inherits QRunnable) (line 57)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(fn, handle, description)` (line 58)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `run()` (line 66)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+
+## qt_app/tabs/data_studio_tab.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `DataStudioPreviewDialog` (inherits QDialog) (line 65)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 66)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_render_table(df)` (line 101)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_reload_sheet()` (line 113)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `DataStudioTab` (inherits QWidget) (line 121)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(status, dialogs, worker_runner, adapter)` (line 122)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_ui()` (line 146)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset_layout()` (line 160)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_workspace_panel()` (line 167)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_plot_panel()` (line 242)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_init_data_options()` (line 341)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_mouse_move(event)` (line 356)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_mark_dirty()` (line 365)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_dirty()` (line 368)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_active_plot_def()` (line 371)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_plot_def_name(pd)` (line 377)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_toggle_advanced_panel()` (line 382)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_data_options()` (line 385)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_data_options_and_close(dlg)` (line 412)
+    - Purpose: Closes handles, views, or sessions cleanly.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_y_selector()` (line 421)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_schedule_overlay_refresh()` (line 476)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_mode_changed()` (line 484)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_add_files()` (line 494)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_infer_schema_async(dataset_id)` (line 522)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_dataset(dataset_id)` (line 555)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_remove_selected()` (line 571)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_workspace()` (line 587)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 593)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 617)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_set_active_from_selection()` (line 653)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_select()` (line 662)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_plot_select()` (line 670)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_set_active_plot_from_selection()` (line 684)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_new_plot_def()` (line 687)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_remove_plot_def()` (line 699)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_preview_data()` (line 708)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_overlay()` (line 732)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_overlay()` (line 770)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_click(item, column)` (line 775)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_workspace()` (line 781)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_id(tree)` (line 810)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_populate_columns()` (line 816)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_restore_config_for_active()` (line 883)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_plot_for_selection()` (line 954)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_pick_default_axes(dataset_id)` (line 970)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_toggle_extra_fields()` (line 1025)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_extra_var(key, value)` (line 1079)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_y_list()` (line 1100)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_available_y_items(filter_text)` (line 1110)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_y_summary()` (line 1129)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_plot_type_changed()` (line 1140)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_x_changed()` (line 1155)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_group_changed()` (line 1161)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reset_plot_builder()` (line 1167)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_plot()` (line 1177)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_plot(base_series, meta)` (line 1211)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_apply_plot()` (line 1312)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_store_current_config()` (line 1341)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_export_plot()` (line 1370)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `open_workspace()` (line 1378)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_workspace()` (line 1381)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `open_workspace_path(path)` (line 1384)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_load_workspace_path(path)` (line 1389)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `get_last_workspace_path()` (line 1418)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ui_state_path(workspace_path)` (line 1421)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_save_ui_state(workspace_path)` (line 1424)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_ui_state(workspace_path)` (line 1435)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_safe_float(value)` (line 1450)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+
+## qt_app/tabs/ftir_tab.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `FTIRTab` (inherits QWidget) (line 44)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(status, dialogs, worker_runner)` (line 45)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_ui()` (line 106)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset_layout()` (line 120)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_left_panel()` (line 131)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_workspace_block()` (line 148)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_overlay_blocks()` (line 199)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_right_panel()` (line 287)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_utc_now_iso()` (line 345)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_default_workspace()` (line 348)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_current_workspace()` (line 357)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_workspace_combo()` (line 362)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_dataset_tree()` (line 379)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_workspace_selected(_index)` (line 392)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_new_workspace()` (line 399)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_workspace()` (line 409)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_duplicate_workspace()` (line 420)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_workspace()` (line 436)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_edit_workspace_graph_color()` (line 451)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_dataset_select()` (line 462)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_ftir_dialog()` (line 477)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_remove_selected()` (line 525)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_all()` (line 540)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_color_changed(_index)` (line 550)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_pick_overlay_single_hue_color()` (line 554)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_offset_changed()` (line 566)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rebuild_overlay_selection_list()` (line 574)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_new_overlay_group_from_selection()` (line 590)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_activate_selected_overlay_group()` (line 614)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_selected_overlay_group()` (line 627)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_duplicate_selected_overlay_group()` (line 642)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_selected_overlay_group()` (line 662)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_active_overlay_group()` (line 676)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_group_select()` (line 682)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_member_select()` (line 685)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_overlay_member_from_selected()` (line 688)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_group_list()` (line 703)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_members_list()` (line 717)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_get_dataset_by_key(key)` (line 733)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_colors_for_count(count)` (line 742)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_render_plot()` (line 758)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_plot_dialog()` (line 826)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_toggle_reverse(checked)` (line 841)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_toggle_peaks_all_overlay(checked)` (line 845)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_peaks_dialog()` (line 849)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_peak_artists()` (line 881)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_bond_artists()` (line 903)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_peaks_for_dataset(ds)` (line 918)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_render_peaks_for_dataset(ds)` (line 962)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_peaks(ds)` (line 1079)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_export_peaks()` (line 1086)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_open_add_bond_label_dialog()` (line 1122)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_bond_labels(ds)` (line 1187)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_interp_y_at(ds, xval)` (line 1209)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_begin_placement(opts)` (line 1225)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_add_annotation(opts)` (line 1233)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_bond_autoplace(ds, opts)` (line 1257)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_mpl_draw_event(_evt)` (line 1299)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_pick_event(evt)` (line 1302)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_drag_press(evt)` (line 1350)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_drag_motion(evt)` (line 1437)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_peak_drag_release(_evt)` (line 1515)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_ftir_keypress(evt)` (line 1528)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `open_workspace()` (line 1538)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_workspace()` (line 1541)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `open_workspace_path(path)` (line 1544)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `get_last_workspace_path()` (line 1549)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_workspace()` (line 1552)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 1650)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 1673)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_load_workspace_path(path)` (line 1684)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+
+## qt_app/tabs/lcms_tab.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `LCMSTab` (inherits QWidget) (line 50)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(status, dialogs, worker_runner)` (line 51)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_ui()` (line 124)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset_layout()` (line 142)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_left_panel()` (line 153)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_workspace_block()` (line 171)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_quick_actions()` (line 215)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_advanced_block()` (line 229)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_nav_tab()` (line 242)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_view_tab()` (line 289)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_annotate_tab()` (line 364)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_polymer_tab()` (line 415)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_right_panel()` (line 429)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_toolbar()` (line 476)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_double_click(_event)` (line 549)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_mzml_single()` (line 552)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_mzml_many()` (line 558)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_mzml_paths(paths)` (line 564)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_open_uv_single()` (line 633)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_many()` (line 639)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_uv_paths(paths)` (line 645)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_remove_selected_mzml()` (line 700)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_selected_uv()` (line 715)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_link_selected_uv_to_selected_mzml()` (line 733)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_link_uv_by_name()` (line 749)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_ws_select()` (line 763)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_uv_select()` (line 771)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_session(session_id)` (line 780)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_workspace_tree()` (line 791)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_uv_tree()` (line 805)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_active_plots()` (line 821)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_tic_plot()` (line 830)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_uv_plot()` (line 850)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_spectrum_plot()` (line 879)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_click()` (line 905)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_move()` (line 911)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_release()` (line 915)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_select_rt(rt_min)` (line 919)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_step_spectrum(step)` (line 932)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_go_to_index(idx)` (line 952)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_go_last()` (line 966)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_jump_to_rt()` (line 979)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_spectrum_arrays(sess, spectrum_id)` (line 990)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_export_current_spectrum()` (line 1015)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_overlay_sessions()` (line 1034)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_export_overlay_tic_csv()` (line 1041)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_overlay_spectra_csv()` (line 1096)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_save_tic_plot()` (line 1149)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_uv_plot()` (line 1155)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_save_spectrum_plot()` (line 1161)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_open_tic_window()` (line 1167)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_uv_window()` (line 1170)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_spectrum_window()` (line 1173)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_plot_window()` (line 1176)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_tic_series()` (line 1202)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_uv_series()` (line 1220)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_spectrum_series()` (line 1240)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_reset_view_all()` (line 1257)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_ws_item_changed(item, column)` (line 1265)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_start_overlay_selected()` (line 1278)
+    - Purpose: Starts a long-running or multi-step process.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_clear_overlay()` (line 1291)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_mode_changed(_idx)` (line 1296)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_overlay_scheme_changed(_idx)` (line 1300)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_pick_overlay_single_hue_color()` (line 1304)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_overlay_show_uv_changed(checked)` (line 1311)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_overlay_stack_changed(checked)` (line 1315)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_overlay_scheme_options()` (line 1319)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_overlay_colors_for_count(count)` (line 1322)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_polarity_filter(value)` (line 1337)
+    - Purpose: Filters records based on conditions or thresholds.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+  - Method `_apply_uv_ms_offset()` (line 1353)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_panels_changed(_checked)` (line 1360)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_annotate_settings_changed()` (line 1366)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_quick_annotate_settings()` (line 1378)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_overlay_view()` (line 1381)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_tic_region_select_changed(checked)` (line 1384)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_clear_tic_region_selection()` (line 1393)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_tic_region_updated(region)` (line 1406)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_open_graph_settings()` (line 1411)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_plot_style()` (line 1459)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_open_jump_to_mz_dialog()` (line 1467)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_find_mz_dialog()` (line 1485)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_sim_dialog()` (line 1548)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_estimate_uv_ms_offset()` (line 1622)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_align_uv_ms()` (line 1660)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_alignment_diagnostics()` (line 1683)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_uv_ms_align_enabled_changed(checked)` (line 1691)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_render_spectrum_annotations(mz, inten)` (line 1694)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_export_all_labels_xlsx()` (line 1825)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_open_annotation_settings()` (line 1906)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_custom_labels()` (line 1932)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_spectrum_overlay_async()` (line 1949)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_refresh_overlay_legend()` (line 1989)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `open_workspace()` (line 2007)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_workspace()` (line 2010)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `open_workspace_path(path)` (line 2013)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `get_last_workspace_path()` (line 2018)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_workspace()` (line 2021)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_polymer_settings()` (line 2070)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 2098)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 2121)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_load_workspace_path(path)` (line 2132)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply_polymer_settings(payload)` (line 2285)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_poly_enabled_changed(checked)` (line 2323)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_parse_poly_monomers(text)` (line 2327)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_parse_poly_charges(text)` (line 2364)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_open_polymer_match()` (line 2379)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust decision rules/thresholds and keep edge-case handling explicit.
+
+## qt_app/tabs/microscopy_tab.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `MicroscopyTab` (inherits QWidget) (line 71)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(status, dialogs, worker_runner)` (line 72)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_ui()` (line 106)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_preset_panel()` (line 221)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset_layout()` (line 284)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_ensure_default_workspace()` (line 291)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_current_workspace()` (line 300)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_workspace_combo()` (line 305)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_dataset_tree()` (line 323)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_workspace_selected(_index)` (line 334)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_add_workspace()` (line 342)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_workspace()` (line 354)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_delete_workspace()` (line 365)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_files()` (line 380)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_remove_selected()` (line 415)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_dataset_select()` (line 431)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_output_select()` (line 441)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_dataset_output_dir(ws, path)` (line 444)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh_outputs()` (line 450)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_selected_output()` (line 469)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_output_folder()` (line 481)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_import_outputs()` (line 490)
+    - Purpose: Imports external content into this application's structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_export_summary()` (line 515)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_set_imagej_path()` (line 551)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_selected_in_imagej()` (line 565)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_run_macro_on_selected()` (line 585)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_run_macro_on_active()` (line 613)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_run_macro_on_all()` (line 633)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_run_macro_batch(exe, macro_path, ds_list)` (line 653)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_update_imagej_label()` (line 742)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_headless_toggled(checked)` (line 757)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_preset_changed()` (line 762)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_current_preset()` (line 767)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_thr_manual_state()` (line 776)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_gather_preset_params()` (line 785)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_dataset_ids()` (line 798)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_run_preset_on_active()` (line 806)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_run_preset_on_selected()` (line 813)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_run_preset_on_all()` (line 820)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_find_workspace_by_id(wid)` (line 827)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_run_preset_on_dataset_ids(dataset_ids)` (line 830)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_make_run_output_dir(ws, ds, preset_id)` (line 963)
+    - Purpose: Executes a workflow or processing routine.
+    - Change safely: To change behavior, adjust algorithm parameters and verify expected outputs on representative data.
+  - Method `_render_preset_macro()` (line 976)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_find_dataset(dataset_id)` (line 1150)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_get_active_dataset()` (line 1157)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_discover_outputs_limited(out_dir)` (line 1162)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_safe_dirname(name)` (line 1188)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_format_size(size)` (line 1193)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_utc_now_iso()` (line 1203)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `open_workspace()` (line 1206)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_workspace()` (line 1209)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `open_workspace_path(path)` (line 1212)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `get_last_workspace_path()` (line 1217)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_encode_workspace()` (line 1220)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_workspace()` (line 1251)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 1276)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_load_workspace_path(path)` (line 1287)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+
+## qt_app/tabs/plate_reader_tab.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `PlateReaderPreviewDialog` (inherits QDialog) (line 49)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 50)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_df(df)` (line 82)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_refresh()` (line 90)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render(df)` (line 97)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+- Class `PlateReaderRunWizardDialog` (inherits QDialog) (line 118)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 119)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_show_step(which)` (line 145)
+    - Purpose: Displays a UI panel, message, or dialog to the user.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_build_step_select()` (line 151)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_step_mic()` (line 180)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_selected_rows(lb)` (line 280)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_selected_columns()` (line 283)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_load_from_dataset()` (line 288)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_populate_row_and_col_lists()` (line 332)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_render_preview_table()` (line 347)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_reload_df()` (line 364)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_auto_ticks_toggle()` (line 390)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_update_auto_ticks()` (line 397)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply()` (line 413)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `PlateReaderPlotEditorDialog` (inherits QDialog) (line 445)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 446)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_parse_opt_float(s)` (line 539)
+    - Purpose: Parses raw input into strongly-typed or normalized structures.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `_apply()` (line 545)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_sample_color()` (line 584)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_pick_control_color()` (line 589)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+- Class `PlateReaderTab` (inherits QWidget) (line 595)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(status, dialogs, worker_runner, adapter)` (line 596)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_build_ui()` (line 616)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `reset_layout()` (line 630)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_workspace_panel()` (line 637)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_build_plot_panel()` (line 677)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_mouse_move(event)` (line 723)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_status(text)` (line 732)
+    - Purpose: Tracks and updates user-visible status indicators.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_update_buttons()` (line 736)
+    - Purpose: Updates existing state in response to user action or events.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_refresh_workspace_list()` (line 747)
+    - Purpose: Recomputes and refreshes UI or cached state from source data.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_tree_select()` (line 785)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_set_active_dataset(dataset_id)` (line 792)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_set_active_labels()` (line 829)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_add_files()` (line 845)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_remove_selected()` (line 871)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_clear_workspace()` (line 885)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_rename_selected()` (line 900)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_preview()` (line 920)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_wizard()` (line 935)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_open_plot_editor()` (line 955)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_on_plot_style_applied()` (line 962)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_empty_plot()` (line 967)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_render_from_dataset()` (line 977)
+    - Purpose: Renders visual state from data into UI widgets.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `_restore_from_adapter()` (line 987)
+    - Purpose: Adapts legacy structures/APIs into the Qt layer contracts.
+    - Change safely: To change behavior, update mapping logic and keep adapter interfaces stable for callers.
+  - Method `_save_workspace()` (line 1009)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `open_workspace()` (line 1025)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `save_workspace()` (line 1028)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_load_workspace()` (line 1031)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `open_workspace_path(path)` (line 1074)
+    - Purpose: Opens files, dialogs, or resources for interaction.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_load_workspace_path(path)` (line 1079)
+    - Purpose: Loads data from disk or external sources into in-memory models.
+    - Change safely: To change behavior, update input parsing assumptions and keep backward compatibility for existing files.
+  - Method `get_last_workspace_path()` (line 1112)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## qt_app/widgets/__init__.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- This module is mostly constants/imports/bootstrap code.
+
+## qt_app/widgets/data_studio_export_dialog.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `DataStudioExportDialog` (inherits QDialog) (line 27)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__(parent)` (line 28)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_replot()` (line 114)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_apply_limits()` (line 208)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_save_as()` (line 224)
+    - Purpose: Persists the current state or results to disk.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_export_data()` (line 238)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `_build_export_dataframe()` (line 253)
+    - Purpose: Builds a composed object, view, or payload from smaller parts.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+
+## qt_app/widgets/plot_panel.py
+
+- Module role: Qt parity layer that structures UI into tabs, services, adapters, and widgets.
+- Class `PlotPanel` (inherits QWidget) (line 18)
+  - Role: Groups related state + operations for this domain/UI component.
+  - Method `__init__()` (line 19)
+    - Purpose: Initializes state, wiring, and default values.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_install_toolbar()` (line 55)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_install_mouse_handlers()` (line 84)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_on_mouse_clicked(ev)` (line 93)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_mouse_moved(evt)` (line 116)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_flush_move()` (line 131)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_handle_move(x, y)` (line 138)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_mouse_released(ev)` (line 147)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_reset_view()` (line 159)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_auto_scale()` (line 163)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `_toggle_crosshair(enabled)` (line 166)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_export_image()` (line 177)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `export_image_to_path(path)` (line 188)
+    - Purpose: Exports current results into a user-facing output format.
+    - Change safely: To change behavior, update output schema carefully and preserve required columns/fields for downstream tools.
+  - Method `set_grid(show)` (line 198)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `enable_region_select(enabled)` (line 204)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `_on_region_changed()` (line 237)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `clear()` (line 246)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `clear_annotations()` (line 255)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+  - Method `add_annotation(x, y, text)` (line 263)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `plot_line(x, y, name, pen)` (line 272)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `plot_scatter(x, y, name)` (line 283)
+    - Purpose: Builds a visual chart representation of analysis outputs.
+    - Change safely: To change behavior, update UI presentation options while preserving data contracts and signal wiring.
+  - Method `set_title(title)` (line 292)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `set_labels(xlabel, ylabel)` (line 295)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, modify how input parameters are interpreted and validated before use.
+  - Method `add_legend()` (line 299)
+    - Purpose: Implements domain-specific application behavior for this module.
+    - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## smoke_retry_microscopy_macro.py
+
+- Module role: Automation helper to retry microscopy macro execution in smoke scenarios.
+- Function `main()` (line 13)
+  - Purpose: Implements domain-specific application behavior for this module.
+  - Change safely: To change behavior, adjust the internal control flow while preserving callers' expectations.
+
+## Global modification checklist
+
+- Validate input/output format changes in corresponding IO + model modules together.
+- Update adapters if legacy (`lab_gui`) and Qt (`qt_app`) contracts diverge.
+- Keep UI-thread safety for long tasks by using worker/service abstractions.
+- Re-run smoke workflows after changing analysis thresholds or matching logic.

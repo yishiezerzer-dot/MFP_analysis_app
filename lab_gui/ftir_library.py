@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Built-in FTIR correlation library (v2).
 
 Pure data module: no UI imports, no file I/O.
@@ -9,6 +7,8 @@ Notes
 - This is a pragmatic, broad library for automated suggestions.
 - Many bands overlap; the matcher is intentionally conservative.
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
@@ -31,6 +31,10 @@ def _entry(
     negative: List[Dict[str, Any]] | None = None,
     examples: List[float] | None = None,
 ) -> Dict[str, Any]:
+    """Implement the `_entry` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     ts = [str(s).strip().lower() for s in (typical_shape or [])]
     ti = [str(s).strip().lower() for s in (typical_intensity or [])]
     if any(s not in _ALLOWED_SHAPES for s in ts):

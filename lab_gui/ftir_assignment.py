@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """FTIR peak assignment (library-based suggestions).
 
 Pure functions only:
@@ -10,7 +8,9 @@ Pure functions only:
 The goal is to provide *candidate* functional-group/bond assignments per peak.
 """
 
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import math
 
@@ -119,6 +119,10 @@ def assign_ftir_peaks(
 
 
 def _normalize_peak(p: Dict[str, Any]) -> Dict[str, Any]:
+    """Implement the `_normalize_peak` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     d = dict(p or {})
     wn_raw = _to_float(d.get("wn"), default=float("nan"))
     wn = float(wn_raw) if wn_raw is not None else float("nan")
@@ -144,6 +148,10 @@ def _normalize_peak(p: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _normalize_entry(e: Dict[str, Any]) -> Dict[str, Any]:
+    """Implement the `_normalize_entry` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     d = dict(e or {})
     lo, hi = d.get("range_cm1") or (None, None)
     lo_raw = _to_float(lo, default=float("nan"))
@@ -183,6 +191,10 @@ def _score_entry(
     other_wns: Sequence[float],
     self_index: int,
 ) -> Tuple[float, List[str]]:
+    """Implement the `_score_entry` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     (lo, hi) = entry["range_cm1"]
     center = (float(lo) + float(hi)) / 2.0
     half = max(1e-9, (float(hi) - float(lo)) / 2.0)
@@ -312,6 +324,10 @@ def _infer_peak_intensity(p: Dict[str, Any], *, max_height: Optional[float], max
 
 
 def _to_float(x: Any, *, default: Optional[float]) -> Optional[float]:
+    """Implement the `_to_float` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if x is None:
         return default
     try:
@@ -324,6 +340,10 @@ def _to_float(x: Any, *, default: Optional[float]) -> Optional[float]:
 
 
 def _finite(x: Optional[float]) -> bool:
+    """Implement the `_finite` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         return x is not None and math.isfinite(float(x))
     except Exception:
@@ -331,4 +351,8 @@ def _finite(x: Optional[float]) -> bool:
 
 
 def _clamp(x: float, lo: float, hi: float) -> float:
+    """Implement the `_clamp` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     return max(float(lo), min(float(hi), float(x)))

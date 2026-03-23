@@ -97,6 +97,10 @@ class PlotCard(ttk.Frame):
         show_header: bool = True,
         **kw: Any,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent, **kw)
 
         # ---- outer styling: invisible frame; canvas draws rounded rect ----
@@ -193,17 +197,33 @@ class PlotCard(ttk.Frame):
 
     @property
     def title_var(self) -> tk.StringVar:
+        """Implement the `title_var` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._title_var
 
     @property
     def status_var(self) -> tk.StringVar:
+        """Implement the `status_var` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._status_var
 
     # -- public methods -----------------------------------------------------
     def set_title(self, text: str) -> None:
+        """Implement the `set_title` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._title_var.set(str(text))
 
     def set_status(self, text: str) -> None:
+        """Implement the `set_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._status_var.set(str(text))
 
     # -- rounded card background -------------------------------------------
@@ -268,6 +288,10 @@ class PlotCard(ttk.Frame):
         self._resize_after_id = self.after(50, self._do_resize)
 
     def _do_resize(self) -> None:
+        """Implement the `_do_resize` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._resize_after_id = None
         canvas = self._canvas
         if canvas is None:

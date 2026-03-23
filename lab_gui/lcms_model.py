@@ -131,6 +131,10 @@ class LCMSDataset:
 
 
 def _safe_float(value: Any) -> Optional[float]:
+    """Implement the `_safe_float` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         if value is None:
             return None
@@ -140,6 +144,10 @@ def _safe_float(value: Any) -> Optional[float]:
 
 
 def _extract_ms_level(spectrum: Dict[str, Any]) -> Optional[int]:
+    """Implement the `_extract_ms_level` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     value = spectrum.get("ms level")
     if value is None:
         return None
@@ -150,6 +158,10 @@ def _extract_ms_level(spectrum: Dict[str, Any]) -> Optional[int]:
 
 
 def _extract_rt_minutes(spectrum: Dict[str, Any], rt_unit: str) -> Optional[float]:
+    """Implement the `_extract_rt_minutes` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     scan_list = spectrum.get("scanList") or {}
     scans = scan_list.get("scan") or []
     if not scans:
@@ -170,6 +182,10 @@ def _extract_rt_minutes(spectrum: Dict[str, Any], rt_unit: str) -> Optional[floa
 
 def _extract_polarity(spectrum: Dict[str, Any]) -> Optional[str]:
     # Common CV params appear as boolean-ish keys in pyteomics.
+    """Implement the `_extract_polarity` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if spectrum.get("positive scan") is not None:
         return "positive"
     if spectrum.get("negative scan") is not None:
@@ -188,6 +204,10 @@ def _extract_polarity(spectrum: Dict[str, Any]) -> Optional[str]:
 
 
 def _spectrum_id(spectrum: Dict[str, Any]) -> str:
+    """Implement the `_spectrum_id` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     sid = spectrum.get("id")
     if sid is None:
         sid = spectrum.get("index")

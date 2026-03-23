@@ -11,6 +11,10 @@ from lab_gui.settings import load_settings, validate_imagej_exe_path
 
 
 def main() -> int:
+    """Implement the `main` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     settings = load_settings()
     exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
     if not exe:

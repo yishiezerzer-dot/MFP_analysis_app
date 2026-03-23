@@ -20,6 +20,10 @@ _THREADPOOL_READY = False
 
 
 def _init_threadpool() -> None:
+    """Implement the `_init_threadpool` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     global _THREADPOOL_READY
     if _THREADPOOL_READY:
         return
@@ -44,18 +48,34 @@ class _WorkerSignals(QObject):
 
 class WorkerHandle:
     def __init__(self) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._cancelled = False
 
     def cancel(self) -> None:
+        """Implement the `cancel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._cancelled = True
 
     @property
     def cancelled(self) -> bool:
+        """Implement the `cancelled` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._cancelled
 
 
 class _Worker(QRunnable):
     def __init__(self, fn: Callable[[WorkerHandle], Any], handle: WorkerHandle, description: str = "") -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.fn = fn
         self.handle = handle
@@ -64,6 +84,10 @@ class _Worker(QRunnable):
 
     @Slot()
     def run(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         start = time.perf_counter()
         thread_name = threading.current_thread().name
         try:
@@ -94,6 +118,10 @@ def run_in_worker(
     group: Optional[str] = None,
     cancel_previous: bool = False,
 ) -> WorkerHandle:
+    """Run this workflow end-to-end.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     _init_threadpool()
     handle = WorkerHandle()
     worker = _Worker(fn, handle, description=description)
@@ -109,6 +137,10 @@ def run_in_worker(
         _GROUP_HANDLES[group] = handle
 
     def _is_latest() -> bool:
+        """Implement the `_is_latest` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not group:
             return True
         if token is None:
@@ -116,7 +148,15 @@ def run_in_worker(
         return _GROUP_TOKENS.get(group) == token
 
     def _wrap(callback):
+        """Implement the `_wrap` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _inner(*args, **kwargs):
+            """Implement the `_inner` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not _is_latest():
                 return
             callback(*args, **kwargs)
@@ -135,6 +175,7 @@ def run_in_worker(
             status.set_status(str(description))
         status.set_busy(True)
 
+        # Helper function for `_clear_status` workflow behavior.
         def _clear_status() -> None:
             status.set_busy(False)
 

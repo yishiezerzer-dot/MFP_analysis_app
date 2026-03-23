@@ -28,6 +28,10 @@ from qt_app.tabs.plate_reader_tab import PlateReaderTab
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.setWindowTitle("MFP lab analysis tool (Qt)")
         self.resize(1400, 850)
@@ -49,6 +53,10 @@ class MainWindow(QMainWindow):
         self._init_ui()
 
     def _init_ui(self) -> None:
+        """Implement the `_init_ui` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tabs = QTabWidget()
         plate_adapter = PlateReaderAdapter(status=self.status_service, dialogs=self.dialog_service)
         data_studio_adapter = DataStudioAdapter()
@@ -65,6 +73,10 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
 
     def _build_menu(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         menu = self.menuBar()
 
         file_menu = menu.addMenu("File")
@@ -99,15 +111,27 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def _build_status_bar(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         bar = QStatusBar()
         bar.addWidget(self._status_label, 1)
         bar.addPermanentWidget(self._progress)
         self.setStatusBar(bar)
 
     def _set_busy(self, busy: bool) -> None:
+        """Implement the `_set_busy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._progress.setVisible(bool(busy))
 
     def _set_progress(self, value: int) -> None:
+        """Implement the `_set_progress` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._progress.setVisible(True)
         if value <= 0:
             self._progress.setRange(0, 0)
@@ -116,9 +140,17 @@ class MainWindow(QMainWindow):
             self._progress.setValue(int(value))
 
     def _set_status(self, text: str) -> None:
+        """Implement the `_set_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._status_label.setText(text)
 
     def _open_workspace(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = getattr(self, "_tabs", None)
         if tab is None:
             self.status_service.set_status("Open Workspace (stub)")
@@ -133,6 +165,10 @@ class MainWindow(QMainWindow):
         self.status_service.set_status("Open Workspace (stub)")
 
     def _save_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = getattr(self, "_tabs", None)
         if tab is None:
             self.status_service.set_status("Save Workspace (stub)")
@@ -147,6 +183,10 @@ class MainWindow(QMainWindow):
         self.status_service.set_status("Save Workspace (stub)")
 
     def _reset_layout(self) -> None:
+        """Implement the `_reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = getattr(self, "_tabs", None)
         if tab is None:
             self.status_service.set_status("Layout reset")
@@ -162,9 +202,17 @@ class MainWindow(QMainWindow):
         self.status_service.set_status("Layout reset")
 
     def _about(self) -> None:
+        """Implement the `_about` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.dialog_service.info("About", "MFP lab analysis tool — Qt preview")
 
     def _refresh_recent_menu(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._recent_menu is None:
             return
         self._recent_menu.clear()
@@ -178,6 +226,10 @@ class MainWindow(QMainWindow):
             self._recent_menu.addAction(action)
 
     def _open_recent(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = getattr(self, "_tabs", None)
         if tab is None:
             self.status_service.set_status(f"Open recent (stub): {path}")
@@ -191,6 +243,10 @@ class MainWindow(QMainWindow):
         self.status_service.set_status(f"Open recent (stub): {path}")
 
     def _reveal_in_explorer(self) -> None:
+        """Implement the `_reveal_in_explorer` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tab = getattr(self, "_tabs", None)
         if tab is None:
             return

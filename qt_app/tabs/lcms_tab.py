@@ -49,6 +49,10 @@ from qt_app.widgets import PlotPanel
 
 class LCMSTab(QWidget):
     def __init__(self, status: StatusService, dialogs: DialogService, worker_runner=None) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.status = status
         self.dialogs = dialogs
@@ -122,6 +126,10 @@ class LCMSTab(QWidget):
         layout.addWidget(self._build_ui())
 
     def _build_ui(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         root = QSplitter(Qt.Horizontal)
         root.setChildrenCollapsible(False)
         self._root_splitter = root
@@ -140,6 +148,10 @@ class LCMSTab(QWidget):
         return root
 
     def reset_layout(self) -> None:
+        """Implement the `reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self, "_root_splitter", None) is not None:
                 self._root_splitter.setSizes([320, 980])
@@ -151,6 +163,10 @@ class LCMSTab(QWidget):
             pass
 
     def _build_left_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
 
@@ -169,6 +185,10 @@ class LCMSTab(QWidget):
         return scroll
 
     def _build_workspace_block(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = QGroupBox("Workspace")
         v = QVBoxLayout(ws)
 
@@ -213,6 +233,10 @@ class LCMSTab(QWidget):
         return ws
 
     def _build_quick_actions(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         quick = QGroupBox("Quick Actions")
         v = QVBoxLayout(quick)
         b_eic = QPushButton("EIC (new chromatogram)…")
@@ -227,6 +251,10 @@ class LCMSTab(QWidget):
         return quick
 
     def _build_advanced_block(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         adv = QGroupBox("Advanced")
         v = QVBoxLayout(adv)
 
@@ -240,6 +268,10 @@ class LCMSTab(QWidget):
         return adv
 
     def _build_nav_tab(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         w = QWidget()
         v = QVBoxLayout(w)
 
@@ -287,6 +319,10 @@ class LCMSTab(QWidget):
         return w
 
     def _build_view_tab(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         w = QWidget()
         v = QVBoxLayout(w)
 
@@ -362,6 +398,10 @@ class LCMSTab(QWidget):
         return w
 
     def _build_annotate_tab(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         w = QWidget()
         v = QVBoxLayout(w)
 
@@ -413,6 +453,10 @@ class LCMSTab(QWidget):
         return w
 
     def _build_polymer_tab(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         w = QWidget()
         v = QVBoxLayout(w)
         self._poly_enable_cb = QCheckBox("Enable polymer/reaction matching")
@@ -427,6 +471,10 @@ class LCMSTab(QWidget):
         return w
 
     def _build_right_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         right = QWidget()
         v = QVBoxLayout(right)
         v.setContentsMargins(6, 6, 6, 6)
@@ -474,6 +522,10 @@ class LCMSTab(QWidget):
         return right
 
     def _build_toolbar(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         bar = QGroupBox()
         h = QHBoxLayout(bar)
 
@@ -547,22 +599,42 @@ class LCMSTab(QWidget):
         return bar
 
     def _on_double_click(self, _event) -> None:
+        """Implement the `_on_double_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._reset_view_all()
 
     def _open_mzml_single(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(self, "Open mzML", "", "mzML (*.mzML *.mzml);;All files (*.*)")
         if not path:
             return
         self._load_mzml_paths([path])
 
     def _open_mzml_many(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(self, "Open mzML", "", "mzML (*.mzML *.mzml);;All files (*.*)")
         if not paths:
             return
         self._load_mzml_paths(list(paths))
 
     def _load_mzml_paths(self, paths: List[str]) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded: List[MzMLSession] = []
             base_order = len(self._session_order)
             for i, p in enumerate(paths):
@@ -610,6 +682,10 @@ class LCMSTab(QWidget):
             return loaded
 
         def _done(loaded: List[MzMLSession]) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not loaded:
                 self.dialogs.info("LCMS", "No usable MS1 spectra found in selected mzML files.")
                 return
@@ -631,19 +707,35 @@ class LCMSTab(QWidget):
         )
 
     def _open_uv_single(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(self, "Open UV CSV", "", "CSV (*.csv);;All files (*.*)")
         if not path:
             return
         self._load_uv_paths([path])
 
     def _open_uv_many(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(self, "Open UV CSV", "", "CSV (*.csv);;All files (*.*)")
         if not paths:
             return
         self._load_uv_paths(list(paths))
 
     def _load_uv_paths(self, paths: List[str]) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded: List[UVSession] = []
             base_order = len(self._uv_order)
             for i, p in enumerate(paths):
@@ -677,6 +769,10 @@ class LCMSTab(QWidget):
             return loaded
 
         def _done(loaded: List[UVSession]) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not loaded:
                 self.dialogs.info("LCMS", "No UV CSV data was loaded.")
                 return
@@ -698,6 +794,10 @@ class LCMSTab(QWidget):
         )
 
     def _remove_selected_mzml(self) -> None:
+        """Implement the `_remove_selected_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ws_tree.selectedItems()
         if not items:
             return
@@ -713,6 +813,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _remove_selected_uv(self) -> None:
+        """Implement the `_remove_selected_uv` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._uv_tree.selectedItems()
         if not items:
             return
@@ -731,6 +835,10 @@ class LCMSTab(QWidget):
         self._render_uv_plot()
 
     def _link_selected_uv_to_selected_mzml(self) -> None:
+        """Implement the `_link_selected_uv_to_selected_mzml` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_items = self._ws_tree.selectedItems()
         uv_items = self._uv_tree.selectedItems()
         if not ws_items or not uv_items:
@@ -747,6 +855,10 @@ class LCMSTab(QWidget):
         self._render_uv_plot()
 
     def _auto_link_uv_by_name(self) -> None:
+        """Implement the `_auto_link_uv_by_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._sessions or not self._uv_sessions:
             return
         uv_by_stem = {Path(uv.path).stem.lower(): uv.uv_id for uv in self._uv_sessions.values()}
@@ -761,6 +873,10 @@ class LCMSTab(QWidget):
         self._render_uv_plot()
 
     def _on_ws_select(self) -> None:
+        """Implement the `_on_ws_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ws_tree.selectedItems()
         if not items:
             return
@@ -769,6 +885,10 @@ class LCMSTab(QWidget):
             self._set_active_session(sid)
 
     def _on_uv_select(self) -> None:
+        """Implement the `_on_uv_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._uv_tree.selectedItems()
         if not items:
             return
@@ -778,6 +898,10 @@ class LCMSTab(QWidget):
             self._render_uv_plot()
 
     def _set_active_session(self, session_id: str) -> None:
+        """Implement the `_set_active_session` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if session_id == self._active_session_id:
             return
         if session_id not in self._sessions:
@@ -789,6 +913,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _refresh_workspace_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws_tree.clear()
         for sid in self._session_order:
             sess = self._sessions.get(sid)
@@ -803,6 +931,10 @@ class LCMSTab(QWidget):
             self._ws_tree.addTopLevelItem(item)
 
     def _refresh_uv_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._uv_tree.clear()
         for uid in self._uv_order:
             uv = self._uv_sessions.get(uid)
@@ -819,6 +951,10 @@ class LCMSTab(QWidget):
             self._uv_tree.addTopLevelItem(item)
 
     def _render_active_plots(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._refresh_overlay_legend()
         self._render_tic_plot()
         self._render_uv_plot()
@@ -828,6 +964,10 @@ class LCMSTab(QWidget):
         self._spec_plot.setVisible(bool(self._show_spec))
 
     def _render_tic_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._tic_plot.clear()
         sessions = self._overlay_session_ids or ([self._active_session_id] if self._active_session_id else [])
         if not sessions:
@@ -848,6 +988,10 @@ class LCMSTab(QWidget):
             self._tic_plot.plot_line(rt, tic, name=sess.display_name, pen=pen)
 
     def _render_uv_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._uv_plot.clear()
         if self._overlay_session_ids and not self._overlay_show_uv:
             return
@@ -877,6 +1021,10 @@ class LCMSTab(QWidget):
                 self._uv_plot.plot_line(x, uv.signal, name=uv.path.name, pen=pen)
 
     def _render_spectrum_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._spec_plot.clear()
         if self._overlay_session_ids:
             self._render_spectrum_overlay_async()
@@ -903,20 +1051,36 @@ class LCMSTab(QWidget):
         self._render_spectrum_annotations(mz, inten, polarity=(current_meta.polarity if current_meta else None))
 
     def _on_plot_click(self, *, axis: str, x: float, y: float, button: int, dblclick: bool) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if axis in ("tic", "uv"):
             self._select_rt(float(x))
         elif axis == "spec" and dblclick:
             self._reset_view_all()
 
     def _on_plot_move(self, *, axis: str, x: float, y: float) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if axis in ("tic", "uv"):
             self._current_rt_min = float(x)
 
     def _on_plot_release(self, *, axis: str, x: float, y: float) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if axis in ("tic", "uv"):
             self._select_rt(float(x))
 
     def _select_rt(self, rt_min: float) -> None:
+        """Implement the `_select_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             return
@@ -930,6 +1094,10 @@ class LCMSTab(QWidget):
         self.status.set_status(f"RT={target.rt_min:.4g} min")
 
     def _step_spectrum(self, step: int) -> None:
+        """Implement the `_step_spectrum` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             return
@@ -950,6 +1118,10 @@ class LCMSTab(QWidget):
         self.status.set_status(f"RT={target.rt_min:.4g} min")
 
     def _go_to_index(self, idx: int) -> None:
+        """Implement the `_go_to_index` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             return
@@ -964,6 +1136,10 @@ class LCMSTab(QWidget):
         self.status.set_status(f"RT={target.rt_min:.4g} min")
 
     def _go_last(self) -> None:
+        """Implement the `_go_last` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             return
@@ -977,6 +1153,10 @@ class LCMSTab(QWidget):
         self.status.set_status(f"RT={target.rt_min:.4g} min")
 
     def _jump_to_rt(self) -> None:
+        """Implement the `_jump_to_rt` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         txt = self._rt_jump_edit.text().strip()
         if not txt:
             return
@@ -988,6 +1168,10 @@ class LCMSTab(QWidget):
         self._select_rt(rt)
 
     def _load_spectrum_arrays(self, sess: MzMLSession, spectrum_id: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             reader = mzml.MzML(str(sess.path))
         except Exception as exc:
@@ -1013,6 +1197,10 @@ class LCMSTab(QWidget):
             return None, None
 
     def _export_current_spectrum(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None or not self._current_spectrum_id:
             self.dialogs.info("LCMS", "No spectrum selected.")
@@ -1032,6 +1220,10 @@ class LCMSTab(QWidget):
             self.dialogs.error("LCMS", f"Failed to export spectrum:\n\n{exc}")
 
     def _overlay_sessions(self) -> List[str]:
+        """Implement the `_overlay_sessions` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._overlay_session_ids:
             return list(self._overlay_session_ids)
         if self._active_session_id:
@@ -1039,6 +1231,10 @@ class LCMSTab(QWidget):
         return []
 
     def _export_overlay_tic_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sessions = self._overlay_sessions()
         if not sessions:
             self.dialogs.info("LCMS", "No sessions to export.")
@@ -1048,6 +1244,10 @@ class LCMSTab(QWidget):
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             series = []
             for sid in sessions:
                 sess = self._sessions.get(sid)
@@ -1075,6 +1275,10 @@ class LCMSTab(QWidget):
             return pd.DataFrame(out)
 
         def _done(df) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if df is None or df.empty:
                 self.dialogs.info("LCMS", "No TIC data available for export.")
                 return
@@ -1094,6 +1298,10 @@ class LCMSTab(QWidget):
         )
 
     def _export_overlay_spectra_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sessions = self._overlay_sessions()
         if not sessions:
             self.dialogs.info("LCMS", "No sessions to export.")
@@ -1105,6 +1313,10 @@ class LCMSTab(QWidget):
         rt_target = self._current_rt_min
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             spectra = []
             for sid in sessions:
                 sess = self._sessions.get(sid)
@@ -1128,6 +1340,10 @@ class LCMSTab(QWidget):
             return pd.DataFrame(out)
 
         def _done(df) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if df is None or df.empty:
                 self.dialogs.info("LCMS", "No spectra available for export.")
                 return
@@ -1147,33 +1363,61 @@ class LCMSTab(QWidget):
         )
 
     def _save_tic_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(self, "Save TIC Plot", "", "PNG (*.png);;JPG (*.jpg *.jpeg);;TIFF (*.tif *.tiff);;All files (*.*)")
         if not path:
             return
         self._tic_plot.export_image_to_path(path)
 
     def _save_uv_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(self, "Save UV Plot", "", "PNG (*.png);;JPG (*.jpg *.jpeg);;TIFF (*.tif *.tiff);;All files (*.*)")
         if not path:
             return
         self._uv_plot.export_image_to_path(path)
 
     def _save_spectrum_plot(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(self, "Save Spectrum Plot", "", "PNG (*.png);;JPG (*.jpg *.jpeg);;TIFF (*.tif *.tiff);;All files (*.*)")
         if not path:
             return
         self._spec_plot.export_image_to_path(path)
 
     def _open_tic_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._open_plot_window(kind="tic")
 
     def _open_uv_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._open_plot_window(kind="uv")
 
     def _open_spectrum_window(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._open_plot_window(kind="spec")
 
     def _open_plot_window(self, *, kind: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = QDialog(self)
         title = {"tic": "TIC", "uv": "UV", "spec": "Spectrum"}.get(kind, "Plot")
         dlg.setWindowTitle(f"LCMS {title}")
@@ -1200,6 +1444,10 @@ class LCMSTab(QWidget):
         dlg.exec()
 
     def _build_tic_series(self) -> List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         series: List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]] = []
         sessions = self._overlay_sessions()
         colors = self._overlay_colors_for_count(len(sessions))
@@ -1218,6 +1466,10 @@ class LCMSTab(QWidget):
         return series
 
     def _build_uv_series(self) -> List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         series: List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]] = []
         sessions = self._overlay_sessions()
         colors = self._overlay_colors_for_count(len(sessions))
@@ -1238,6 +1490,10 @@ class LCMSTab(QWidget):
         return series
 
     def _build_spectrum_series(self) -> List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         series: List[Tuple[str, np.ndarray, np.ndarray, Optional[str]]] = []
         sessions = self._overlay_sessions()
         colors = self._overlay_colors_for_count(len(sessions))
@@ -1255,6 +1511,10 @@ class LCMSTab(QWidget):
         return series
 
     def _reset_view_all(self) -> None:
+        """Implement the `_reset_view_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._tic_plot._reset_view()
             self._uv_plot._reset_view()
@@ -1263,6 +1523,10 @@ class LCMSTab(QWidget):
             pass
 
     def _on_ws_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        """Implement the `_on_ws_item_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if column != 0:
             return
         sid = str(item.data(0, Qt.UserRole) or "")
@@ -1276,6 +1540,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _start_overlay_selected(self) -> None:
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ws_tree.selectedItems()
         selected = [str(it.data(0, Qt.UserRole) or "") for it in items if it is not None]
         selected = [sid for sid in selected if sid]
@@ -1289,19 +1557,35 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _clear_overlay(self) -> None:
+        """Implement the `_clear_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_session_ids = []
         self._refresh_workspace_tree()
         self._render_active_plots()
 
     def _on_overlay_mode_changed(self, _idx: int) -> None:
+        """Implement the `_on_overlay_mode_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_mode = str(self._overlay_mode_cb.currentText())
         self._render_active_plots()
 
     def _on_overlay_scheme_changed(self, _idx: int) -> None:
+        """Implement the `_on_overlay_scheme_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_scheme = str(self._overlay_colors_cb.currentText())
         self._render_active_plots()
 
     def _pick_overlay_single_hue_color(self) -> None:
+        """Implement the `_pick_overlay_single_hue_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         color = QColorDialog.getColor(parent=self, title="Pick overlay hue")
         if not color.isValid():
             return
@@ -1309,17 +1593,33 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _on_overlay_show_uv_changed(self, checked: bool) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_show_uv = bool(checked)
         self._render_active_plots()
 
     def _on_overlay_stack_changed(self, checked: bool) -> None:
+        """Implement the `_on_overlay_stack_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_stack_spectra = bool(checked)
         self._render_active_plots()
 
     def _overlay_scheme_options(self) -> List[str]:
+        """Implement the `_overlay_scheme_options` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return ["Auto (Tableau)", "Single hue…", "Viridis", "Plasma", "Magma", "Cividis", "Turbo"]
 
     def _overlay_colors_for_count(self, count: int) -> List[str]:
+        """Implement the `_overlay_colors_for_count` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if count <= 0:
             return []
         scheme = str(self._overlay_scheme or "Auto (Tableau)")
@@ -1335,6 +1635,10 @@ class LCMSTab(QWidget):
         return [pg.intColor(i, hues=max(1, count)).name() for i in range(count)]
 
     def _set_polarity_filter(self, value: str) -> None:
+        """Filter records by configured criteria.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         val = str(value or "all")
         if val not in ("all", "positive", "negative"):
             val = "all"
@@ -1351,6 +1655,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _apply_uv_ms_offset(self) -> None:
+        """Implement the `_apply_uv_ms_offset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._uv_rt_offset_min = float(self._uv_offset_edit.text().strip() or 0.0)
         except Exception:
@@ -1358,12 +1666,20 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _on_panels_changed(self, _checked: bool) -> None:
+        """Implement the `_on_panels_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._show_tic = bool(self._show_tic_cb.isChecked())
         self._show_uv = bool(self._show_uv_cb.isChecked())
         self._show_spec = bool(self._show_spec_cb.isChecked())
         self._render_active_plots()
 
     def _on_annotate_settings_changed(self, *_args) -> None:
+        """Implement the `_on_annotate_settings_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._annotate_enabled = bool(self._annotate_cb.isChecked())
         try:
             self._annotate_top_n = int(self._annotate_topn_edit.text().strip() or 6)
@@ -1376,12 +1692,24 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _apply_quick_annotate_settings(self) -> None:
+        """Implement the `_apply_quick_annotate_settings` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._on_annotate_settings_changed()
 
     def _refresh_overlay_view(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._render_active_plots()
 
     def _on_tic_region_select_changed(self, checked: bool) -> None:
+        """Implement the `_on_tic_region_select_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._tic_region_select_enabled = bool(checked)
         if self._tic_region_select_enabled:
             self._tic_plot.enable_region_select(True, initial=self._tic_region, on_change=self._on_tic_region_updated)
@@ -1391,6 +1719,10 @@ class LCMSTab(QWidget):
         self._tic_region = None
 
     def _clear_tic_region_selection(self) -> None:
+        """Implement the `_clear_tic_region_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._tic_region_select_enabled = False
         self._tic_region = None
         self._tic_plot.enable_region_select(False)
@@ -1404,11 +1736,19 @@ class LCMSTab(QWidget):
         self.status.set_status("Cleared TIC region selection")
 
     def _on_tic_region_updated(self, region: Tuple[float, float]) -> None:
+        """Implement the `_on_tic_region_updated` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lo, hi = region
         self._tic_region = (min(lo, hi), max(lo, hi))
         self.status.set_status(f"TIC region: {self._tic_region[0]:.4g}–{self._tic_region[1]:.4g} min")
 
     def _open_graph_settings(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = QDialog(self)
         dlg.setWindowTitle("LCMS Graph Settings")
         layout = QVBoxLayout(dlg)
@@ -1438,6 +1778,10 @@ class LCMSTab(QWidget):
         layout.addLayout(btns)
 
         def _apply() -> None:
+            """Implement the `_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._plot_grid_enabled = bool(grid_cb.isChecked())
                 self._plot_grid_alpha = float(grid_alpha.text().strip() or 0.2)
@@ -1457,6 +1801,10 @@ class LCMSTab(QWidget):
         dlg.exec()
 
     def _apply_plot_style(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._tic_plot.set_grid(self._plot_grid_enabled, alpha=self._plot_grid_alpha)
             self._uv_plot.set_grid(self._plot_grid_enabled, alpha=self._plot_grid_alpha)
@@ -1465,6 +1813,10 @@ class LCMSTab(QWidget):
             pass
 
     def _open_jump_to_mz_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None or not self._current_spectrum_id:
             self.dialogs.info("LCMS", "Select a spectrum first.")
@@ -1483,6 +1835,10 @@ class LCMSTab(QWidget):
         self.status.set_status(f"Nearest m/z: {mz_hit:.4g} (I={inten_hit:.3g})")
 
     def _open_find_mz_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             self.dialogs.info("LCMS", "Select an mzML session first.")
@@ -1495,6 +1851,10 @@ class LCMSTab(QWidget):
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 reader = mzml.MzML(str(sess.path))
             except Exception as exc:
@@ -1524,6 +1884,10 @@ class LCMSTab(QWidget):
             return best
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if isinstance(res, Exception):
                 self.dialogs.error("LCMS", f"Find m/z failed:\n\n{res}")
                 return
@@ -1546,6 +1910,10 @@ class LCMSTab(QWidget):
         )
 
     def _open_sim_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             self.dialogs.info("LCMS", "Select an mzML session first.")
@@ -1558,6 +1926,10 @@ class LCMSTab(QWidget):
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 reader = mzml.MzML(str(sess.path))
             except Exception as exc:
@@ -1586,6 +1958,10 @@ class LCMSTab(QWidget):
             return (np.asarray(rt_vals, dtype=float), np.asarray(eic_vals, dtype=float))
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if isinstance(res, Exception):
                 self.dialogs.error("LCMS", f"EIC failed:\n\n{res}")
                 return
@@ -1620,6 +1996,10 @@ class LCMSTab(QWidget):
         )
 
     def _estimate_uv_ms_offset(self) -> Optional[Tuple[float, float]]:
+        """Implement the `_estimate_uv_ms_offset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             return None
@@ -1658,10 +2038,22 @@ class LCMSTab(QWidget):
         return best
 
     def _auto_align_uv_ms(self) -> None:
+        """Implement the `_auto_align_uv_ms` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self._estimate_uv_ms_offset()
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not res:
                 self.dialogs.info("LCMS", "Unable to estimate UV↔MS offset.")
                 return
@@ -1681,6 +2073,10 @@ class LCMSTab(QWidget):
         )
 
     def _open_alignment_diagnostics(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         res = self._estimate_uv_ms_offset()
         if not res:
             self.dialogs.info("LCMS", "No alignment diagnostics available.")
@@ -1689,9 +2085,17 @@ class LCMSTab(QWidget):
         self.dialogs.info("LCMS", f"Suggested offset: {offset:.4g} min\nCorrelation: {score:.3f}")
 
     def _on_uv_ms_align_enabled_changed(self, checked: bool) -> None:
+        """Implement the `_on_uv_ms_align_enabled_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._uv_align_enabled = bool(checked)
 
     def _render_spectrum_annotations(self, mz: np.ndarray, inten: np.ndarray, *, polarity: Optional[str]) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._spec_plot.clear_annotations()
         if mz.size == 0 or inten.size == 0:
             return
@@ -1823,6 +2227,10 @@ class LCMSTab(QWidget):
                 self._spec_plot.add_annotation(float(mz_act), yv, str(label), color="#0F766E")
 
     def _export_all_labels_xlsx(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None:
             self.dialogs.info("LCMS", "No active mzML session.")
@@ -1840,6 +2248,10 @@ class LCMSTab(QWidget):
         min_rel = float(self._annotate_min_rel)
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             rows: List[Dict[str, object]] = []
             try:
                 reader = mzml.MzML(str(sess.path))
@@ -1877,6 +2289,10 @@ class LCMSTab(QWidget):
             return rows
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if isinstance(res, Exception):
                 self.dialogs.error("LCMS", f"Failed to export labels:\n\n{res}")
                 return
@@ -1904,6 +2320,10 @@ class LCMSTab(QWidget):
         )
 
     def _open_annotation_settings(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         top_n, ok = QInputDialog.getInt(self, "Annotate Peaks", "Top N", value=int(self._annotate_top_n), min=1, max=100)
         if not ok:
             return
@@ -1930,6 +2350,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _open_custom_labels(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sess = self._sessions.get(self._active_session_id or "")
         if sess is None or not self._current_spectrum_id:
             self.dialogs.info("LCMS", "Select a spectrum first.")
@@ -1947,6 +2371,10 @@ class LCMSTab(QWidget):
         self._render_active_plots()
 
     def _render_spectrum_overlay_async(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         session_ids = list(self._overlay_session_ids)
         if not session_ids:
             return
@@ -1957,6 +2385,10 @@ class LCMSTab(QWidget):
                 rt_target = float(sess.index.ms1[0].rt_min)
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             series = []
             for sid in session_ids:
                 sess = self._sessions.get(sid)
@@ -1971,6 +2403,10 @@ class LCMSTab(QWidget):
             return series
 
         def _done(series) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._spec_plot.clear()
             colors = self._overlay_colors_for_count(len(series))
             for idx, (name, mz, inten) in enumerate(series):
@@ -1987,6 +2423,10 @@ class LCMSTab(QWidget):
         )
 
     def _refresh_overlay_legend(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._overlay_legend.clear()
         except Exception:
@@ -2005,20 +2445,40 @@ class LCMSTab(QWidget):
             self._overlay_legend.addTopLevelItem(item)
 
     def open_workspace(self) -> Optional[str]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._load_workspace()
 
     def save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._save_workspace()
 
     def open_workspace_path(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return None
         self._load_workspace_path(str(path))
 
     def get_last_workspace_path(self) -> Optional[str]:
+        """Implement the `get_last_workspace_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._last_workspace_path
 
     def _encode_workspace(self) -> Dict[str, object]:
+        """Implement the `_encode_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         mzml_files: List[Dict[str, object]] = []
         for sid in self._session_order:
             sess = self._sessions.get(sid)
@@ -2068,6 +2528,10 @@ class LCMSTab(QWidget):
         }
 
     def _encode_polymer_settings(self) -> Dict[str, object]:
+        """Implement the `_encode_polymer_settings` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         monomers = [ln.strip() for ln in str(self._poly_monomers_text or "").splitlines() if ln.strip()]
         common = {
             "bond_delta": float(self._poly_bond_delta),
@@ -2096,6 +2560,10 @@ class LCMSTab(QWidget):
         }
 
     def _save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._sessions:
             self.dialogs.info("LCMS", "No mzML files to save.")
             return None
@@ -2119,6 +2587,10 @@ class LCMSTab(QWidget):
         return str(path)
 
     def _load_workspace(self) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load LCMS Workspace",
@@ -2130,6 +2602,10 @@ class LCMSTab(QWidget):
         return self._load_workspace_path(str(path))
 
     def _load_workspace_path(self, path: str) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -2150,6 +2626,10 @@ class LCMSTab(QWidget):
         poly_payload = payload.get("polymer_settings") if isinstance(payload.get("polymer_settings"), dict) else None
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded_sessions: List[MzMLSession] = []
             missing: List[str] = []
             for i, row in enumerate(mzml_rows):
@@ -2223,6 +2703,10 @@ class LCMSTab(QWidget):
             return loaded_sessions, uv_session, missing
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded_sessions, uv_session, missing = res
             self._sessions = {}
             self._session_order = []
@@ -2283,6 +2767,10 @@ class LCMSTab(QWidget):
         return str(path)
 
     def _apply_polymer_settings(self, payload: Optional[Dict[str, object]]) -> None:
+        """Implement the `_apply_polymer_settings` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not isinstance(payload, dict):
             return
         self._poly_enabled = bool(payload.get("enabled", self._poly_enabled))
@@ -2321,10 +2809,18 @@ class LCMSTab(QWidget):
                     pass
 
     def _on_poly_enabled_changed(self, checked: bool) -> None:
+        """Implement the `_on_poly_enabled_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._poly_enabled = bool(checked)
         self._render_active_plots()
 
     def _parse_poly_monomers(self, text: str) -> List[Tuple[str, float]]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items: List[Tuple[str, float]] = []
         for raw in str(text or "").splitlines():
             line = raw.strip()
@@ -2362,6 +2858,10 @@ class LCMSTab(QWidget):
         return items
 
     def _parse_poly_charges(self, text: str) -> List[int]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         charges: List[int] = []
         for raw in str(text or "").replace(";", ",").split(","):
             part = raw.strip()
@@ -2377,6 +2877,10 @@ class LCMSTab(QWidget):
         return charges
 
     def _open_polymer_match(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dlg = QDialog(self)
         dlg.setWindowTitle("Polymer / Reaction Match")
         dlg.setModal(True)
@@ -2475,6 +2979,10 @@ class LCMSTab(QWidget):
         form.addRow("Min peak intensity (fraction of max)", minrel_edit)
 
         def _sync_combo(combo: QComboBox, presets: Dict[str, float], edit: QLineEdit) -> None:
+            """Implement the `_sync_combo` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             choice = combo.currentText()
             if choice in presets:
                 edit.setText(str(presets[choice]))
@@ -2495,6 +3003,10 @@ class LCMSTab(QWidget):
         buttons.addWidget(close_btn)
 
         def _apply() -> None:
+            """Implement the `_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 self._poly_enabled = bool(enable_cb.isChecked())
                 self._poly_monomers_text = monomers_txt.toPlainText().strip()
@@ -2533,6 +3045,10 @@ class LCMSTab(QWidget):
             self._render_active_plots()
 
         def _reset() -> None:
+            """Implement the `_reset` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             enable_cb.setChecked(False)
             monomers_txt.setPlainText("")
             bond_combo.setCurrentText("Dehydration (-H2O)")

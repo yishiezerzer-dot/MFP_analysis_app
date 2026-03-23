@@ -13,6 +13,10 @@ class FTIRLoadError(Exception):
 
 
 def _try_parse_float_pair(line: str) -> Optional[Tuple[float, float]]:
+    """Parse raw input into structured values.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     s = (line or "").strip()
     if not s:
         return None
@@ -163,6 +167,10 @@ def _parse_ftir_xy_numpy(path_str: str) -> Tuple[np.ndarray, np.ndarray, Dict[st
 
     def _load(skip: int, delimiter: Optional[str]) -> np.ndarray:
         # genfromtxt tolerates mixed/header lines (yields NaNs) and runs in C.
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             cw = np.lib._iotools.ConversionWarning  # type: ignore[attr-defined]
         except Exception:

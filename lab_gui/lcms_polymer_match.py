@@ -86,6 +86,10 @@ def generate_polymer_compositions(n_monomers: int, max_dp: int, min_dp: int = 1)
     hi = max(0, hi)
 
     def gen_for_total(total: int) -> Iterator[Tuple[int, ...]]:
+        """Implement the `gen_for_total` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if n == 1:
             yield (int(total),)
             return
@@ -93,6 +97,10 @@ def generate_polymer_compositions(n_monomers: int, max_dp: int, min_dp: int = 1)
         prefix: List[int] = []
 
         def rec(i: int, remaining: int) -> Iterator[Tuple[int, ...]]:
+            """Implement the `rec` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if i == n - 1:
                 yield tuple(prefix + [int(remaining)])
                 return
@@ -115,6 +123,10 @@ def generate_variants(
     max_decarb: int = 1,
     allow_combo: bool = True,
 ) -> List[Variant]:
+    """Implement the `generate_variants` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     max_ox = max(0, int(max_ox))
     max_decarb = max(0, int(max_decarb))
     out: List[Variant] = []
@@ -145,6 +157,10 @@ def generate_variants(
 
 
 def _auto_sign_proton_like(delta_mass: float, polarity: Optional[str]) -> float:
+    """Implement the `_auto_sign_proton_like` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     pol = (polarity or "").strip().lower()
     if pol not in ("positive", "negative"):
         return float(delta_mass)
@@ -316,6 +332,10 @@ def find_best_peak_match(
 
 
 def _tol_to_da(*, mz_pred: float, tol_value: float, tol_unit: str) -> Tuple[Optional[float], Optional[float]]:
+    """Implement the `_tol_to_da` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     unit = (tol_unit or "Da").strip().lower()
     if unit == "ppm":
         return None, float(tol_value)
@@ -323,6 +343,10 @@ def _tol_to_da(*, mz_pred: float, tol_value: float, tol_unit: str) -> Tuple[Opti
 
 
 def _kind_for_variant(tag: str) -> str:
+    """Implement the `_kind_for_variant` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     t = str(tag or "")
     has_o = "+O" in t
     has_co2 = "CO2" in t and "-CO2" in t
@@ -473,6 +497,10 @@ def compute_polymer_best_by_peak_sorted(
     best_ppm_by_peak_kind: Dict[Tuple[int, str], float] = {}
 
     def set_best(peak_i: int, kind: str, err: float, ppm_err: float, label: str, mz_act: float, inten: float) -> None:
+        """Implement the `set_best` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         d = best_by_peak.get(int(peak_i))
         if d is None:
             d = {}
@@ -501,6 +529,10 @@ def compute_polymer_best_by_peak_sorted(
             best_ppm_by_peak_kind[key] = float(ppm_err)
 
     def _confidence_score(*, ppm_err: float, inten: float, max_inten: float, tol_ppm_eff: float, ambiguity_hits: int) -> float:
+        """Implement the `_confidence_score` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         inten_norm = 0.0 if max_inten <= 0 else max(0.0, min(1.0, float(inten) / float(max_inten)))
         tol_ppm_eff = max(1e-9, float(tol_ppm_eff))
         ppm_norm = max(0.0, min(1.0, 1.0 - (float(ppm_err) / float(tol_ppm_eff))))
@@ -510,6 +542,10 @@ def compute_polymer_best_by_peak_sorted(
         return max(0.0, min(1.0, float(score) * float(penalty)))
 
     def _maybe_min_score() -> Optional[float]:
+        """Implement the `_maybe_min_score` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = str(os.environ.get("LAB_GUI_POLYMER_MIN_SCORE", "")).strip()
         if not raw:
             return None
@@ -522,6 +558,10 @@ def compute_polymer_best_by_peak_sorted(
     min_score = _maybe_min_score()
 
     def _effective_tol_ppm(*, mz_pred: float, tol_da: Optional[float], tol_ppm: Optional[float]) -> float:
+        """Implement the `_effective_tol_ppm` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if tol_ppm is not None:
             try:
                 return max(1.0, float(abs(float(tol_ppm))))
@@ -537,6 +577,10 @@ def compute_polymer_best_by_peak_sorted(
         return 1.0
 
     def cluster_tag(adduct_label: str, adduct_mass_val: float) -> str:
+        """Implement the `cluster_tag` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if adduct_label:
             return f"2M{adduct_label}"
         # numeric fallback with unicode minus
@@ -783,6 +827,10 @@ def explain_best_match_for_peak_sorted(
         adduct_label: str,
         adduct_mass: float,
     ) -> None:
+        """Implement the `consider_candidate` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         nonlocal best
         tol_da, tol_ppm = _tol_to_da(mz_pred=float(mz_pred), tol_value=float(tol_value), tol_unit=str(tol_unit))
         match = find_best_peak_match(
@@ -822,6 +870,10 @@ def explain_best_match_for_peak_sorted(
             }
 
     def cluster_tag(adduct_label: str, adduct_mass_val: float) -> str:
+        """Implement the `cluster_tag` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if adduct_label:
             return f"2M{adduct_label}"
         if abs(float(adduct_mass_val) - (-PROTON_MASS)) <= 0.002:
@@ -868,7 +920,6 @@ def explain_best_match_for_peak_sorted(
             for z in charges_use:
                 for adduct_lbl, adduct_mass_val in cluster_adducts:
                     mz_pred = (float(neutral_dimer) + float(adduct_mass_val)) / float(z)
-                    tag = cluster_tag(str(adduct_lbl), float(adduct_mass_val))
                     comp = f"{base_label} (2M)"
                     consider_candidate(
                         kind="2m",

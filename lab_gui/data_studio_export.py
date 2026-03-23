@@ -17,11 +17,15 @@ from matplotlib.figure import Figure
 
 from lab_gui.plot_card import PlotCard
 from lab_gui.ui_theme import style_primary, style_secondary, style_success, style_danger
-from lab_gui.ui_widgets import MatplotlibNavigator, ToolTip
+from lab_gui.ui_widgets import MatplotlibNavigator
 
 
 class DataStudioExportEditor(tk.Toplevel):
     def __init__(self, parent: tk.Widget, *, payload: Dict[str, Any]) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._payload = dict(payload or {})
         self._payload_base_series = list(self._payload.get("series", []))
@@ -157,6 +161,10 @@ class DataStudioExportEditor(tk.Toplevel):
         self._replot()
 
     def _open_controls(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._controls_win is not None and bool(self._controls_win.winfo_exists()):
             self._controls_win.deiconify()
             self._controls_win.lift()
@@ -200,12 +208,20 @@ class DataStudioExportEditor(tk.Toplevel):
         inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
         def _on_inner_config(_evt=None):
+            """Implement the `_on_inner_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 canvas.configure(scrollregion=canvas.bbox("all"))
             except Exception:
                 pass
 
         def _on_canvas_config(evt=None):
+            """Implement the `_on_canvas_config` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 w = int(evt.width) if evt is not None else int(canvas.winfo_width())
                 canvas.itemconfigure(inner_id, width=w)
@@ -219,6 +235,10 @@ class DataStudioExportEditor(tk.Toplevel):
             pass
 
         def _pick_one(var: tk.StringVar, title: str) -> None:
+            """Implement the `_pick_one` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 c = colorchooser.askcolor(color=(var.get() or None), title=title, parent=win)[1]
                 if c:
@@ -350,12 +370,20 @@ class DataStudioExportEditor(tk.Toplevel):
         row += 1
 
         def _refresh_tree() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             for it in list(tree.get_children("")):
                 tree.delete(it)
             for sid, st in self._series_styles.items():
                 tree.insert("", "end", iid=str(sid), values=(st.get("label", ""), st.get("color", "")))
 
         def _edit_cell(evt=None) -> None:
+            """Implement the `_edit_cell` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             sel = tree.selection()
             sid = str(sel[0]) if sel else ""
             if not sid:
@@ -387,12 +415,20 @@ class DataStudioExportEditor(tk.Toplevel):
         ttk.Button(btns, text="Close", command=win.destroy).grid(row=0, column=1, sticky="e")
 
     def _parse_optional_float(self, raw: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = (raw or "").strip()
         if not raw:
             return None
         return float(raw)
 
     def _overlay_scheme_options(self) -> List[str]:
+        """Implement the `_overlay_scheme_options` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return [
             "Manual (workspace)",
             "Single hue…",
@@ -409,6 +445,10 @@ class DataStudioExportEditor(tk.Toplevel):
         ]
 
     def _pick_overlay_single_hue_color(self) -> None:
+        """Implement the `_pick_overlay_single_hue_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             picked = colorchooser.askcolor(color=(self._overlay_single_hue_color or None), title="Pick overlay hue", parent=self)[1]
         except Exception:
@@ -423,6 +463,10 @@ class DataStudioExportEditor(tk.Toplevel):
         self._replot()
 
     def _overlay_colors_for_scheme(self, scheme: str, n: int) -> List[str]:
+        """Implement the `_overlay_colors_for_scheme` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if n <= 0:
             return []
         scheme = str(scheme or "").strip()
@@ -434,9 +478,9 @@ class DataStudioExportEditor(tk.Toplevel):
             except Exception:
                 base_rgb = (0.12, 0.47, 0.71)
             try:
-                h, l, s = colorsys.rgb_to_hls(*base_rgb)
+                    h, _, s = colorsys.rgb_to_hls(*base_rgb)
             except Exception:
-                h, l, s = (0.58, 0.45, 0.65)
+                    h, _, s = (0.58, 0.45, 0.65)
             lo = 0.22
             hi = 0.88
             vals = np.linspace(lo, hi, n)
@@ -452,6 +496,10 @@ class DataStudioExportEditor(tk.Toplevel):
         return [mcolors.to_hex(cmap(float(x))) for x in xs]
 
     def _replot(self) -> None:
+        """Implement the `_replot` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._fig.set_size_inches(float(self.fig_w_var.get()), float(self.fig_h_var.get()), forward=True)
         except Exception:
@@ -615,6 +663,10 @@ class DataStudioExportEditor(tk.Toplevel):
             pass
 
     def _save_as(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.asksaveasfilename(
             title="Save plot",
             defaultextension=".png",
@@ -629,6 +681,10 @@ class DataStudioExportEditor(tk.Toplevel):
             messagebox.showerror("Save plot", f"Failed to save plot:\n{exc}", parent=self)
 
     def _export_data(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         series = list(self._payload.get("series", []))
         if not series:
             return

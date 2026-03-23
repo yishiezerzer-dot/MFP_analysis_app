@@ -13,6 +13,10 @@ SETTINGS_FILENAME = "settings.json"
 
 def _appdata_dir() -> Path:
     # Windows: %APPDATA% (Roaming)
+    """Implement the `_appdata_dir` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     appdata = os.environ.get("APPDATA")
     if appdata:
         return Path(appdata)
@@ -24,6 +28,10 @@ def _appdata_dir() -> Path:
 
 
 def settings_path() -> Path:
+    """Implement the `settings_path` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     return _appdata_dir() / APP_SETTINGS_DIRNAME / SETTINGS_FILENAME
 
 
@@ -116,6 +124,10 @@ def save_settings(settings: Dict[str, Any]) -> None:
 
 
 def validate_imagej_exe_path(path: Optional[str]) -> Optional[str]:
+    """Validate inputs and guard invalid states.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if path is None:
         return None
     s = str(path).strip().strip('"')

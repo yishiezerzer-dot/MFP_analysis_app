@@ -9,6 +9,10 @@ import pandas as pd
 
 
 def get_sheet_names(path: Path) -> List[str]:
+    """Implement the `get_sheet_names` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         xls = pd.ExcelFile(str(path))
         return [str(s) for s in list(xls.sheet_names)]
@@ -17,6 +21,10 @@ def get_sheet_names(path: Path) -> List[str]:
 
 
 def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
+    """Implement the `_coerce_numeric` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out = df.copy()
     for col in out.columns:
         try:
@@ -28,6 +36,10 @@ def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _replace_decimal_commas(df: pd.DataFrame) -> pd.DataFrame:
+    """Implement the `_replace_decimal_commas` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out = df.copy()
     for col in out.columns:
         if out[col].dtype == object:
@@ -46,6 +58,10 @@ def load_table(
     decimal_comma: bool = False,
     auto_cast: bool = True,
 ) -> pd.DataFrame:
+    """Load data required by this function.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if not path:
         return pd.DataFrame()
 
@@ -63,6 +79,10 @@ def load_table(
 
 
 def numeric_columns(df: pd.DataFrame) -> List[str]:
+    """Implement the `numeric_columns` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out: List[str] = []
     for col in df.columns:
         try:
@@ -74,6 +94,10 @@ def numeric_columns(df: pd.DataFrame) -> List[str]:
 
 
 def column_types_summary(df: pd.DataFrame) -> List[Tuple[str, str]]:
+    """Implement the `column_types_summary` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out: List[Tuple[str, str]] = []
     for col in df.columns:
         try:
@@ -84,6 +108,10 @@ def column_types_summary(df: pd.DataFrame) -> List[Tuple[str, str]]:
 
 
 def column_type_map(df: pd.DataFrame) -> Dict[str, str]:
+    """Implement the `column_type_map` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out: Dict[str, str] = {}
     for col in df.columns:
         try:
@@ -94,6 +122,10 @@ def column_type_map(df: pd.DataFrame) -> Dict[str, str]:
 
 
 def schema_hash_from_columns(cols: Dict[str, str]) -> str:
+    """Implement the `schema_hash_from_columns` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         parts = [f"{k}:{cols.get(k, '')}" for k in sorted(cols.keys())]
         raw = "|".join(parts).encode("utf-8", errors="ignore")
@@ -103,6 +135,10 @@ def schema_hash_from_columns(cols: Dict[str, str]) -> str:
 
 
 def normalize_series(values: np.ndarray, mode: str) -> np.ndarray:
+    """Implement the `normalize_series` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if mode == "Min-Max":
         vmin = float(np.nanmin(values)) if values.size else 0.0
         vmax = float(np.nanmax(values)) if values.size else 0.0
@@ -124,6 +160,10 @@ def apply_transform_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.D
     warnings: List[str] = []
 
     def _warn(msg: str) -> None:
+        """Implement the `_warn` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         warnings.append(str(msg))
 
     for step in (steps or []):

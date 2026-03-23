@@ -48,6 +48,10 @@ from qt_app.services.worker import run_in_worker
 
 class PlateReaderPreviewDialog(QDialog):
     def __init__(self, parent: QWidget, *, max_rows_default: int = 120) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._max_rows = int(max_rows_default)
         self._df = None
@@ -80,6 +84,10 @@ class PlateReaderPreviewDialog(QDialog):
         layout.addWidget(self._table, 1)
 
     def set_df(self, df, *, title_suffix: str = "") -> None:
+        """Implement the `set_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._df = df
         if title_suffix:
             self.setWindowTitle(f"Plate Reader Preview — {title_suffix}")
@@ -88,6 +96,10 @@ class PlateReaderPreviewDialog(QDialog):
         self._refresh()
 
     def _refresh(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._max_rows = int(self._rows_spin.value())
         except Exception:
@@ -95,6 +107,10 @@ class PlateReaderPreviewDialog(QDialog):
         self._render(self._df)
 
     def _render(self, df) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         table = self._table
         table.clear()
         if df is None or df.empty:
@@ -117,6 +133,10 @@ class PlateReaderPreviewDialog(QDialog):
 
 class PlateReaderRunWizardDialog(QDialog):
     def __init__(self, parent: QWidget, *, dataset: PlateReaderDataset, df, on_apply, dialogs: DialogService) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._dataset = dataset
         self._df = df
@@ -143,12 +163,20 @@ class PlateReaderRunWizardDialog(QDialog):
         self._show_step("select")
 
     def _show_step(self, which: str) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if which == "mic":
             self._stack.setCurrentWidget(self._step_mic)
         else:
             self._stack.setCurrentWidget(self._step_select)
 
     def _build_step_select(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         f = self._step_select
         layout = QVBoxLayout(f)
         layout.addWidget(QLabel("Choose analysis"))
@@ -178,6 +206,10 @@ class PlateReaderRunWizardDialog(QDialog):
         layout.addLayout(btns)
 
     def _build_step_mic(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         f = self._step_mic
         layout = QVBoxLayout(f)
 
@@ -278,14 +310,26 @@ class PlateReaderRunWizardDialog(QDialog):
         self._on_auto_ticks_toggle()
 
     def _selected_rows(self, lb: QListWidget) -> List[int]:
+        """Implement the `_selected_rows` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return [int(idx.row()) for idx in lb.selectedIndexes()]
 
     def _selected_columns(self) -> List[str]:
+        """Implement the `_selected_columns` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         idxs = [int(idx.row()) for idx in self._cols_list.selectedIndexes()]
         cols = [str(c) for c in self._df.columns]
         return [cols[i] for i in idxs if 0 <= i < len(cols)]
 
     def _load_from_dataset(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = getattr(self._dataset, "wizard_mic_config", None)
         if cfg is None:
             self._populate_row_and_col_lists()
@@ -330,6 +374,10 @@ class PlateReaderRunWizardDialog(QDialog):
             pass
 
     def _populate_row_and_col_lists(self) -> None:
+        """Implement the `_populate_row_and_col_lists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._sample_rows.clear()
         self._control_rows.clear()
         try:
@@ -345,6 +393,10 @@ class PlateReaderRunWizardDialog(QDialog):
             self._cols_list.addItem(QListWidgetItem(c))
 
     def _render_preview_table(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         table = self._prev_table
         table.clear()
         if self._df is None or self._df.empty:
@@ -362,6 +414,10 @@ class PlateReaderRunWizardDialog(QDialog):
         table.resizeColumnsToContents()
 
     def _reload_df(self) -> None:
+        """Implement the `_reload_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             use_header = bool(self._use_header_cb.isChecked())
         except Exception:
@@ -388,6 +444,10 @@ class PlateReaderRunWizardDialog(QDialog):
         self._populate_row_and_col_lists()
 
     def _on_auto_ticks_toggle(self) -> None:
+        """Implement the `_on_auto_ticks_toggle` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if bool(self._auto_ticks_cb.isChecked()):
             self._ticks_entry.setEnabled(False)
         else:
@@ -395,6 +455,10 @@ class PlateReaderRunWizardDialog(QDialog):
         self._update_auto_ticks()
 
     def _update_auto_ticks(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(self._auto_ticks_cb.isChecked()):
             return
         try:
@@ -411,6 +475,10 @@ class PlateReaderRunWizardDialog(QDialog):
         self._ticks_entry.setText(",".join(labels))
 
     def _apply(self) -> None:
+        """Implement the `_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sample_rows = self._selected_rows(self._sample_rows)
         control_rows = self._selected_rows(self._control_rows)
         conc_cols = self._selected_columns()
@@ -444,6 +512,10 @@ class PlateReaderRunWizardDialog(QDialog):
 
 class PlateReaderPlotEditorDialog(QDialog):
     def __init__(self, parent: QWidget, *, dataset: PlateReaderDataset, on_apply) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._dataset = dataset
         self._on_apply = on_apply
@@ -537,12 +609,20 @@ class PlateReaderPlotEditorDialog(QDialog):
         layout.addLayout(btns)
 
     def _parse_opt_float(self, s: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = (s or "").strip()
         if not s:
             return None
         return float(s)
 
     def _apply(self) -> None:
+        """Implement the `_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = self._dataset.wizard_mic_config
         if cfg is None:
             return
@@ -582,11 +662,19 @@ class PlateReaderPlotEditorDialog(QDialog):
         self.accept()
 
     def _pick_sample_color(self) -> None:
+        """Implement the `_pick_sample_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         c = QColorDialog.getColor(QColor(self._sample_color.text()), self, "Sample color")
         if c.isValid():
             self._sample_color.setText(c.name())
 
     def _pick_control_color(self) -> None:
+        """Implement the `_pick_control_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         c = QColorDialog.getColor(QColor(self._control_color.text()), self, "Control color")
         if c.isValid():
             self._control_color.setText(c.name())
@@ -594,6 +682,10 @@ class PlateReaderPlotEditorDialog(QDialog):
 
 class PlateReaderTab(QWidget):
     def __init__(self, status: StatusService, dialogs: DialogService, worker_runner=None, adapter: PlateReaderAdapter | None = None) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.status = status
         self.dialogs = dialogs
@@ -614,6 +706,10 @@ class PlateReaderTab(QWidget):
         self._refresh_workspace_list()
 
     def _build_ui(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         root = QSplitter(Qt.Horizontal)
         root.setChildrenCollapsible(False)
         self._root_splitter = root
@@ -628,6 +724,10 @@ class PlateReaderTab(QWidget):
         return root
 
     def reset_layout(self) -> None:
+        """Implement the `reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self, "_root_splitter", None) is not None:
                 self._root_splitter.setSizes([360, 820])
@@ -635,6 +735,10 @@ class PlateReaderTab(QWidget):
             pass
 
     def _build_workspace_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = QGroupBox("Workspace")
         layout = QVBoxLayout(ws)
 
@@ -675,6 +779,10 @@ class PlateReaderTab(QWidget):
         return ws
 
     def _build_plot_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         right = QWidget()
         layout = QVBoxLayout(right)
 
@@ -721,6 +829,10 @@ class PlateReaderTab(QWidget):
         return right
 
     def _on_mouse_move(self, event: Any) -> None:
+        """Implement the `_on_mouse_move` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if event.inaxes and event.xdata is not None and event.ydata is not None:
                 self._coord_label.setText(f"x={event.xdata:.4g}  y={event.ydata:.4g}")
@@ -730,10 +842,18 @@ class PlateReaderTab(QWidget):
             self._coord_label.setText("")
 
     def _set_status(self, text: str) -> None:
+        """Implement the `_set_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._status_label.setText(str(text))
         self.status.set_status(str(text))
 
     def _update_buttons(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         has = self._df is not None and self._dataset is not None
         self._preview_btn.setEnabled(bool(has))
         self._run_btn.setEnabled(bool(has))
@@ -745,6 +865,10 @@ class PlateReaderTab(QWidget):
         self._edit_plot_btn.setEnabled(bool(can_edit))
 
     def _refresh_workspace_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._ws_tree
         tree.clear()
 
@@ -783,6 +907,10 @@ class PlateReaderTab(QWidget):
                 tree.setCurrentItem(item)
 
     def _on_tree_select(self) -> None:
+        """Implement the `_on_tree_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ws_tree.selectedItems()
         if not items:
             return
@@ -790,6 +918,10 @@ class PlateReaderTab(QWidget):
         self._set_active_dataset(ds_id)
 
     def _set_active_dataset(self, dataset_id: str) -> None:
+        """Implement the `_set_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = next((d for d in self.adapter.list_datasets() if str(getattr(d, "id", "")) == str(dataset_id)), None)
         if ds is None:
             return
@@ -808,9 +940,17 @@ class PlateReaderTab(QWidget):
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.get_dataset_df(ds)
 
         def _done(df):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._df = df
             self._set_active_labels()
             self._render_from_dataset()
@@ -827,6 +967,10 @@ class PlateReaderTab(QWidget):
         )
 
     def _set_active_labels(self) -> None:
+        """Implement the `_set_active_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._dataset
         if ds is None:
             self._active_file_label.setText("Active file: (none)")
@@ -843,6 +987,10 @@ class PlateReaderTab(QWidget):
         self._active_mic_label.setText("MIC: configured" if has_mic else "MIC: not configured")
 
     def _add_files(self) -> None:
+        """Implement the `_add_files` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Add Plate Reader files",
@@ -853,9 +1001,17 @@ class PlateReaderTab(QWidget):
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.load_files(list(paths))
 
         def _done(_res):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._restore_from_adapter()
             self._set_status("Files added")
 
@@ -869,6 +1025,10 @@ class PlateReaderTab(QWidget):
         )
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ws_tree.selectedItems()
         if not items:
             return
@@ -883,6 +1043,10 @@ class PlateReaderTab(QWidget):
         self._set_status("Removed")
 
     def _clear_workspace(self) -> None:
+        """Implement the `_clear_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self.adapter.list_datasets():
             return
         if not self.dialogs.confirm("Plate Reader", "Clear Plate Reader workspace?"):
@@ -898,6 +1062,10 @@ class PlateReaderTab(QWidget):
         self._set_status("Cleared")
 
     def _rename_selected(self) -> None:
+        """Implement the `_rename_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._dataset
         if ds is None:
             return
@@ -918,6 +1086,10 @@ class PlateReaderTab(QWidget):
         self._set_status("Renamed")
 
     def _open_preview(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._df is None or self._dataset is None:
             self.dialogs.info("Plate Reader", "Load or select a file first.")
             return
@@ -933,11 +1105,19 @@ class PlateReaderTab(QWidget):
         self._preview_win.activateWindow()
 
     def _open_wizard(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None or self._df is None:
             self.dialogs.info("Plate Reader", "Load or select a file first.")
             return
 
         def on_apply(cfg, result) -> None:
+            """Implement the `on_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             self._dataset.wizard_last_analysis = "mic"
             self._dataset.wizard_mic_config = cfg
             self._dataset.wizard_mic_result = result
@@ -953,6 +1133,10 @@ class PlateReaderTab(QWidget):
         dlg.exec()
 
     def _open_plot_editor(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None or self._dataset.wizard_mic_config is None or self._dataset.wizard_mic_result is None:
             return
 
@@ -960,11 +1144,19 @@ class PlateReaderTab(QWidget):
         dlg.exec()
 
     def _on_plot_style_applied(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._render_from_dataset()
         self._set_status("Style updated")
         self._update_buttons()
 
     def _render_empty_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._ax.clear()
             self._ax.set_title("")
@@ -975,6 +1167,10 @@ class PlateReaderTab(QWidget):
             pass
 
     def _render_from_dataset(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None:
             self._render_empty_plot()
             return
@@ -985,6 +1181,10 @@ class PlateReaderTab(QWidget):
             self._render_empty_plot()
 
     def _restore_from_adapter(self) -> None:
+        """Adapt data/contracts across layers.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dss = self.adapter.list_datasets()
         if not dss:
             self._dataset = None
@@ -1007,6 +1207,10 @@ class PlateReaderTab(QWidget):
         self._update_buttons()
 
     def _save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Plate Reader Workspace",
@@ -1023,12 +1227,24 @@ class PlateReaderTab(QWidget):
         return None
 
     def open_workspace(self) -> Optional[str]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._load_workspace()
 
     def save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._save_workspace()
 
     def _load_workspace(self) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Plate Reader Workspace",
@@ -1044,9 +1260,17 @@ class PlateReaderTab(QWidget):
                 return None
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.load_workspace(path)
 
         def _done(res):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded, active_id, failures = res
             if not loaded:
                 msg = "No datasets were loaded."
@@ -1072,18 +1296,34 @@ class PlateReaderTab(QWidget):
         )
 
     def open_workspace_path(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return None
         self._load_workspace_path(str(path))
 
     def _load_workspace_path(self, path: str) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return self.adapter.load_workspace(path)
 
         def _done(res):
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded, active_id, failures = res
             if not loaded:
                 msg = "No datasets were loaded."
@@ -1110,4 +1350,8 @@ class PlateReaderTab(QWidget):
         return str(path)
 
     def get_last_workspace_path(self) -> Optional[str]:
+        """Implement the `get_last_workspace_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._last_workspace_path

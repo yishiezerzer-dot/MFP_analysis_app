@@ -26,6 +26,10 @@ class ToolTip:
 
     @classmethod
     def set_style(cls, *, background: Optional[str] = None, foreground: Optional[str] = None) -> None:
+        """Implement the `set_style` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if background is not None:
             cls._bg = str(background)
         if foreground is not None:
@@ -33,6 +37,10 @@ class ToolTip:
 
     @classmethod
     def attach(cls, widget: tk.Widget, text: str, *, delay_ms: int = 450, wrap_px: int = 360) -> None:
+        """Implement the `attach` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if widget is None:
             return
         s = (text or "").strip()
@@ -40,6 +48,10 @@ class ToolTip:
             return
 
         def on_enter(_evt=None) -> None:
+            """Implement the `on_enter` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cls._active_widget = widget
             cls._text = s
             cls._delay_ms = int(delay_ms)
@@ -51,10 +63,18 @@ class ToolTip:
             cls._schedule_show()
 
         def on_leave(_evt=None) -> None:
+            """Implement the `on_leave` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cls._cancel_scheduled()
             cls.hide()
 
         def on_motion(_evt=None) -> None:
+            """Implement the `on_motion` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 cls._last_xy = (int(widget.winfo_pointerx()), int(widget.winfo_pointery()))
             except Exception:
@@ -64,6 +84,10 @@ class ToolTip:
                 cls._place()
 
         def on_press(_evt=None) -> None:
+            """Implement the `on_press` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cls._cancel_scheduled()
             cls.hide()
 
@@ -77,6 +101,10 @@ class ToolTip:
 
     @classmethod
     def _cancel_scheduled(cls) -> None:
+        """Implement the `_cancel_scheduled` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if cls._after_id is not None and cls._active_widget is not None:
                 cls._active_widget.after_cancel(cls._after_id)
@@ -86,6 +114,10 @@ class ToolTip:
 
     @classmethod
     def _schedule_show(cls) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cls._cancel_scheduled()
         w = cls._active_widget
         if w is None:
@@ -97,6 +129,10 @@ class ToolTip:
 
     @classmethod
     def show(cls) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cls._after_id = None
         w = cls._active_widget
         if w is None:
@@ -156,6 +192,10 @@ class ToolTip:
 
     @classmethod
     def _place(cls) -> None:
+        """Implement the `_place` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if cls._tipwin is None or cls._active_widget is None:
             return
         w = cls._active_widget
@@ -196,6 +236,10 @@ class ToolTip:
 
     @classmethod
     def hide(cls) -> None:
+        """Implement the `hide` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if cls._tipwin is None:
             return
         try:
@@ -226,6 +270,10 @@ class MatplotlibNavigator:
         box_click_callback: Optional[Callable[[Any], None]] = None,
         auto_update_home: bool = True,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.canvas = canvas
         self._fig = getattr(canvas, "figure", None)
         self._ax = ax
@@ -259,6 +307,10 @@ class MatplotlibNavigator:
         self._cid: List[int] = []
 
     def attach(self) -> None:
+        """Implement the `attach` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._cid.append(self.canvas.mpl_connect("scroll_event", self._on_scroll))
             self._cid.append(self.canvas.mpl_connect("button_press_event", self._on_press))
@@ -271,6 +323,10 @@ class MatplotlibNavigator:
             pass
 
     def is_box_pending(self) -> bool:
+        """Implement the `is_box_pending` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return bool(self._box_pending)
 
         # Tk-level wheel fallback (Windows/Linux)
@@ -283,6 +339,10 @@ class MatplotlibNavigator:
             pass
 
     def update_home_from_artists(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ax in self._iter_axes():
             lim = self._home_limits_provider(ax) if self._home_limits_provider is not None else None
             if lim is None:
@@ -292,6 +352,10 @@ class MatplotlibNavigator:
             self._home_limits[ax] = lim
 
     def _iter_axes(self) -> Iterable[Any]:
+        """Implement the `_iter_axes` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._axes_provider is not None:
             try:
                 return list(self._axes_provider())
@@ -308,6 +372,10 @@ class MatplotlibNavigator:
 
     def _on_draw(self, _evt=None) -> None:
         # Throttle to avoid heavy recompute during drag
+        """Implement the `_on_draw` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         now = time.time()
         if now - float(self._last_home_update_t) < 0.20:
             return
@@ -315,6 +383,10 @@ class MatplotlibNavigator:
         self.update_home_from_artists()
 
     def _set_status(self, text: str) -> None:
+        """Implement the `_set_status` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         lbl = self._status_label
         if lbl is None:
             return
@@ -337,7 +409,15 @@ class MatplotlibNavigator:
             pass
 
     def _format_coord(self, x: float, y: float) -> str:
+        """Implement the `_format_coord` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _fmt(v: float) -> str:
+            """Implement the `_fmt` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if v == 0.0:
                 return "0"
             av = abs(float(v))
@@ -348,6 +428,10 @@ class MatplotlibNavigator:
         return f"x={_fmt(x)}, y={_fmt(y)}"
 
     def _on_motion(self, event) -> None:
+        """Implement the `_on_motion` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ax = event.inaxes if event is not None else None
         if ax is not None:
             self._last_axes = ax
@@ -406,6 +490,10 @@ class MatplotlibNavigator:
             pass
 
     def _on_press(self, event) -> None:
+        """Implement the `_on_press` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is None:
             return
         ax = event.inaxes
@@ -463,6 +551,10 @@ class MatplotlibNavigator:
             pass
 
     def _can_box_zoom(self) -> bool:
+        """Implement the `_can_box_zoom` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(self._enable_box_zoom):
             return False
         if self._box_zoom_enabled_cb is not None:
@@ -473,6 +565,10 @@ class MatplotlibNavigator:
         return True
 
     def _start_box_pending(self, event) -> None:
+        """Start the associated process.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._can_box_zoom():
             return
         ax = event.inaxes
@@ -496,6 +592,10 @@ class MatplotlibNavigator:
         self._box_start_pix = (float(xpix), float(ypix))
 
     def _maybe_begin_box(self, event) -> None:
+        """Implement the `_maybe_begin_box` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._box_pending or self._box_active:
             return
         if self._box_ax is None or self._box_start_pix is None or self._box_start_data is None:
@@ -538,6 +638,10 @@ class MatplotlibNavigator:
             self._box_rect = None
 
     def _update_box(self, event) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._box_active or self._box_ax is None or self._box_start_data is None:
             return
         ax = self._box_ax
@@ -559,6 +663,10 @@ class MatplotlibNavigator:
             pass
 
     def _finish_box(self, event) -> None:
+        """Implement the `_finish_box` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ax = self._box_ax
         self._box_active = False
         self._box_ax = None
@@ -600,6 +708,10 @@ class MatplotlibNavigator:
             pass
 
     def _on_release(self, _event) -> None:
+        """Implement the `_on_release` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._box_active:
             self._finish_box(_event)
         elif self._box_pending:
@@ -626,6 +738,10 @@ class MatplotlibNavigator:
             pass
 
     def _on_key(self, event) -> None:
+        """Implement the `_on_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._enable_reset:
             return
         if event is None:
@@ -638,6 +754,10 @@ class MatplotlibNavigator:
             self.reset_view(self._last_axes or event.inaxes)
 
     def _on_scroll(self, event) -> None:
+        """Implement the `_on_scroll` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._enable_zoom:
             return
         if event is None or event.inaxes is None:
@@ -664,6 +784,10 @@ class MatplotlibNavigator:
         self._zoom_at(ax, float(xdata), float(ydata), step=step, x_only=x_only, y_only=y_only)
 
     def _on_tk_mousewheel(self, event) -> None:
+        """Implement the `_on_tk_mousewheel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._enable_zoom:
             return
         ax = self._pick_axes_from_tk(event)
@@ -700,6 +824,10 @@ class MatplotlibNavigator:
         self._zoom_at(ax, float(xdata), float(ydata), step=step, x_only=x_only, y_only=y_only)
 
     def _zoom_at(self, ax: Any, x: float, y: float, *, step: int, x_only: bool, y_only: bool) -> None:
+        """Implement the `_zoom_at` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         scale = 1.0 / 1.15 if step > 0 else 1.15
         try:
             xlim = ax.get_xlim()
@@ -708,6 +836,10 @@ class MatplotlibNavigator:
             return
 
         def _zoom_lim(lim: Tuple[float, float], center: float) -> Tuple[float, float]:
+            """Implement the `_zoom_lim` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             lo, hi = float(lim[0]), float(lim[1])
             inv = lo > hi
             if inv:
@@ -733,6 +865,10 @@ class MatplotlibNavigator:
             pass
 
     def reset_view(self, ax: Optional[Any] = None) -> None:
+        """Implement the `reset_view` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ax is None:
             ax = self._last_axes
         if ax is None:
@@ -754,6 +890,10 @@ class MatplotlibNavigator:
             pass
 
     def _event_xy(self, event, ax: Any) -> Tuple[Optional[float], Optional[float]]:
+        """Implement the `_event_xy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if event is None:
             return (None, None)
         if event.xdata is not None and event.ydata is not None:
@@ -766,12 +906,20 @@ class MatplotlibNavigator:
             return (None, None)
 
     def _pick_axes_from_tk(self, _event) -> Optional[Any]:
+        """Implement the `_pick_axes_from_tk` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._last_axes is not None:
             return self._last_axes
         axes = list(self._iter_axes())
         return axes[0] if axes else None
 
     def _tk_event_data(self, event, ax: Any) -> Tuple[Optional[float], Optional[float]]:
+        """Implement the `_tk_event_data` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             x = float(event.x)
             y = float(event.y)
@@ -785,6 +933,10 @@ class MatplotlibNavigator:
             return (None, None)
 
     def _compute_limits_from_artists(self, ax: Any) -> Optional[Tuple[float, float, float, float]]:
+        """Compute derived values from inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         xs: List[float] = []
         ys: List[float] = []
 
@@ -854,6 +1006,10 @@ class MatplotlibNavigator:
         return (float(x0 - pad_x), float(x1 + pad_x), float(y0 - pad_y), float(y1 + pad_y))
 
     def _is_over_text(self, ax: Any, event) -> bool:
+        """Implement the `_is_over_text` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             texts = list(getattr(ax, "texts", []) or [])
         except Exception:

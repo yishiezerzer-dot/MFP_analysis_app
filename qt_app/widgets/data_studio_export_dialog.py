@@ -26,6 +26,10 @@ from matplotlib.figure import Figure
 
 class DataStudioExportDialog(QDialog):
     def __init__(self, parent: QWidget, *, payload: Dict[str, Any]) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._payload = dict(payload or {})
         self._series = [dict(s) for s in (self._payload.get("series") or [])]
@@ -112,6 +116,10 @@ class DataStudioExportDialog(QDialog):
         self._replot()
 
     def _replot(self) -> None:
+        """Implement the `_replot` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ax.clear()
         plot_type = str(self._meta.get("plot_type", "Line"))
 
@@ -206,7 +214,15 @@ class DataStudioExportDialog(QDialog):
         self._canvas.draw_idle()
 
     def _apply_limits(self) -> None:
+        """Implement the `_apply_limits` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         def _parse(v: str) -> Optional[float]:
+            """Parse raw input into structured values.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 return float(str(v).strip())
             except Exception:
@@ -222,6 +238,10 @@ class DataStudioExportDialog(QDialog):
             self._ax.set_ylim(bottom=ymin, top=ymax)
 
     def _save_as(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Plot",
@@ -236,6 +256,10 @@ class DataStudioExportDialog(QDialog):
             return
 
     def _export_data(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Data",
@@ -251,6 +275,10 @@ class DataStudioExportDialog(QDialog):
             return
 
     def _build_export_dataframe(self) -> pd.DataFrame:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         heatmap = self._meta.get("heatmap")
         if isinstance(heatmap, dict) and "values" in heatmap:
             values = np.asarray(heatmap.get("values"), dtype=float)

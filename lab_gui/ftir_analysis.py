@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """FTIR analysis utilities (no GUI, no plotting).
 
 This module is intentionally dependency-light. If SciPy is available, peak picking
@@ -15,8 +13,10 @@ Conventions
 All functions tolerate lists/arrays, NaNs/Infs, and unsorted x.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import math
 
@@ -134,6 +134,10 @@ def _smooth(y: np.ndarray, *, window: int, poly_order: int) -> np.ndarray:
 
 
 def _baseline_polyfit(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Implement the `_baseline_polyfit` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     xx = np.asarray(x, dtype=float)
     yy = np.asarray(y, dtype=float)
     n = int(yy.size)
@@ -150,6 +154,10 @@ def _baseline_polyfit(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def _normalize_max(y: np.ndarray) -> np.ndarray:
+    """Implement the `_normalize_max` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     yy = np.asarray(y, dtype=float)
     try:
         m = float(np.nanmax(np.abs(yy)))
@@ -161,6 +169,10 @@ def _normalize_max(y: np.ndarray) -> np.ndarray:
 
 
 def _normalize_area(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Implement the `_normalize_area` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     xx = np.asarray(x, dtype=float)
     yy = np.asarray(y, dtype=float)
     try:
@@ -278,6 +290,10 @@ def pick_peaks(
 
 
 def _sanitize_xy(wn: Sequence[float] | np.ndarray, y: Sequence[float] | np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Implement the `_sanitize_xy` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     x = np.asarray(wn, dtype=float)
     yv = np.asarray(y, dtype=float)
     if x.shape != yv.shape:
@@ -315,6 +331,10 @@ def _pick_candidates(
     min_height: Optional[float],
 ) -> List[FTIRPeak]:
     # Prefer SciPy if available.
+    """Implement the `_pick_candidates` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     peaks = _pick_candidates_scipy(x, y_orig, y_pick, min_prominence=min_prominence, min_height=min_height)
     if peaks is not None:
         return peaks
@@ -330,6 +350,10 @@ def _pick_candidates_scipy(
     min_prominence: float,
     min_height: Optional[float],
 ) -> Optional[List[FTIRPeak]]:
+    """Implement the `_pick_candidates_scipy` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         from scipy.signal import find_peaks  # type: ignore
     except Exception:
@@ -401,6 +425,10 @@ def _pick_candidates_fallback(
     min_prominence: float,
     min_height: Optional[float],
 ) -> List[FTIRPeak]:
+    """Implement the `_pick_candidates_fallback` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out: List[FTIRPeak] = []
 
     n = int(x.size)
@@ -446,6 +474,10 @@ def _pick_candidates_fallback(
 
 
 def _approx_prominence(i: int, y: np.ndarray) -> float:
+    """Implement the `_approx_prominence` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     prom, _, _ = _approx_prominence_with_bases(i, y)
     return float(prom)
 
@@ -495,6 +527,10 @@ def _approx_prominence_with_bases(i: int, y: np.ndarray) -> Tuple[float, Optiona
 
 
 def _enforce_min_distance(peaks: List[FTIRPeak], min_distance_cm1: float) -> List[FTIRPeak]:
+    """Implement the `_enforce_min_distance` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     md = float(min_distance_cm1 or 0.0)
     if md <= 0.0 or len(peaks) <= 1:
         return list(peaks)
@@ -520,11 +556,19 @@ def _enforce_min_distance(peaks: List[FTIRPeak], min_distance_cm1: float) -> Lis
 
 
 def _self_check_empty() -> None:
+    """Implement the `_self_check_empty` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     assert pick_peaks([], []) == []
     assert pick_peaks([1.0, 2.0], [0.0, 1.0]) == []
 
 
 def _self_check_simple_absorbance() -> None:
+    """Implement the `_self_check_simple_absorbance` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     x = np.linspace(1000, 2000, 2001)
     y = np.exp(-0.5 * ((x - 1500) / 10.0) ** 2) + 0.02 * np.exp(-0.5 * ((x - 1700) / 20.0) ** 2)
     peaks = pick_peaks(x, y, mode="absorbance", min_prominence=0.01, min_distance_cm1=20.0)
@@ -535,6 +579,10 @@ def _self_check_simple_absorbance() -> None:
 
 
 def _self_check_transmittance_minima() -> None:
+    """Implement the `_self_check_transmittance_minima` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     x = np.linspace(1000, 2000, 2001)
     # transmittance dips
     y = 1.0 - 0.3 * np.exp(-0.5 * ((x - 1600) / 12.0) ** 2)
@@ -547,6 +595,10 @@ def _self_check_transmittance_minima() -> None:
 
 
 def _self_check_nan_handling() -> None:
+    """Implement the `_self_check_nan_handling` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     x = np.array([1000, 1001, np.nan, 1003, 1004, 1005], dtype=float)
     y = np.array([0.0, 1.0, 2.0, np.nan, 1.0, 0.0], dtype=float)
     peaks = pick_peaks(x, y, min_prominence=0.1)

@@ -92,3 +92,102 @@ Traceback (most recent call last):
   File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_base.py", line 494, in _plot_args
     raise ValueError(f"x and y must have same first dimension, but "
 ValueError: x and y must have same first dimension, but have shapes (6749,) and (1,)
+
+========================================================================
+2026-03-19T11:43:38.096495
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 861, in callit
+    func(*args)
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\app.py", line 16466, in <lambda>
+    self.after(0, lambda: self._on_session_index_ready(session_id, mzml_path, idx, load_order, make_active, None))
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\app.py", line 16610, in _on_session_index_ready
+    self._maybe_finalize_lcms_workspace_restore()
+  File "c:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\lab_gui\app.py", line 15476, in _maybe_finalize_lcms_workspace_restore
+    sess.uv_labels_by_uv_id[str(uv_id)] = _decode_uv_labels(payload)
+                                          ^^^^^^^^^^^^^^^^^
+NameError: name '_decode_uv_labels' is not defined
+
+========================================================================
+2026-03-23T16:23:32.894271
+Traceback (most recent call last):
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1962, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 861, in callit
+    func(*args)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\backends\_backend_tk.py", line 302, in idle_draw
+    self.draw()
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\backends\backend_tkagg.py", line 10, in draw
+    super().draw()
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\backends\backend_agg.py", line 382, in draw
+    self.figure.draw(self.renderer)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\artist.py", line 94, in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\figure.py", line 3257, in draw
+    mimage._draw_list_compositing_images(
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_base.py", line 3190, in draw
+    self._update_title_position(renderer)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axes\_base.py", line 3134, in _update_title_position
+    ax.yaxis.get_tightbbox(renderer)  # update offsetText
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axis.py", line 1353, in get_tightbbox
+    self._update_label_position(renderer)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axis.py", line 2675, in _update_label_position
+    bboxes, bboxes2 = self._get_tick_boxes_siblings(renderer=renderer)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axis.py", line 2241, in _get_tick_boxes_siblings
+    tlb, tlb2 = axis._get_ticklabel_bboxes(ticks_to_draw, renderer)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\axis.py", line 1332, in _get_ticklabel_bboxes
+    return ([tick.label1.get_window_extent(renderer)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\text.py", line 969, in get_window_extent
+    bbox, info, descent = self._get_layout(self._renderer)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\text.py", line 382, in _get_layout
+    w, h, d = _get_text_metrics_with_cache(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\text.py", line 69, in _get_text_metrics_with_cache
+    return _get_text_metrics_with_cache_impl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\text.py", line 77, in _get_text_metrics_with_cache_impl
+    return renderer_ref().get_text_width_height_descent(text, fontprop, ismath)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\backends\backend_agg.py", line 215, in get_text_width_height_descent
+    self.mathtext_parser.parse(s, self.dpi, prop)
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\mathtext.py", line 86, in parse
+    return self._parse_cached(s, dpi, prop, antialiased, load_glyph_flags)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\mathtext.py", line 94, in _parse_cached
+    fontset = fontset_class(prop, load_glyph_flags)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\_mathtext.py", line 675, in __init__
+    self.bakoma = BakomaFonts(default_font_prop, load_glyph_flags)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\_mathtext.py", line 450, in __init__
+    fullpath = findfont(val)
+               ^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\font_manager.py", line 1352, in findfont
+    ret = self._findfont_cached(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\font_manager.py", line 1480, in _findfont_cached
+    + self.score_weight(prop.get_weight(), font.weight)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\owner\OneDrive - huji.ac.il\שולחן העבודה\yishi - moran's lab'\github copilot folder\Main MFP lab analysis code\.venv-work\Lib\site-packages\matplotlib\font_manager.py", line 1265, in score_weight
+    w1 = weight1 if isinstance(weight1, Number) else weight_dict[weight1]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen abc>", line 119, in __instancecheck__
+KeyboardInterrupt

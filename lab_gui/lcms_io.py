@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -29,12 +27,20 @@ class MzMLTICIndex:
     """
 
     def __init__(self, mzml_path: Path, *, rt_unit: str = "minutes") -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.path = Path(mzml_path).expanduser().resolve()
         self.rt_unit = str(rt_unit)
         self.ms1: List[SpectrumMeta] = []
         self.stats: Dict[str, Any] = {}
 
     def build(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ms1: List[SpectrumMeta] = []
         stats: Dict[str, Any] = {
             "total_spectra": 0,
@@ -107,6 +113,10 @@ class MzMLTICIndex:
 
 
 def preview_dataframe_rows(df: pd.DataFrame, *, n: int = 10) -> List[Tuple[Any, ...]]:
+    """Implement the `preview_dataframe_rows` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     out: List[Tuple[Any, ...]] = []
     try:
         for i in range(min(int(n), int(df.shape[0]))):
@@ -127,6 +137,10 @@ def infer_uv_columns(df: pd.DataFrame) -> Dict[str, Any]:
     cols = [str(c) for c in df.columns]
 
     def score_x(name: str) -> int:
+        """Implement the `score_x` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         n = name.lower()
         score = 0
         for k in ["rt", "retention", "time", "minute", "min", "second", "sec"]:
@@ -135,6 +149,10 @@ def infer_uv_columns(df: pd.DataFrame) -> Dict[str, Any]:
         return score
 
     def score_y(name: str) -> int:
+        """Implement the `score_y` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         n = name.lower()
         score = 0
         for k in ["uv", "abs", "absorb", "au", "signal", "intensity", "counts"]:

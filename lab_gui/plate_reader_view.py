@@ -13,10 +13,6 @@ from tkinter import colorchooser, filedialog, messagebox
 import ttkbootstrap as tb
 import tkinter.ttk as ttk_native
 
-ttk: Any = tb
-ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
-
-import numpy as np
 import pandas as pd
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -24,7 +20,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-from lab_gui.plate_reader_io import coerce_numeric_matrix, preview_dataframe, read_plate_file
+from lab_gui.plate_reader_io import preview_dataframe, read_plate_file
 from lab_gui.plate_reader_model import (
     PlateReaderDataset,
     PlateReaderMICWizardConfig,
@@ -36,9 +32,16 @@ from lab_gui.ui_widgets import ToolTip, MatplotlibNavigator
 from lab_gui.ui_theme import style_primary, style_success, style_danger, style_secondary
 from lab_gui.plot_card import PlotCard
 
+ttk: Any = tb
+ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
+
 
 class _DataPreviewWindow(tk.Toplevel):
     def __init__(self, parent: tk.Widget, *, max_rows_default: int = 120) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._max_rows = int(max_rows_default)
         self._df: Optional[pd.DataFrame] = None
@@ -100,12 +103,20 @@ class _DataPreviewWindow(tk.Toplevel):
             pass
 
     def _on_close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self.destroy()
         except Exception:
             pass
 
     def set_df(self, df: Optional[pd.DataFrame], *, title_suffix: str = "") -> None:
+        """Implement the `set_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._df = df
         if title_suffix:
             self.title(f"Plate Reader Preview — {title_suffix}")
@@ -114,6 +125,10 @@ class _DataPreviewWindow(tk.Toplevel):
         self._refresh()
 
     def _refresh(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._max_rows = int(self._rows_var.get() or 120)
         except Exception:
@@ -121,6 +136,10 @@ class _DataPreviewWindow(tk.Toplevel):
         self._render(self._df)
 
     def _render(self, df: Optional[pd.DataFrame]) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._tree
         try:
             tree.delete(*tree.get_children())
@@ -156,6 +175,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         df: pd.DataFrame,
         on_apply: Any,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._dataset = dataset
         self._df = df
@@ -196,12 +219,20 @@ class PlateReaderRunWizard(tk.Toplevel):
             pass
 
     def _show_step(self, which: str) -> None:
+        """Show UI content or dialog state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._step_select.tkraise() if which == "select" else self._step_mic.tkraise()
         except Exception:
             pass
 
     def _build_step_select(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         f = self._step_select
         f.columnconfigure(0, weight=1)
 
@@ -225,6 +256,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         ttk.Button(btns, text="Continue", command=lambda: self._show_step("mic")).grid(row=0, column=1, padx=(8, 0))
 
     def _build_step_mic(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         f = self._step_mic
         f.columnconfigure(0, weight=1)
         f.rowconfigure(2, weight=1)
@@ -374,6 +409,10 @@ class PlateReaderRunWizard(tk.Toplevel):
 
     def _wire_tick_autofill(self) -> None:
         # Update tick labels when column selection changes.
+        """Implement the `_wire_tick_autofill` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._cols_lb.bind("<<ListboxSelect>>", lambda _e: self._update_auto_ticks())
         except Exception:
@@ -381,6 +420,10 @@ class PlateReaderRunWizard(tk.Toplevel):
 
     def _on_auto_ticks_toggle(self) -> None:
         # Enable/disable manual entry and update auto ticks immediately.
+        """Implement the `_on_auto_ticks_toggle` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if bool(self._auto_ticks_var.get()):
                 self._ticks_entry.state(["disabled"])
@@ -391,6 +434,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         self._update_auto_ticks()
 
     def _update_auto_ticks(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not bool(getattr(self, "_auto_ticks_var", tk.BooleanVar(value=False)).get()):
             return
         try:
@@ -415,12 +462,20 @@ class PlateReaderRunWizard(tk.Toplevel):
             pass
 
     def _cancel(self) -> None:
+        """Implement the `_cancel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self.destroy()
         except Exception:
             pass
 
     def _reload_df(self) -> None:
+        """Implement the `_reload_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             use_header = bool(self._use_header_var.get())
         except Exception:
@@ -448,6 +503,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         self._populate_row_and_col_lists()
 
     def _load_from_dataset(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = self._dataset.wizard_mic_config
         if cfg is None:
             self._populate_row_and_col_lists()
@@ -493,6 +552,10 @@ class PlateReaderRunWizard(tk.Toplevel):
             pass
 
     def _populate_row_and_col_lists(self) -> None:
+        """Implement the `_populate_row_and_col_lists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         df_local = self._df
         if df_local is None:
             return
@@ -517,6 +580,10 @@ class PlateReaderRunWizard(tk.Toplevel):
             self._cols_lb.insert(tk.END, c)
 
     def _render_preview_table(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = self._prev_tree
         try:
             tree.delete(*tree.get_children())
@@ -541,12 +608,20 @@ class PlateReaderRunWizard(tk.Toplevel):
                 pass
 
     def _selected_rows(self, lb: tk.Listbox) -> List[int]:
+        """Implement the `_selected_rows` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return [int(i) for i in lb.curselection()]
         except Exception:
             return []
 
     def _selected_columns(self) -> List[str]:
+        """Implement the `_selected_columns` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         df_local = self._df
         if df_local is None:
             return []
@@ -558,6 +633,10 @@ class PlateReaderRunWizard(tk.Toplevel):
         return [cols[i] for i in idxs if 0 <= i < len(cols)]
 
     def _apply(self) -> None:
+        """Implement the `_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         df_local = self._df
         if df_local is None:
             messagebox.showerror("MIC", "No dataframe loaded.", parent=self)
@@ -606,6 +685,10 @@ class PlateReaderView(ttk.Frame):
     """
 
     def __init__(self, parent: tk.Widget, app: Any, workspace: Any) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self.app = app
         self.workspace = workspace
@@ -622,6 +705,10 @@ class PlateReaderView(ttk.Frame):
         self._restore_from_workspace()
 
     def status_text(self) -> str:
+        """Implement the `status_text` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return str(self._status_var.get())
         except Exception:
@@ -629,6 +716,10 @@ class PlateReaderView(ttk.Frame):
 
     def _build_ui(self) -> None:
         # Layout: Workspace panel (left) + plot area (right)
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
@@ -818,6 +909,10 @@ class PlateReaderView(ttk.Frame):
         self._refresh_workspace_list()
 
     def _update_buttons(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         has = self._df is not None and self._dataset is not None
         try:
             self._preview_btn.configure(state=("normal" if has else "disabled"))
@@ -838,6 +933,10 @@ class PlateReaderView(ttk.Frame):
             pass
 
     def _encode_dataset(self, ds: PlateReaderDataset) -> dict:
+        """Implement the `_encode_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = getattr(ds, "wizard_mic_config", None)
         res = getattr(ds, "wizard_mic_result", None)
         return {
@@ -853,6 +952,10 @@ class PlateReaderView(ttk.Frame):
         }
 
     def _safe_dataclass_from_dict(self, cls: Any, data: Optional[dict]) -> Optional[Any]:
+        """Implement the `_safe_dataclass_from_dict` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if data is None:
             return None
         if not isinstance(data, dict):
@@ -866,6 +969,10 @@ class PlateReaderView(ttk.Frame):
             return None
 
     def _save_plate_reader_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             dss = list(getattr(self.workspace, "plate_reader_datasets", []) or [])
         except Exception:
@@ -906,6 +1013,10 @@ class PlateReaderView(ttk.Frame):
         self._status_var.set("Workspace saved")
 
     def _load_plate_reader_workspace(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             title="Load Plate Reader Workspace",
             filetypes=[
@@ -1016,17 +1127,29 @@ class PlateReaderView(ttk.Frame):
         self._status_var.set("Workspace loaded")
 
     def _open_plot_editor(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None or self._dataset.wizard_mic_config is None or self._dataset.wizard_mic_result is None:
             return
 
         PlateReaderPlotEditor(self, dataset=self._dataset, on_apply=self._on_plot_style_applied)
 
     def _on_plot_style_applied(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._render_from_dataset()
         self._status_var.set("Style updated")
         self._update_buttons()
 
     def _restore_from_workspace(self) -> None:
+        """Implement the `_restore_from_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             dss = getattr(self.workspace, "plate_reader_datasets", []) or []
         except Exception:
@@ -1070,6 +1193,10 @@ class PlateReaderView(ttk.Frame):
         self._update_buttons()
 
     def _get_dataset_df(self, ds: PlateReaderDataset) -> Optional[pd.DataFrame]:
+        """Implement the `_get_dataset_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             df = ds.current_df()
             if df is not None:
@@ -1093,6 +1220,10 @@ class PlateReaderView(ttk.Frame):
             return None
 
     def _set_active_labels(self) -> None:
+        """Implement the `_set_active_labels` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._dataset
         if ds is None:
             self._active_file_var.set("Active file: (none)")
@@ -1109,6 +1240,10 @@ class PlateReaderView(ttk.Frame):
         self._active_mic_var.set("MIC: configured" if has_mic else "MIC: not configured")
 
     def _refresh_workspace_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = getattr(self, "_ws_tree", None)
         if tree is None:
             return
@@ -1164,6 +1299,10 @@ class PlateReaderView(ttk.Frame):
                 pass
 
     def _on_tree_select(self, _evt: Any = None) -> None:
+        """Implement the `_on_tree_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = getattr(self, "_ws_tree", None)
         if tree is None:
             return
@@ -1177,6 +1316,10 @@ class PlateReaderView(ttk.Frame):
         self._set_active_dataset(ds_id)
 
     def _set_active_dataset(self, dataset_id: str) -> None:
+        """Implement the `_set_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             dss = getattr(self.workspace, "plate_reader_datasets", []) or []
         except Exception:
@@ -1197,6 +1340,10 @@ class PlateReaderView(ttk.Frame):
         self._update_buttons()
 
     def _unique_display_name(self, base: str) -> str:
+        """Implement the `_unique_display_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = str(base or "Dataset").strip() or "Dataset"
         try:
             existing = {str(getattr(d, "display_name", "") or getattr(d, "name", "") or "") for d in (getattr(self.workspace, "plate_reader_datasets", []) or [])}
@@ -1212,6 +1359,10 @@ class PlateReaderView(ttk.Frame):
             i += 1
 
     def _add_files(self) -> None:
+        """Implement the `_add_files` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths = filedialog.askopenfilenames(
             title="Add Plate Reader files",
             filetypes=[
@@ -1268,6 +1419,10 @@ class PlateReaderView(ttk.Frame):
         self._status_var.set("Files added")
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         tree = getattr(self, "_ws_tree", None)
         if tree is None:
             return
@@ -1307,6 +1462,10 @@ class PlateReaderView(ttk.Frame):
         self._status_var.set("Removed")
 
     def _clear_workspace(self) -> None:
+        """Implement the `_clear_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             dss = getattr(self.workspace, "plate_reader_datasets", []) or []
         except Exception:
@@ -1330,6 +1489,10 @@ class PlateReaderView(ttk.Frame):
         self._status_var.set("Cleared")
 
     def _rename_selected(self) -> None:
+        """Implement the `_rename_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._dataset
         if ds is None:
             return
@@ -1352,6 +1515,10 @@ class PlateReaderView(ttk.Frame):
     # Legacy single-load entry removed; use workspace Add Files…
 
     def _open_preview(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._df is None or self._dataset is None:
             messagebox.showinfo("Plate Reader", "Load or select a file first.", parent=self)
             return
@@ -1371,6 +1538,10 @@ class PlateReaderView(ttk.Frame):
             pass
 
     def _open_wizard(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None or self._df is None:
             messagebox.showinfo("Plate Reader", "Load or select a file first.", parent=self)
             return
@@ -1379,6 +1550,10 @@ class PlateReaderView(ttk.Frame):
         df_local = self._df
 
         def on_apply(cfg: PlateReaderMICWizardConfig, result: PlateReaderMICWizardResult) -> None:
+            """Implement the `on_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             ds_local.wizard_last_analysis = "mic"
             ds_local.wizard_mic_config = cfg
             ds_local.wizard_mic_result = result
@@ -1396,6 +1571,10 @@ class PlateReaderView(ttk.Frame):
         PlateReaderRunWizard(self, dataset=ds_local, df=df_local, on_apply=on_apply)
 
     def _render_empty_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._ax.clear()
             self._ax.set_title("")
@@ -1406,6 +1585,10 @@ class PlateReaderView(ttk.Frame):
             pass
 
     def _render_from_dataset(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._dataset is None:
             self._render_empty_plot()
             return
@@ -1418,6 +1601,10 @@ class PlateReaderView(ttk.Frame):
 
 class PlateReaderPlotEditor(tk.Toplevel):
     def __init__(self, parent: tk.Widget, *, dataset: PlateReaderDataset, on_apply: Any) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self._dataset = dataset
         self._on_apply = on_apply
@@ -1555,18 +1742,30 @@ class PlateReaderPlotEditor(tk.Toplevel):
             pass
 
     def _close(self) -> None:
+        """Close resources and finalize state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self.destroy()
         except Exception:
             pass
 
     def _parse_opt_float(self, s: str) -> Optional[float]:
+        """Parse raw input into structured values.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = (s or "").strip()
         if not s:
             return None
         return float(s)
 
     def _apply(self) -> None:
+        """Implement the `_apply` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = self._dataset.wizard_mic_config
         if cfg is None:
             return
@@ -1605,6 +1804,10 @@ class PlateReaderPlotEditor(tk.Toplevel):
             pass
 
     def _pick_sample_color(self) -> None:
+        """Implement the `_pick_sample_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             c = colorchooser.askcolor(title="Sample color", initialcolor=str(self._sample_color.get()), parent=self)
         except Exception:
@@ -1613,6 +1816,10 @@ class PlateReaderPlotEditor(tk.Toplevel):
             self._sample_color.set(str(c[1]))
 
     def _pick_control_color(self) -> None:
+        """Implement the `_pick_control_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             c = colorchooser.askcolor(title="Control color", initialcolor=str(self._control_color.get()), parent=self)
         except Exception:

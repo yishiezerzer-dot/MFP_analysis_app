@@ -68,15 +68,27 @@ from qt_app.services import DialogService, StatusService
 
 class PlateReaderAdapter:
     def __init__(self, *, status: StatusService, dialogs: DialogService) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.status = status
         self.dialogs = dialogs
         self.plate_reader_datasets: List[PlateReaderDataset] = []
         self.active_plate_reader_id: Optional[str] = None
 
     def list_datasets(self) -> List[PlateReaderDataset]:
+        """Implement the `list_datasets` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return list(self.plate_reader_datasets or [])
 
     def get_active_dataset(self) -> Optional[PlateReaderDataset]:
+        """Implement the `get_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self.plate_reader_datasets:
             return None
         if self.active_plate_reader_id:
@@ -86,9 +98,17 @@ class PlateReaderAdapter:
         return self.plate_reader_datasets[-1]
 
     def set_active_dataset_id(self, dataset_id: Optional[str]) -> None:
+        """Implement the `set_active_dataset_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.active_plate_reader_id = (None if dataset_id is None else str(dataset_id))
 
     def _safe_dataclass_from_dict(self, cls: Any, data: Optional[dict]) -> Optional[Any]:
+        """Implement the `_safe_dataclass_from_dict` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if data is None or not isinstance(data, dict):
             return None
         try:
@@ -100,6 +120,10 @@ class PlateReaderAdapter:
             return None
 
     def _encode_dataset(self, ds: PlateReaderDataset) -> dict:
+        """Implement the `_encode_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cfg = getattr(ds, "wizard_mic_config", None)
         res = getattr(ds, "wizard_mic_result", None)
         return {
@@ -115,6 +139,10 @@ class PlateReaderAdapter:
         }
 
     def save_workspace(self, path: str) -> bool:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dss = list(self.plate_reader_datasets or [])
         if not dss:
             self.dialogs.info("Plate Reader", "No Plate Reader files to save.")
@@ -138,6 +166,10 @@ class PlateReaderAdapter:
         return True
 
     def load_workspace(self, path: str) -> Tuple[List[PlateReaderDataset], Optional[str], List[str]]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -210,6 +242,10 @@ class PlateReaderAdapter:
         return loaded, active_id, failures
 
     def unique_display_name(self, base: str) -> str:
+        """Implement the `unique_display_name` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = str(base or "Dataset").strip() or "Dataset"
         try:
             existing = {str(getattr(d, "display_name", "") or getattr(d, "name", "") or "") for d in (self.plate_reader_datasets or [])}
@@ -225,6 +261,10 @@ class PlateReaderAdapter:
             i += 1
 
     def load_files(self, paths: List[str]) -> Tuple[List[PlateReaderDataset], Optional[str]]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         dss = list(self.plate_reader_datasets or [])
         last_id: Optional[str] = None
         for path in list(paths):
@@ -256,6 +296,10 @@ class PlateReaderAdapter:
         return dss, last_id
 
     def get_dataset_df(self, ds: PlateReaderDataset) -> Optional[Any]:
+        """Implement the `get_dataset_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             df = ds.current_df()
             if df is not None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
 import ctypes
 from pathlib import Path
 from typing import Dict, Optional, TypedDict
@@ -33,6 +32,10 @@ def _get_imagej_help_text(exe_path: str) -> str:
         return ""
 
     def run_help(args: list[str]) -> str:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             proc = subprocess.run(args, capture_output=True, text=True, timeout=5, shell=False)
             return ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()

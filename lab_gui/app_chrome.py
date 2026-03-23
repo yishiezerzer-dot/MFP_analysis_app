@@ -55,6 +55,10 @@ class AppChrome(tk.Frame):
         on_view: Optional[Callable[[], None]] = None,
         on_help: Optional[Callable[[], None]] = None,
     ) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent, bg=_BG_BAR, height=38)
         self.grid_propagate(True)
         self.columnconfigure(1, weight=1)  # spacer stretches
@@ -124,15 +128,31 @@ class AppChrome(tk.Frame):
     # Status pill API
     # ------------------------------------------------------------------
     def set_status_ready(self, text: str = "SYSTEM READY") -> None:
+        """Implement the `set_status_ready` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._set_pill(text, _STATUS_READY_BG, _STATUS_READY_FG)
 
     def set_status_busy(self, text: str = "BUSY") -> None:
+        """Implement the `set_status_busy` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._set_pill(text, _STATUS_BUSY_BG, _STATUS_BUSY_FG)
 
     def set_status_error(self, text: str = "ERROR") -> None:
+        """Implement the `set_status_error` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._set_pill(text, _STATUS_ERROR_BG, _STATUS_ERROR_FG)
 
     def set_context(self, primary: str, secondary: str = "") -> None:
+        """Implement the `set_context` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._context_primary_var.set(str(primary or ""))
             self._context_secondary_var.set(str(secondary or ""))
@@ -143,6 +163,10 @@ class AppChrome(tk.Frame):
     # Internals
     # ------------------------------------------------------------------
     def _set_pill(self, text: str, bg: str, fg: str) -> None:
+        """Implement the `_set_pill` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._status_pill.configure(text=f"  {text}  ", bg=bg, fg=fg)
         except Exception:
@@ -169,6 +193,10 @@ class AppChrome(tk.Frame):
         return btn
 
     def _fire_view(self) -> None:
+        """Implement the `_fire_view` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._on_view is not None:
             try:
                 self._on_view()
@@ -176,6 +204,10 @@ class AppChrome(tk.Frame):
                 pass
 
     def _fire_help(self) -> None:
+        """Implement the `_fire_help` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._on_help is not None:
             try:
                 self._on_help()

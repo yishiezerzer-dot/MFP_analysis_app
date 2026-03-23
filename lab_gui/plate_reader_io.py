@@ -8,6 +8,10 @@ import numpy as np
 
 
 def list_excel_sheets(path: Path) -> List[str]:
+    """Implement the `list_excel_sheets` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         xf = pd.ExcelFile(path)
         return [str(s) for s in (xf.sheet_names or [])]
@@ -21,6 +25,10 @@ def read_plate_file(
     sheet_name: Optional[str] = None,
     header_row: Optional[int] = 0,
 ) -> pd.DataFrame:
+    """Read and normalize input data.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     p = Path(path)
     suf = p.suffix.lower()
 
@@ -86,6 +94,10 @@ def coerce_numeric_matrix(
 
 
 def preview_dataframe(df: pd.DataFrame, *, max_rows: int = 50) -> Tuple[List[str], List[List[str]]]:
+    """Implement the `preview_dataframe` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     cols = [str(c) for c in df.columns]
     n = min(int(max_rows), int(df.shape[0]))
 

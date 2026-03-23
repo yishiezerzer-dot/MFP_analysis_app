@@ -14,9 +14,6 @@ from tkinter import filedialog, messagebox, simpledialog
 import ttkbootstrap as tb
 import tkinter.ttk as ttk_native
 
-ttk: Any = tb
-ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
-
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # Keep this import aligned with Matplotlib stubs to avoid Pylance false-positives.
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
@@ -37,6 +34,9 @@ from lab_gui.data_studio_io import (
 )
 from lab_gui.data_studio_export import DataStudioExportEditor
 from lab_gui.data_studio_workspace_io import decode_workspace, encode_workspace
+
+ttk: Any = tb
+ttk.LabelFrame = ttk_native.LabelFrame  # type: ignore[attr-defined]
 
 
 PLOT_TYPES = [
@@ -59,6 +59,10 @@ PLOT_TYPES = [
 
 class _PreviewWindow(tk.Toplevel):
     def __init__(self, parent: tk.Widget, *, path: Path, dataset: DataStudioDataset, df: pd.DataFrame) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self.title(f"Preview — {path.name}")
         try:
@@ -205,6 +209,10 @@ class _PreviewWindow(tk.Toplevel):
         self._apply_filters()
 
     def _prepare_columns(self) -> None:
+        """Implement the `_prepare_columns` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._numeric_cols = list(numeric_columns(self._df))
         cols = [str(c) for c in self._df.columns]
         self._filter_col_cb["values"] = [self._all_filter_label] + cols
@@ -227,6 +235,10 @@ class _PreviewWindow(tk.Toplevel):
         self._refresh_sort_indicators()
 
     def _schedule_apply_filters(self) -> None:
+        """Implement the `_schedule_apply_filters` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._filter_after is not None:
                 self.after_cancel(self._filter_after)
@@ -235,11 +247,19 @@ class _PreviewWindow(tk.Toplevel):
         self._filter_after = self.after(250, self._apply_filters)
 
     def _on_filter_var_changed(self) -> None:
+        """Filter records by configured criteria.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._suppress_filter_traces:
             return
         self._schedule_apply_filters()
 
     def _schedule_render(self, df: pd.DataFrame) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._render_after is not None:
                 self.after_cancel(self._render_after)
@@ -258,6 +278,10 @@ class _PreviewWindow(tk.Toplevel):
         data_rows = rows.itertuples(index=False, name=None)
 
         def insert_chunk(chunk_size: int = 200) -> None:
+            """Implement the `insert_chunk` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             count = 0
             for row in data_rows:
                 self._tree.insert("", "end", values=list(row))
@@ -272,6 +296,10 @@ class _PreviewWindow(tk.Toplevel):
         self._render_after = self.after(1, insert_chunk)
 
     def _apply_filters(self) -> None:
+        """Implement the `_apply_filters` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         df = self._df
         text = str(self._filter_text_var.get() or "").strip()
         col = str(self._filter_col_var.get() or self._all_filter_label)
@@ -313,6 +341,10 @@ class _PreviewWindow(tk.Toplevel):
         self._schedule_render(self._view_df)
 
     def _apply_sort(self) -> None:
+        """Implement the `_apply_sort` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._sort_col and self._sort_col in self._view_df.columns:
             try:
                 self._view_df = self._view_df.sort_values(by=self._sort_col, ascending=self._sort_asc, kind="mergesort")
@@ -320,6 +352,10 @@ class _PreviewWindow(tk.Toplevel):
                 pass
 
     def _on_sort(self, col: str) -> None:
+        """Implement the `_on_sort` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._sort_col == col:
             self._sort_asc = not self._sort_asc
         else:
@@ -330,6 +366,10 @@ class _PreviewWindow(tk.Toplevel):
         self._schedule_render(self._view_df)
 
     def _refresh_sort_indicators(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cols = [str(c) for c in self._tree["columns"]]
         for c in cols:
             label = str(c)
@@ -341,6 +381,10 @@ class _PreviewWindow(tk.Toplevel):
                 pass
 
     def _update_stats(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         col = str(self._stats_col_var.get() or "")
         if not col or col not in self._view_df.columns or col not in self._numeric_cols:
             self._stats_var.set("Select a numeric column to see stats.")
@@ -358,6 +402,10 @@ class _PreviewWindow(tk.Toplevel):
             self._stats_var.set("Stats unavailable.")
 
     def _clear_filters(self) -> None:
+        """Implement the `_clear_filters` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._filter_text_var.set("")
         self._min_var.set("")
         self._max_var.set("")
@@ -365,6 +413,10 @@ class _PreviewWindow(tk.Toplevel):
         self._apply_filters()
 
     def _update_range_state(self, col: str) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         enable = bool(col and col != self._all_filter_label and col in self._numeric_cols)
         state = "normal" if enable else "disabled"
         try:
@@ -383,6 +435,10 @@ class _PreviewWindow(tk.Toplevel):
                 self._suppress_filter_traces = False
 
     def _copy_selection(self) -> None:
+        """Implement the `_copy_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = list(self._tree.selection() or [])
         if not items:
             messagebox.showinfo("Copy selection", "Select one or more rows to copy.", parent=self)
@@ -402,6 +458,10 @@ class _PreviewWindow(tk.Toplevel):
             pass
 
     def _copy_filtered(self) -> None:
+        """Implement the `_copy_filtered` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         cols = [str(c) for c in self._tree["columns"]]
         rows: List[str] = []
         rows.append("\t".join(cols))
@@ -421,6 +481,10 @@ class _PreviewWindow(tk.Toplevel):
             pass
 
     def _open_help(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         help_text = (
             "The Preview Table shows the dataset in a read-only view (it does not edit the file).\n"
             "Sorting: click a column header to sort ascending; click again to sort descending.\n"
@@ -440,6 +504,10 @@ class _PreviewWindow(tk.Toplevel):
         messagebox.showinfo("Preview Table – How to use", help_text, parent=self)
 
     def _reload_sheet(self) -> None:
+        """Implement the `_reload_sheet` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._sheet_var is None:
             return
         sheet = str(self._sheet_var.get())
@@ -457,6 +525,10 @@ class _PreviewWindow(tk.Toplevel):
 
 class DataStudioView(ttk.Frame):
     def __init__(self, parent: tk.Widget, app: Any, workspace: Any) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__(parent)
         self.app = app
         self.workspace = workspace
@@ -488,35 +560,59 @@ class DataStudioView(ttk.Frame):
         self._build_ui()
 
     def status_text(self) -> str:
+        """Implement the `status_text` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return str(self._status_var.get())
         except Exception:
             return ""
 
     def _mark_dirty(self) -> None:
+        """Implement the `_mark_dirty` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._dirty_var.set("● Unsaved changes")
         except Exception:
             pass
 
     def _clear_dirty(self) -> None:
+        """Implement the `_clear_dirty` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._dirty_var.set("")
         except Exception:
             pass
 
     def _active_plot_def(self) -> Optional[DataStudioPlotDef]:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._ws.active_plot_id
         if not pid:
             return None
         return self._ws.plot_defs.get(pid)
 
     def _plot_def_name(self, pd: DataStudioPlotDef) -> str:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(pd.dataset_id)
         base = str(ds.display_name) if ds is not None else str(pd.dataset_id)
         return f"{base} · {pd.plot_type or 'Plot'}"
 
     def _build_ui(self) -> None:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -540,12 +636,20 @@ class DataStudioView(ttk.Frame):
         ws_window = ws_canvas.create_window((0, 0), window=ws, anchor="nw")
 
         def _sync_ws_width(event: tk.Event) -> None:
+            """Implement the `_sync_ws_width` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 ws_canvas.itemconfigure(ws_window, width=event.width)
             except Exception:
                 pass
 
         def _update_ws_scroll(_event: Optional[tk.Event] = None) -> None:
+            """Update existing state based on new inputs.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 ws_canvas.configure(scrollregion=ws_canvas.bbox("all"))
             except Exception:
@@ -555,6 +659,10 @@ class DataStudioView(ttk.Frame):
         ws_canvas.bind("<Configure>", _sync_ws_width)
 
         def _on_ws_mousewheel(event: tk.Event) -> None:
+            """Implement the `_on_ws_mousewheel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 delta = int(-1 * (event.delta / 120)) if event.delta else 0
                 if delta:
@@ -950,9 +1058,17 @@ class DataStudioView(ttk.Frame):
             self._nav = None
 
     def _toggle_y_panel(self) -> None:
+        """Implement the `_toggle_y_panel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._open_y_selector()
 
     def _toggle_advanced_panel(self) -> None:
+        """Implement the `_toggle_advanced_panel` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if getattr(self, "_builder_panel", None) is None:
             return
         try:
@@ -964,6 +1080,10 @@ class DataStudioView(ttk.Frame):
             pass
 
     def _open_data_options(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         win = getattr(self, "_data_options_win", None)
         if win is not None:
             try:
@@ -1003,6 +1123,10 @@ class DataStudioView(ttk.Frame):
         ttk.Button(btns, text="Close", command=win.destroy).pack(side=tk.RIGHT)
 
     def _open_y_selector(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -1072,6 +1196,10 @@ class DataStudioView(ttk.Frame):
         win.rowconfigure(2, weight=1)
 
         def _numeric_set() -> set:
+            """Implement the `_numeric_set` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             sid = self._ws.active_id
             ds = self._ws.datasets.get(sid) if sid else None
             cols_map = dict(ds.columns or {}) if ds else {}
@@ -1082,6 +1210,10 @@ class DataStudioView(ttk.Frame):
             return numeric
 
         def _available_items(filter_text: str) -> List[str]:
+            """Implement the `_available_items` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             items = list(self._y_display_to_col.keys())
             filt = str(filter_text or "").strip().lower()
             if filt:
@@ -1092,6 +1224,10 @@ class DataStudioView(ttk.Frame):
             return items
 
         def _refresh() -> None:
+            """Refresh derived state or UI content.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             items = _available_items(filter_var.get())
             listbox.delete(0, "end")
             for d in items:
@@ -1104,21 +1240,37 @@ class DataStudioView(ttk.Frame):
             _update_counts(items)
 
         def _update_counts(items: Optional[List[str]] = None) -> None:
+            """Update existing state based on new inputs.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             visible = len(items) if items is not None else int(listbox.size())
             selected = int(len(listbox.curselection()))
             counts_var.set(f"Visible: {visible}   Selected: {selected}")
 
         def _select_visible() -> None:
+            """Implement the `_select_visible` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             listbox.select_clear(0, "end")
             for i in range(int(listbox.size())):
                 listbox.selection_set(i)
             _update_counts()
 
         def _clear_selection_list() -> None:
+            """Implement the `_clear_selection_list` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             listbox.select_clear(0, "end")
             _update_counts()
 
         def _select_all_numeric_visible() -> None:
+            """Implement the `_select_all_numeric_visible` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             numeric = _numeric_set()
             listbox.select_clear(0, "end")
             for idx in range(int(listbox.size())):
@@ -1129,6 +1281,10 @@ class DataStudioView(ttk.Frame):
             _update_counts()
 
         def _apply() -> None:
+            """Implement the `_apply` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             selected: List[str] = []
             for i in listbox.curselection():
                 disp = listbox.get(i)
@@ -1158,6 +1314,10 @@ class DataStudioView(ttk.Frame):
         ttk.Button(btns, text="Cancel", command=win.destroy).pack(side=tk.RIGHT, padx=(0, 6))
 
     def _on_canvas_resize(self, event: tk.Event) -> None:
+        """Implement the `_on_canvas_resize` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             w = max(1, int(event.width))
             h = max(1, int(event.height))
@@ -1168,6 +1328,10 @@ class DataStudioView(ttk.Frame):
             return
 
     def _add_files(self) -> None:
+        """Implement the `_add_files` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths = filedialog.askopenfilenames(
             title="Add files",
             filetypes=[("Data", "*.csv *.tsv *.xlsx *.xls"), ("All", "*.*")],
@@ -1194,10 +1358,14 @@ class DataStudioView(ttk.Frame):
         self._status_var.set(f"Loaded {len(paths)} file(s)")
 
     def _ensure_plot_def_for_dataset(self, dataset_id: str) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not dataset_id:
             return
-        for pd in self._ws.plot_defs.values():
-            if pd.dataset_id == dataset_id:
+        for plot_def in self._ws.plot_defs.values():
+            if plot_def.dataset_id == dataset_id:
                 return
         pid = str(uuid.uuid4())
         x_def, y_def = self._pick_default_axes(dataset_id)
@@ -1212,6 +1380,10 @@ class DataStudioView(ttk.Frame):
             self._ws.active_plot_id = pid
 
     def _remove_plot_defs_for_dataset(self, dataset_id: str) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         to_drop = [pid for pid, pd in self._ws.plot_defs.items() if pd.dataset_id == dataset_id]
         for pid in to_drop:
             self._ws.plot_defs.pop(pid, None)
@@ -1219,11 +1391,19 @@ class DataStudioView(ttk.Frame):
                 self._ws.active_plot_id = None
 
     def _infer_schema_async(self, dataset_id: str) -> None:
+        """Implement the `_infer_schema_async` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(dataset_id)
         if ds is None:
             return
 
         def _worker() -> None:
+            """Execute background task logic safely.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 df = load_table(
                     ds.path,
@@ -1239,6 +1419,10 @@ class DataStudioView(ttk.Frame):
                 schema_hash = ""
 
             def _apply() -> None:
+                """Implement the `_apply` behavior for this module.
+
+                Text-only documentation note: modify internal logic here to change behavior.
+                """
                 d = self._ws.datasets.get(dataset_id)
                 if d is None:
                     return
@@ -1257,6 +1441,10 @@ class DataStudioView(ttk.Frame):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _set_active_dataset(self, dataset_id: str) -> None:
+        """Implement the `_set_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not dataset_id:
             return
         self._ws.active_id = dataset_id
@@ -1280,6 +1468,10 @@ class DataStudioView(ttk.Frame):
         self._clear_dirty()
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._selected_id(self._ws_tree)
         if not sid:
             return
@@ -1296,12 +1488,20 @@ class DataStudioView(ttk.Frame):
         self._refresh_workspace()
 
     def _clear_workspace(self) -> None:
+        """Implement the `_clear_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws = DataStudioWorkspace()
         self._df_cache = {}
         self._plotted_ids = set()
         self._refresh_workspace()
 
     def _save_workspace(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._ws.datasets:
             messagebox.showinfo("Data Studio", "No datasets to save.", parent=self)
             return
@@ -1323,6 +1523,10 @@ class DataStudioView(ttk.Frame):
         self._status_var.set("Workspace saved")
 
     def _load_workspace(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path = filedialog.askopenfilename(
             title="Load Data Studio Workspace",
             filetypes=[("Data Studio Workspace", "*.data_studio.workspace.json"), ("JSON", "*.json"), ("All files", "*.*")],
@@ -1354,6 +1558,10 @@ class DataStudioView(ttk.Frame):
         self._status_var.set("Workspace loaded")
 
     def _set_active_from_selection(self) -> None:
+        """Implement the `_set_active_from_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws.active_id:
             self._store_current_config()
         sid = self._selected_id(self._ws_tree)
@@ -1363,6 +1571,10 @@ class DataStudioView(ttk.Frame):
         self._auto_plot_for_selection()
 
     def _on_select(self) -> None:
+        """Implement the `_on_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._ws.active_id:
             self._store_current_config()
         sid = self._selected_id(self._ws_tree)
@@ -1371,6 +1583,10 @@ class DataStudioView(ttk.Frame):
             self._auto_plot_for_selection()
 
     def _on_plot_select(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._selected_id(self._plot_tree)
         if not pid:
             return
@@ -1385,9 +1601,17 @@ class DataStudioView(ttk.Frame):
             self._auto_plot_for_selection()
 
     def _set_active_plot_from_selection(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._on_plot_select()
 
     def _new_plot_def(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds_id = self._ws.active_id
         if not ds_id:
             return
@@ -1407,6 +1631,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _remove_plot_def(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pid = self._selected_id(self._plot_tree)
         if not pid:
             return
@@ -1416,6 +1644,10 @@ class DataStudioView(ttk.Frame):
         self._refresh_workspace()
 
     def _preview_data(self) -> None:
+        """Implement the `_preview_data` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             messagebox.showinfo("Preview", "No active dataset.")
@@ -1427,6 +1659,10 @@ class DataStudioView(ttk.Frame):
         _PreviewWindow(self, path=ds.path, dataset=ds, df=df)
 
     def _apply_overlay(self) -> None:
+        """Implement the `_apply_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         overlay_ids = [sid for sid in self._ws.order if self._overlay_tree.exists(str(sid)) and self._overlay_tree.set(str(sid), "sel") == "✔"]
         if not overlay_ids:
             self._ws.overlay_ids = []
@@ -1465,21 +1701,37 @@ class DataStudioView(ttk.Frame):
         self._plot()
 
     def _clear_overlay(self) -> None:
+        """Implement the `_clear_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws.overlay_ids = []
         self._refresh_workspace()
         self._auto_plot_for_selection()
 
     def _overlay_select_all(self) -> None:
+        """Implement the `_overlay_select_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for sid in list(self._ws.order):
             if self._overlay_tree.exists(str(sid)):
                 self._overlay_tree.set(str(sid), "sel", "✔")
 
     def _overlay_select_none(self) -> None:
+        """Implement the `_overlay_select_none` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for sid in list(self._ws.order):
             if self._overlay_tree.exists(str(sid)):
                 self._overlay_tree.set(str(sid), "sel", "")
 
     def _overlay_make_active_first(self) -> None:
+        """Implement the `_overlay_make_active_first` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._ws.overlay_ids:
             return
         first = self._ws.overlay_ids[0]
@@ -1487,6 +1739,10 @@ class DataStudioView(ttk.Frame):
             self._set_active_dataset(first)
 
     def _open_overlay_help(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         help_text = (
             "Overlay lets you plot multiple datasets on the same chart.\n"
             "1) Check datasets in the list.\n"
@@ -1498,6 +1754,10 @@ class DataStudioView(ttk.Frame):
         messagebox.showinfo("Overlay – How to use", help_text, parent=self)
 
     def _on_overlay_mode_changed(self) -> None:
+        """Implement the `_on_overlay_mode_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None or not pd.y_cols:
             return
@@ -1508,9 +1768,17 @@ class DataStudioView(ttk.Frame):
             pass
 
     def _restore_y_selection_only(self) -> None:
+        """Implement the `_restore_y_selection_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._update_y_summary()
 
     def _schedule_overlay_refresh(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if self._overlay_refresh_job is not None:
                 self.after_cancel(self._overlay_refresh_job)
@@ -1522,6 +1790,10 @@ class DataStudioView(ttk.Frame):
             self._overlay_refresh_job = None
 
     def _on_overlay_click(self, evt) -> None:
+        """Implement the `_on_overlay_click` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         row = self._overlay_tree.identify_row(evt.y)
         col = self._overlay_tree.identify_column(evt.x)
         if not row or col != "#1":
@@ -1530,6 +1802,10 @@ class DataStudioView(ttk.Frame):
         self._overlay_tree.set(row, "sel", "" if cur == "✔" else "✔")
 
     def _refresh_workspace(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws_tree.delete(*self._ws_tree.get_children(""))
         self._overlay_tree.delete(*self._overlay_tree.get_children(""))
         try:
@@ -1548,6 +1824,10 @@ class DataStudioView(ttk.Frame):
         self._refresh_recipes_ui()
 
     def _refresh_recipes_ui(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             items: List[str] = []
             for rid in (self._ws.recipe_order or list((self._ws.recipes or {}).keys())):
@@ -1565,12 +1845,20 @@ class DataStudioView(ttk.Frame):
             pass
 
     def _selected_recipe_id(self) -> Optional[str]:
+        """Implement the `_selected_recipe_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         raw = str(self._recipes_var.get() or "").strip()
         if "::" in raw:
             return raw.split("::", 1)[1].strip()
         return None
 
     def _save_recipe(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -1589,6 +1877,10 @@ class DataStudioView(ttk.Frame):
         self._refresh_recipes_ui()
 
     def _rename_recipe(self) -> None:
+        """Implement the `_rename_recipe` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rid = self._selected_recipe_id()
         if not rid or rid not in (self._ws.recipes or {}):
             return
@@ -1599,6 +1891,10 @@ class DataStudioView(ttk.Frame):
         self._refresh_recipes_ui()
 
     def _delete_recipe(self) -> None:
+        """Implement the `_delete_recipe` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rid = self._selected_recipe_id()
         if not rid or rid not in (self._ws.recipes or {}):
             return
@@ -1611,6 +1907,10 @@ class DataStudioView(ttk.Frame):
         self._refresh_recipes_ui()
 
     def _apply_recipe(self) -> None:
+        """Implement the `_apply_recipe` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         rid = self._selected_recipe_id()
         if not rid or rid not in (self._ws.recipes or {}):
             return
@@ -1624,6 +1924,10 @@ class DataStudioView(ttk.Frame):
         lower_map = {str(c).lower(): str(c) for c in cols}
 
         def _map_col(c: Optional[str]) -> Optional[str]:
+            """Implement the `_map_col` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if c is None:
                 return None
             if c in cols:
@@ -1632,6 +1936,10 @@ class DataStudioView(ttk.Frame):
             return lower_map.get(lc)
 
         def _as_opt_str(v: object) -> Optional[str]:
+            """Implement the `_as_opt_str` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if v in (None, ""):
                 return None
             try:
@@ -1679,6 +1987,10 @@ class DataStudioView(ttk.Frame):
                 self._banner_var.set("Auto-plot failed. Check axes or data.")
 
     def _open_recipes_help(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         help_text = (
             "Recipes save chart settings (type, axes, options) for reuse.\n"
             "1) Set X/Y and chart type.\n"
@@ -1687,14 +1999,18 @@ class DataStudioView(ttk.Frame):
             "If columns are missing, best defaults are used automatically."
         )
         messagebox.showinfo("Recipes – How to use", help_text, parent=self)
-        for pid, pd in self._ws.plot_defs.items():
-            name = f"{self._plot_def_name(pd)}"
+        for pid, plot_def in self._ws.plot_defs.items():
+            name = f"{self._plot_def_name(plot_def)}"
             active = "●" if pid == self._ws.active_plot_id else ""
             self._plot_tree.insert("", "end", iid=str(pid), values=(active, name))
         self._populate_columns()
         self._restore_config_for_active()
 
     def _selected_id(self, tree: Any) -> Optional[str]:
+        """Implement the `_selected_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             sel = tree.selection()
             return str(sel[0]) if sel else None
@@ -1702,6 +2018,10 @@ class DataStudioView(ttk.Frame):
             return None
 
     def _load_df(self, ds: DataStudioDataset) -> pd.DataFrame:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if ds.dataset_id in self._df_cache:
             return self._df_cache[ds.dataset_id]
         df = load_table(
@@ -1715,6 +2035,10 @@ class DataStudioView(ttk.Frame):
         return df
 
     def _transform_steps_hash(self, steps: List[Dict[str, Any]]) -> str:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             payload = json.dumps(steps or [], sort_keys=True, ensure_ascii=False)
         except Exception:
@@ -1722,6 +2046,10 @@ class DataStudioView(ttk.Frame):
         return str(hash(payload))
 
     def _get_transformed_df(self, ds: DataStudioDataset) -> pd.DataFrame:
+        """Implement the `_get_transformed_df` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = self._load_df(ds)
         steps = list(getattr(ds, "transform_steps", []) or [])
         if not steps:
@@ -1737,11 +2065,19 @@ class DataStudioView(ttk.Frame):
         return out
 
     def _get_plot_df(self, ds: DataStudioDataset) -> pd.DataFrame:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if getattr(ds, "derived_enabled", False):
             return self._get_transformed_df(ds)
         return self._load_df(ds)
 
     def _refresh_transform_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             self._transform_list.delete(0, "end")
         except Exception:
@@ -1757,6 +2093,10 @@ class DataStudioView(ttk.Frame):
             self._transform_list.insert("end", f"{i}. {self._format_transform_step(step)}")
 
     def _format_transform_step(self, step: Dict[str, Any]) -> str:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         stype = str(step.get("type") or "")
         cols = ", ".join([str(c) for c in (step.get("columns") or [])])
         if stype == "select_columns":
@@ -1790,6 +2130,10 @@ class DataStudioView(ttk.Frame):
         return f"{stype or 'Step'}: {cols}"
 
     def _selected_transform_index(self) -> Optional[int]:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             sel = self._transform_list.curselection()
             return int(sel[0]) if sel else None
@@ -1797,6 +2141,10 @@ class DataStudioView(ttk.Frame):
             return None
 
     def _on_transform_toggle(self) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             try:
@@ -1820,6 +2168,10 @@ class DataStudioView(ttk.Frame):
                 self._banner_var.set("Auto-plot failed. Check axes or data.")
 
     def _open_transform_step_editor(self, step: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         win = tk.Toplevel(self)
         win.title("Transform step")
         win.transient(self.winfo_toplevel())
@@ -1912,9 +2264,17 @@ class DataStudioView(ttk.Frame):
         result: Dict[str, Any] = {}
 
         def _parse_columns(raw: str) -> List[str]:
+            """Parse raw input into structured values.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return [c.strip() for c in (raw or "").split(",") if c.strip()]
 
         def _parse_mapping(raw: str) -> Dict[str, str]:
+            """Parse raw input into structured values.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             out: Dict[str, str] = {}
             for part in (raw or "").split(","):
                 if ":" not in part:
@@ -1927,6 +2287,10 @@ class DataStudioView(ttk.Frame):
             return out
 
         def _parse_range(raw: str) -> Optional[List[int]]:
+            """Parse raw input into structured values.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             if not raw or ":" not in raw:
                 return None
             try:
@@ -1936,6 +2300,10 @@ class DataStudioView(ttk.Frame):
                 return None
 
         def _save() -> None:
+            """Save output/state to persistent storage.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             stype = str(type_var.get()).strip()
             if not stype:
                 messagebox.showwarning("Transform", "Choose a step type.", parent=win)
@@ -1985,6 +2353,10 @@ class DataStudioView(ttk.Frame):
             win.destroy()
 
         def _cancel() -> None:
+            """Implement the `_cancel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             result.clear()
             win.destroy()
 
@@ -1997,6 +2369,10 @@ class DataStudioView(ttk.Frame):
         return result if result else None
 
     def _add_transform_step(self) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2015,6 +2391,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _edit_transform_step(self) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2037,6 +2417,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _remove_transform_step(self) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2055,6 +2439,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _move_transform_step(self, delta: int) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2080,6 +2468,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _clear_transform_steps(self) -> None:
+        """Transform data while preserving semantics.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2099,6 +2491,10 @@ class DataStudioView(ttk.Frame):
         self._mark_dirty()
 
     def _open_transform_help(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         help_text = (
             "Transform steps let you create a non-destructive pipeline.\n"
             "Use Add step… to build the pipeline, then enable\n"
@@ -2112,6 +2508,10 @@ class DataStudioView(ttk.Frame):
         messagebox.showinfo("Transform – Help", help_text, parent=self)
 
     def _populate_columns(self) -> None:
+        """Implement the `_populate_columns` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2131,6 +2531,10 @@ class DataStudioView(ttk.Frame):
         cols = [str(c) for c in cols_map.keys()]
 
         def _disp(name: str, dtype: str) -> str:
+            """Implement the `_disp` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return f"{name} ({dtype})" if dtype else str(name)
 
         self._x_display_to_col = {"(Index)": "(Index)"}
@@ -2167,6 +2571,10 @@ class DataStudioView(ttk.Frame):
         self._restoring_ui = False
 
     def _restore_config_for_active(self) -> None:
+        """Implement the `_restore_config_for_active` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2236,6 +2644,10 @@ class DataStudioView(ttk.Frame):
         self._restoring_ui = False
 
     def _auto_plot_for_selection(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             return
@@ -2273,6 +2685,10 @@ class DataStudioView(ttk.Frame):
                 self._banner_var.set("Auto-plot failed. Check axes or data.")
 
     def _pick_default_axes(self, dataset_id: str) -> Tuple[Optional[str], List[str]]:
+        """Implement the `_pick_default_axes` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._ws.datasets.get(dataset_id)
         if ds is None:
             return None, []
@@ -2284,9 +2700,17 @@ class DataStudioView(ttk.Frame):
         idx_keys = ("index", "scan", "cycle", "frame")
 
         def _is_time(name: str) -> bool:
+            """Implement the `_is_time` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return any(k in name for k in time_keys)
 
         def _is_idx(name: str) -> bool:
+            """Implement the `_is_idx` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return any(k in name for k in idx_keys)
 
         x_col = None
@@ -2329,6 +2753,10 @@ class DataStudioView(ttk.Frame):
         return x_col, y_cols
 
     def _refresh_x_values(self, filter_text: str) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         filt = str(filter_text or "").strip().lower()
         values = list(self._x_all_values or [])
         if filt:
@@ -2340,10 +2768,18 @@ class DataStudioView(ttk.Frame):
             self._x_var.set("(Index)")
 
     def _clear_x_search(self) -> None:
+        """Implement the `_clear_x_search` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._x_search_var.set("")
         self._refresh_x_values("")
 
     def _auto_axes_both(self) -> None:
+        """Implement the `_auto_axes_both` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         pd = self._active_plot_def()
         if not sid or pd is None:
@@ -2362,6 +2798,10 @@ class DataStudioView(ttk.Frame):
         self._store_current_config()
 
     def _auto_axes_y_only(self) -> None:
+        """Implement the `_auto_axes_y_only` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         pd = self._active_plot_def()
         if not sid or pd is None:
@@ -2374,6 +2814,10 @@ class DataStudioView(ttk.Frame):
         self._store_current_config()
 
     def _open_axes_help(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         help_text = (
             "X axis: choose one column for the horizontal axis; Index uses row numbers.\n"
             "Y columns: choose one or more columns to plot.\n"
@@ -2384,6 +2828,10 @@ class DataStudioView(ttk.Frame):
         messagebox.showinfo("Axes Selection – How to use", help_text, parent=self)
 
     def _toggle_extra_fields(self) -> None:
+        """Implement the `_toggle_extra_fields` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for w in self._extra.winfo_children():
             w.destroy()
         kind = str(self._plot_type_var.get())
@@ -2431,6 +2879,10 @@ class DataStudioView(ttk.Frame):
                 cb["values"] = cols
 
     def _refresh_y_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._available_y_items("")
         pd = self._active_plot_def()
         if pd is not None and pd.y_cols:
@@ -2441,6 +2893,10 @@ class DataStudioView(ttk.Frame):
         self._update_y_summary()
 
     def _available_y_items(self, filter_text: str) -> List[str]:
+        """Implement the `_available_y_items` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = list(self._y_display_to_col.keys())
         filt = str(filter_text or "").strip().lower()
         if filt:
@@ -2464,6 +2920,10 @@ class DataStudioView(ttk.Frame):
         return items
 
     def _update_y_summary(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None or not pd.y_cols:
             self._y_summary_var.set("Y: (none)")
@@ -2475,6 +2935,10 @@ class DataStudioView(ttk.Frame):
             self._y_summary_var.set(f"Y: {len(disp)} selected")
 
     def _select_all_numeric_y(self) -> None:
+        """Implement the `_select_all_numeric_y` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         ds = self._ws.datasets.get(sid) if sid else None
         if ds is None:
@@ -2494,6 +2958,10 @@ class DataStudioView(ttk.Frame):
         self._store_current_config()
 
     def _clear_y_selection(self) -> None:
+        """Implement the `_clear_y_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -2504,6 +2972,10 @@ class DataStudioView(ttk.Frame):
         self._store_current_config()
 
     def _on_plot_type_changed(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._toggle_extra_fields()
@@ -2519,18 +2991,30 @@ class DataStudioView(ttk.Frame):
             self._refresh_workspace()
 
     def _on_x_changed(self) -> None:
+        """Implement the `_on_x_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._mark_dirty()
         self._store_current_config()
 
     def _on_y_changed(self) -> None:
+        """Implement the `_on_y_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._restoring_ui:
             return
         self._mark_dirty()
         self._store_current_config()
 
     def _reset_plot_builder(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._plot_type_var.set(PLOT_TYPES[0])
         self._drop_na_var.set(True)
         self._decimal_var.set(False)
@@ -2541,12 +3025,20 @@ class DataStudioView(ttk.Frame):
         self._clear_dirty()
 
     def _collect_selected_y(self) -> List[str]:
+        """Implement the `_collect_selected_y` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return []
         return list(pd.y_cols or [])
 
     def _plot(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             base_series, meta = self._build_plot_series()
         except Exception as exc:
@@ -2665,6 +3157,10 @@ class DataStudioView(ttk.Frame):
             self._plotted_ids.add(self._ws.active_id)
 
     def _apply_plot(self) -> None:
+        """Prepare plotting data and visual elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._store_current_config()
         pd = self._active_plot_def()
         sid = self._ws.active_id
@@ -2702,6 +3198,10 @@ class DataStudioView(ttk.Frame):
         self._clear_dirty()
 
     def _build_plot_series(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid_list = self._ws.overlay_ids if self._ws.overlay_ids else ([self._ws.active_id] if self._ws.active_id else [])
         if not sid_list:
             raise ValueError("No active dataset selected.")
@@ -2902,6 +3402,10 @@ class DataStudioView(ttk.Frame):
         return series, meta
 
     def _apply_overlay_offset(self, series: List[Dict[str, Any]]) -> None:
+        """Implement the `_apply_overlay_offset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._ws.overlay_ids or not series:
             return
         try:
@@ -2928,12 +3432,20 @@ class DataStudioView(ttk.Frame):
 
     @staticmethod
     def _safe_float(value: Any) -> float:
+        """Implement the `_safe_float` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return float(str(value).strip())
         except Exception:
             return 0.0
 
     def _store_current_config(self) -> None:
+        """Implement the `_store_current_config` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pd = self._active_plot_def()
         if pd is None:
             return
@@ -2966,6 +3478,10 @@ class DataStudioView(ttk.Frame):
             self._ws.preferred_axes_by_dataset[pd.dataset_id] = (pd.x_col, list(pd.y_cols or []))
 
     def _export_plot(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         payload = getattr(self, "_last_payload", None)
         if not payload:
             messagebox.showinfo("Export", "Plot something first.")
@@ -2973,6 +3489,10 @@ class DataStudioView(ttk.Frame):
         DataStudioExportEditor(self, payload=payload)
 
     def _export_transformed_csv(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         sid = self._ws.active_id
         if not sid:
             messagebox.showinfo("Export", "Select a dataset first.", parent=self)

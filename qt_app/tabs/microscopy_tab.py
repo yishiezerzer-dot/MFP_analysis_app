@@ -70,6 +70,10 @@ PRESETS: List[Dict[str, str]] = [
 
 class MicroscopyTab(QWidget):
     def __init__(self, status: StatusService, dialogs: DialogService, worker_runner=None) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.status = status
         self.dialogs = dialogs
@@ -104,6 +108,10 @@ class MicroscopyTab(QWidget):
         self._refresh_outputs()
 
     def _build_ui(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         root = QSplitter(Qt.Horizontal)
         root.setChildrenCollapsible(False)
         self._root_splitter = root
@@ -219,6 +227,10 @@ class MicroscopyTab(QWidget):
         return root
 
     def _build_preset_panel(self) -> QGroupBox:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         box = QGroupBox("Preset Analysis")
         layout = QVBoxLayout(box)
 
@@ -282,6 +294,10 @@ class MicroscopyTab(QWidget):
         return box
 
     def reset_layout(self) -> None:
+        """Implement the `reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self, "_root_splitter", None) is not None:
                 self._root_splitter.setSizes([520, 880])
@@ -289,6 +305,10 @@ class MicroscopyTab(QWidget):
             pass
 
     def _ensure_default_workspace(self) -> None:
+        """Implement the `_ensure_default_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._workspaces:
             return
         wid = str(uuid.uuid4())
@@ -298,11 +318,19 @@ class MicroscopyTab(QWidget):
         self._active_workspace_id = wid
 
     def _current_workspace(self) -> Optional[MicroscopyWorkspace]:
+        """Implement the `_current_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._active_workspace_id:
             return None
         return self._workspaces.get(self._active_workspace_id)
 
     def _refresh_workspace_combo(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws_combo.blockSignals(True)
         self._ws_combo.clear()
         for wid in self._workspace_order:
@@ -321,6 +349,10 @@ class MicroscopyTab(QWidget):
         self._update_imagej_label()
 
     def _refresh_dataset_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ds_tree.clear()
         ws = self._current_workspace()
         if ws is None:
@@ -332,6 +364,10 @@ class MicroscopyTab(QWidget):
             self._ds_tree.addTopLevelItem(item)
 
     def _on_workspace_selected(self, _index: int = 0) -> None:
+        """Implement the `_on_workspace_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         wid = self._ws_combo.currentData()
         if wid and str(wid) in self._workspaces:
             self._active_workspace_id = str(wid)
@@ -340,6 +376,10 @@ class MicroscopyTab(QWidget):
             self._refresh_outputs()
 
     def _add_workspace(self) -> None:
+        """Implement the `_add_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         name, ok = QInputDialog.getText(self, "Add Workspace", "Workspace name")
         if not ok or not str(name).strip():
             return
@@ -352,6 +392,10 @@ class MicroscopyTab(QWidget):
         self._refresh_dataset_tree()
 
     def _rename_workspace(self) -> None:
+        """Implement the `_rename_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -363,6 +407,10 @@ class MicroscopyTab(QWidget):
         self._refresh_workspace_combo()
 
     def _delete_workspace(self) -> None:
+        """Implement the `_delete_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if len(self._workspace_order) <= 1:
             self.dialogs.info("Microscopy", "At least one workspace is required.")
             return
@@ -378,6 +426,10 @@ class MicroscopyTab(QWidget):
         self._refresh_outputs()
 
     def _load_files(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Load Microscopy Files",
@@ -413,6 +465,10 @@ class MicroscopyTab(QWidget):
         self.status.set_status(f"Loaded {len(paths)} file(s)")
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -429,6 +485,10 @@ class MicroscopyTab(QWidget):
         self._refresh_outputs()
 
     def _on_dataset_select(self) -> None:
+        """Implement the `_on_dataset_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._ds_tree.selectedItems()
         if not items:
             self._active_dataset_id = None
@@ -439,15 +499,27 @@ class MicroscopyTab(QWidget):
         self._refresh_outputs()
 
     def _on_output_select(self) -> None:
+        """Implement the `_on_output_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pass
 
     def _dataset_output_dir(self, ws: MicroscopyWorkspace, path: Path) -> str:
+        """Implement the `_dataset_output_dir` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_part = self._safe_dirname(ws.name) or self._safe_dirname(ws.id)
         ds_part = self._safe_dirname(path.stem)
         base = Path.cwd() / "microscopy" / ws_part / ds_part
         return str(base)
 
     def _refresh_outputs(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._out_tree.clear()
         ds = self._get_active_dataset()
         if ds is None or not ds.output_dir:
@@ -467,6 +539,10 @@ class MicroscopyTab(QWidget):
         self._refresh_dataset_tree()
 
     def _open_selected_output(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._out_tree.selectedItems()
         if not items:
             return
@@ -479,6 +555,10 @@ class MicroscopyTab(QWidget):
             self.dialogs.error("Microscopy", f"Failed to open file:\n\n{exc}")
 
     def _open_output_folder(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._get_active_dataset()
         if ds is None or not ds.output_dir:
             return
@@ -488,6 +568,10 @@ class MicroscopyTab(QWidget):
             self.dialogs.error("Microscopy", f"Failed to open folder:\n\n{exc}")
 
     def _import_outputs(self) -> None:
+        """Implement the `_import_outputs` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._get_active_dataset()
         if ds is None or not ds.output_dir:
             self.dialogs.info("Microscopy", "Select a dataset first.")
@@ -513,6 +597,10 @@ class MicroscopyTab(QWidget):
         self.status.set_status(f"Imported {copied} file(s)")
 
     def _export_summary(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -549,6 +637,10 @@ class MicroscopyTab(QWidget):
             self.dialogs.error("Microscopy", f"Failed to export summary:\n\n{exc}")
 
     def _set_imagej_path(self) -> None:
+        """Implement the `_set_imagej_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         path, _ = QFileDialog.getOpenFileName(self, "Select ImageJ/Fiji executable", "", "Executable (*.exe)")
         if not path:
@@ -563,6 +655,10 @@ class MicroscopyTab(QWidget):
         self.status.set_status("ImageJ/Fiji path saved")
 
     def _open_selected_in_imagej(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
         if not exe:
@@ -583,6 +679,10 @@ class MicroscopyTab(QWidget):
                 return
 
     def _run_macro_on_selected(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
         if not exe:
@@ -611,6 +711,10 @@ class MicroscopyTab(QWidget):
         self._run_macro_batch(exe, macro_path, ds_list)
 
     def _run_macro_on_active(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
         if not exe:
@@ -631,6 +735,10 @@ class MicroscopyTab(QWidget):
         self._run_macro_batch(exe, macro_path, [ds])
 
     def _run_macro_on_all(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
         if not exe:
@@ -651,6 +759,10 @@ class MicroscopyTab(QWidget):
         self._run_macro_batch(exe, macro_path, list(ws.datasets))
 
     def _run_macro_batch(self, exe: str, macro_path: str, ds_list: List[MicroscopyDataset]) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         if not ds_list:
             return
@@ -666,6 +778,10 @@ class MicroscopyTab(QWidget):
         progress.setValue(0)
 
         def _on_cancel() -> None:
+            """Implement the `_on_cancel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cancel_state["cancel"] = True
             handle = handle_ref.get("handle")
             if handle is not None:
@@ -679,6 +795,10 @@ class MicroscopyTab(QWidget):
         timer = QTimer(progress)
 
         def _tick() -> None:
+            """Implement the `_tick` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 progress.setValue(int(progress_state["value"]))
             except Exception:
@@ -688,6 +808,10 @@ class MicroscopyTab(QWidget):
         timer.start(200)
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             for i, ds in enumerate(ds_list):
                 if cancel_state.get("cancel") or getattr(_h, "cancelled", False):
                     break
@@ -717,6 +841,10 @@ class MicroscopyTab(QWidget):
             return True
 
         def _done(_res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 timer.stop()
             except Exception:
@@ -740,6 +868,10 @@ class MicroscopyTab(QWidget):
         handle_ref["handle"] = handle
 
     def _update_imagej_label(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         exe = validate_imagej_exe_path(settings.get("fiji_exe_path"))
         self._imagej_label.setText(exe or "ImageJ/Fiji path not set")
@@ -755,16 +887,28 @@ class MicroscopyTab(QWidget):
                 pass
 
     def _on_headless_toggled(self, checked: bool) -> None:
+        """Implement the `_on_headless_toggled` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         settings = load_settings()
         settings["microscopy_run_headless"] = bool(checked)
         save_settings(settings)
 
     def _on_preset_changed(self) -> None:
+        """Implement the `_on_preset_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         preset = self._current_preset()
         if self._preset_desc is not None:
             self._preset_desc.setText(str(preset.get("what") or ""))
 
     def _current_preset(self) -> Dict[str, str]:
+        """Implement the `_current_preset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._preset_combo is None:
             return PRESETS[0]
         pid = str(self._preset_combo.currentData() or "")
@@ -774,6 +918,10 @@ class MicroscopyTab(QWidget):
         return PRESETS[0]
 
     def _update_thr_manual_state(self) -> None:
+        """Update existing state based on new inputs.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._thr_method_cb is None:
             return
         is_manual = str(self._thr_method_cb.currentText() or "").lower() == "manual"
@@ -783,6 +931,10 @@ class MicroscopyTab(QWidget):
             w.setEnabled(bool(is_manual))
 
     def _gather_preset_params(self) -> Dict[str, object]:
+        """Implement the `_gather_preset_params` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return {
             "threshold_method": ("Otsu" if self._thr_method_cb is None else str(self._thr_method_cb.currentText() or "Otsu")),
             "manual_min": ("50" if self._thr_min_edit is None else str(self._thr_min_edit.text() or "")),
@@ -796,6 +948,10 @@ class MicroscopyTab(QWidget):
         }
 
     def _selected_dataset_ids(self) -> List[str]:
+        """Implement the `_selected_dataset_ids` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ids: List[str] = []
         for it in self._ds_tree.selectedItems() or []:
             did = str(it.data(0, Qt.UserRole) or "")
@@ -804,6 +960,10 @@ class MicroscopyTab(QWidget):
         return ids
 
     def _run_preset_on_active(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ds = self._get_active_dataset()
         if ds is None:
             self.dialogs.info("Preset Analysis", "Select an active dataset first.")
@@ -811,6 +971,10 @@ class MicroscopyTab(QWidget):
         self._run_preset_on_dataset_ids([ds.id])
 
     def _run_preset_on_selected(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ids = self._selected_dataset_ids()
         if not ids:
             self.dialogs.info("Preset Analysis", "Select one or more datasets first.")
@@ -818,6 +982,10 @@ class MicroscopyTab(QWidget):
         self._run_preset_on_dataset_ids(ids)
 
     def _run_preset_on_all(self) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None or not ws.datasets:
             self.dialogs.info("Preset Analysis", "No datasets in the active workspace.")
@@ -825,9 +993,17 @@ class MicroscopyTab(QWidget):
         self._run_preset_on_dataset_ids([str(d.id) for d in ws.datasets])
 
     def _find_workspace_by_id(self, wid: str) -> Optional[MicroscopyWorkspace]:
+        """Implement the `_find_workspace_by_id` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._workspaces.get(str(wid))
 
     def _run_preset_on_dataset_ids(self, dataset_ids: List[str]) -> None:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         exe = validate_imagej_exe_path(load_settings().get("fiji_exe_path"))
         if not exe:
             self.dialogs.error("Preset Analysis", "Set ImageJ/Fiji path first.")
@@ -848,6 +1024,10 @@ class MicroscopyTab(QWidget):
         progress.setValue(0)
 
         def _on_cancel() -> None:
+            """Implement the `_on_cancel` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             cancel_state["cancel"] = True
             handle = handle_ref.get("handle")
             if handle is not None:
@@ -861,6 +1041,10 @@ class MicroscopyTab(QWidget):
         timer = QTimer(progress)
 
         def _tick() -> None:
+            """Implement the `_tick` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 progress.setValue(int(progress_state["value"]))
             except Exception:
@@ -870,6 +1054,10 @@ class MicroscopyTab(QWidget):
         timer.start(200)
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             failures: List[str] = []
             for i, did in enumerate(dataset_ids):
                 if cancel_state.get("cancel") or getattr(_h, "cancelled", False):
@@ -932,6 +1120,10 @@ class MicroscopyTab(QWidget):
             return failures
 
         def _done(failures: List[str]) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             try:
                 timer.stop()
             except Exception:
@@ -961,6 +1153,10 @@ class MicroscopyTab(QWidget):
         handle_ref["handle"] = handle
 
     def _make_run_output_dir(self, ws: MicroscopyWorkspace, ds: MicroscopyDataset, preset_id: str) -> Tuple[Path, str]:
+        """Run this workflow end-to-end.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         base = Path(str(ds.output_dir or "")).expanduser() if ds.output_dir else Path.cwd()
         try:
             base.mkdir(parents=True, exist_ok=True)
@@ -974,6 +1170,10 @@ class MicroscopyTab(QWidget):
         return out_dir, ts
 
     def _render_preset_macro(self, *, preset_id: str, params: Dict[str, object]) -> str:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         thr_method = str(params.get("threshold_method") or "Otsu").strip()
         manual_min = str(params.get("manual_min") or "50").strip()
         manual_max = str(params.get("manual_max") or "200").strip()
@@ -985,6 +1185,10 @@ class MicroscopyTab(QWidget):
         overlay = "true" if bool(params.get("overlay", True)) else "false"
 
         def q(s: str) -> str:
+            """Implement the `q` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             return s.replace("\\", "\\\\").replace('"', "\\\"")
 
         thr_method_q = q(thr_method)
@@ -1148,6 +1352,10 @@ logLine("Done");
         return common
 
     def _find_dataset(self, dataset_id: str) -> Optional[MicroscopyDataset]:
+        """Implement the `_find_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for ws in self._workspaces.values():
             for ds in ws.datasets:
                 if str(ds.id) == str(dataset_id):
@@ -1155,11 +1363,19 @@ logLine("Done");
         return None
 
     def _get_active_dataset(self) -> Optional[MicroscopyDataset]:
+        """Implement the `_get_active_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._active_dataset_id:
             return None
         return self._find_dataset(self._active_dataset_id)
 
     def _discover_outputs_limited(self, out_dir: str) -> List[Path]:
+        """Implement the `_discover_outputs_limited` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         p = Path(out_dir)
         if not p.exists() or not p.is_dir():
             return []
@@ -1186,11 +1402,19 @@ logLine("Done");
         return found
 
     def _safe_dirname(self, name: str) -> str:
+        """Implement the `_safe_dirname` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         s = "".join(ch for ch in str(name) if ch.isalnum() or ch in ("-", "_", " ")).strip()
         s = s.replace(" ", "_")
         return s or "workspace"
 
     def _format_size(self, size: int) -> str:
+        """Implement the `_format_size` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if size > 1024 * 1024:
                 return f"{size / (1024 * 1024):.1f} MB"
@@ -1201,23 +1425,47 @@ logLine("Done");
             return ""
 
     def _utc_now_iso(self) -> str:
+        """Implement the `_utc_now_iso` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     def open_workspace(self) -> Optional[str]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._load_workspace()
 
     def save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._save_workspace()
 
     def open_workspace_path(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return None
         self._load_workspace_path(str(path))
 
     def get_last_workspace_path(self) -> Optional[str]:
+        """Implement the `get_last_workspace_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._last_workspace_path
 
     def _encode_workspace(self) -> Dict[str, object]:
+        """Implement the `_encode_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws_rows: List[Dict[str, object]] = []
         for wid in self._workspace_order:
             ws = self._workspaces.get(wid)
@@ -1249,6 +1497,10 @@ logLine("Done");
         }
 
     def _save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._workspaces:
             self.dialogs.info("Microscopy", "No workspaces to save.")
             return None
@@ -1274,6 +1526,10 @@ logLine("Done");
         return str(path)
 
     def _load_workspace(self) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load Microscopy Workspace",
@@ -1285,6 +1541,10 @@ logLine("Done");
         return self._load_workspace_path(str(path))
 
     def _load_workspace_path(self, path: str) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
                 import json

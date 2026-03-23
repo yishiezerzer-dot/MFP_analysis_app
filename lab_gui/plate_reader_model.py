@@ -12,6 +12,10 @@ from lab_gui.plate_reader_io import coerce_numeric_matrix
 
 
 def _utc_now_iso() -> str:
+    """Implement the `_utc_now_iso` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -75,6 +79,10 @@ class PlateReaderDataset:
         return self.df_header0
 
     def render_current_plot(self, ax) -> None:  # ax: matplotlib.axes.Axes
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ax.clear()
         if self.wizard_last_analysis == "mic" and self.wizard_mic_result is not None:
             self.wizard_mic_result.render(ax, config=self.wizard_mic_config)
@@ -174,6 +182,10 @@ class PlateReaderMICWizardResult:
     control_std: Optional[List[float]] = None
 
     def render(self, ax, *, config: Optional[PlateReaderMICWizardConfig]) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         title = (config.title if config else "MIC")
         x_label = (config.x_label if config else "Concentration")
         y_label = (config.y_label if config else "OD 600nm")
@@ -399,6 +411,10 @@ def build_mic_wizard_config_and_result(
     control_style: str,
     prev_cfg: Optional[PlateReaderMICWizardConfig] = None,
 ) -> Tuple[PlateReaderMICWizardConfig, PlateReaderMICWizardResult, float]:
+    """Build and return composed application state.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     if not sample_rows:
         raise ValueError("Select at least one sample row.")
     if not concentration_columns:
@@ -494,6 +510,10 @@ def build_mic_wizard_config_and_result(
 
 
 def ensure_numeric(series: pd.Series) -> pd.Series:
+    """Implement the `ensure_numeric` behavior for this module.
+
+    Text-only documentation note: modify internal logic here to change behavior.
+    """
     try:
         return pd.to_numeric(series, errors="coerce")
     except Exception:
@@ -645,6 +665,10 @@ def default_mic_wide_step_to_conc(
 
     # Sort by numeric step if possible
     def step_key(s: str) -> int:
+        """Implement the `step_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             return int(str(s).strip())
         except Exception:

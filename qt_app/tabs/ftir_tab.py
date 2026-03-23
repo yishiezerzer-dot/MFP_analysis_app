@@ -43,6 +43,10 @@ from qt_app.services.worker import run_in_worker
 
 class FTIRTab(QWidget):
     def __init__(self, status: StatusService, dialogs: DialogService, worker_runner=None) -> None:
+        """Implement the `__init__` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         super().__init__()
         self.status = status
         self.dialogs = dialogs
@@ -104,6 +108,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _build_ui(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         root = QSplitter(Qt.Horizontal)
         root.setChildrenCollapsible(False)
         self._root_splitter = root
@@ -118,6 +126,10 @@ class FTIRTab(QWidget):
         return root
 
     def reset_layout(self) -> None:
+        """Implement the `reset_layout` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             if getattr(self, "_root_splitter", None) is not None:
                 self._root_splitter.setSizes([320, 980])
@@ -129,6 +141,10 @@ class FTIRTab(QWidget):
             pass
 
     def _build_left_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
 
@@ -146,6 +162,10 @@ class FTIRTab(QWidget):
         return scroll
 
     def _build_workspace_block(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         wsblk = QGroupBox("Workspaces")
         v = QVBoxLayout(wsblk)
 
@@ -197,6 +217,10 @@ class FTIRTab(QWidget):
         return wsblk
 
     def _build_overlay_blocks(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         outer = QWidget()
         v = QVBoxLayout(outer)
         v.setContentsMargins(0, 0, 0, 0)
@@ -285,6 +309,10 @@ class FTIRTab(QWidget):
         return outer
 
     def _build_right_panel(self) -> QWidget:
+        """Build and return composed application state.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         right = QWidget()
         v = QVBoxLayout(right)
         v.setContentsMargins(6, 6, 6, 6)
@@ -343,9 +371,17 @@ class FTIRTab(QWidget):
         return right
 
     def _utc_now_iso(self) -> str:
+        """Implement the `_utc_now_iso` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     def _ensure_default_workspace(self) -> None:
+        """Implement the `_ensure_default_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._workspaces:
             return
         wid = str(uuid.uuid4())
@@ -355,11 +391,19 @@ class FTIRTab(QWidget):
         self._active_workspace_id = wid
 
     def _current_workspace(self) -> Optional[FTIRWorkspace]:
+        """Implement the `_current_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._active_workspace_id:
             return None
         return self._workspaces.get(self._active_workspace_id)
 
     def _refresh_workspace_combo(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ws_combo.blockSignals(True)
         self._ws_combo.clear()
         for wid in self._workspace_order:
@@ -377,6 +421,10 @@ class FTIRTab(QWidget):
         self._ws_combo.blockSignals(False)
 
     def _refresh_dataset_tree(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._tree.clear()
         ws = self._current_workspace()
         if ws is None:
@@ -390,6 +438,10 @@ class FTIRTab(QWidget):
         self._rebuild_overlay_selection_list()
 
     def _on_workspace_selected(self, _index: int = 0) -> None:
+        """Implement the `_on_workspace_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         wid = self._ws_combo.currentData()
         if wid and str(wid) in self._workspaces:
             self._active_workspace_id = str(wid)
@@ -397,6 +449,10 @@ class FTIRTab(QWidget):
             self._render_plot()
 
     def _new_workspace(self) -> None:
+        """Implement the `_new_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         name = f"Workspace {len(self._workspace_order) + 1}"
         wid = str(uuid.uuid4())
         self._workspaces[wid] = FTIRWorkspace(id=wid, name=name)
@@ -407,6 +463,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _rename_workspace(self) -> None:
+        """Implement the `_rename_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -418,6 +478,10 @@ class FTIRTab(QWidget):
         self._refresh_workspace_combo()
 
     def _duplicate_workspace(self) -> None:
+        """Implement the `_duplicate_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -434,6 +498,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _delete_workspace(self) -> None:
+        """Implement the `_delete_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if len(self._workspace_order) <= 1:
             self.dialogs.info("FTIR", "At least one workspace is required.")
             return
@@ -449,6 +517,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _edit_workspace_graph_color(self) -> None:
+        """Implement the `_edit_workspace_graph_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -460,6 +532,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _on_dataset_select(self) -> None:
+        """Implement the `_on_dataset_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -475,11 +551,19 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _load_ftir_dialog(self) -> None:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         paths, _ = QFileDialog.getOpenFileNames(self, "Load FTIR", "", "Text/CSV (*.txt *.csv);;All files (*.*)")
         if not paths:
             return
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded: List[FTIRDataset] = []
             for p in paths:
                 path = Path(p)
@@ -500,6 +584,10 @@ class FTIRTab(QWidget):
             return loaded
 
         def _done(loaded: List[FTIRDataset]) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             ws = self._current_workspace()
             if ws is None:
                 return
@@ -523,6 +611,10 @@ class FTIRTab(QWidget):
         )
 
     def _remove_selected(self) -> None:
+        """Implement the `_remove_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -538,6 +630,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _clear_all(self) -> None:
+        """Implement the `_clear_all` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -548,10 +644,18 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _on_overlay_color_changed(self, _index: int = 0) -> None:
+        """Implement the `_on_overlay_color_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_color_mode = str(self._overlay_colors.currentText() or "Auto (Tableau)")
         self._render_plot()
 
     def _pick_overlay_single_hue_color(self) -> None:
+        """Implement the `_pick_overlay_single_hue_color` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         color = QColorDialog.getColor(parent=self, title="Pick overlay hue")
         if not color.isValid():
             return
@@ -564,6 +668,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _on_overlay_offset_changed(self) -> None:
+        """Implement the `_on_overlay_offset_changed` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_offset_mode = str(self._overlay_offset_mode.currentText() or "Normal")
         try:
             self._overlay_offset_value = float(self._overlay_offset_val.text() or 0.0)
@@ -572,6 +680,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _rebuild_overlay_selection_list(self) -> None:
+        """Implement the `_rebuild_overlay_selection_list` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         text = str(self._overlay_filter.text() or "").strip().lower()
         self._overlay_selection_tree.clear()
         for wid in self._workspace_order:
@@ -588,6 +700,10 @@ class FTIRTab(QWidget):
                 self._overlay_selection_tree.addTopLevelItem(item)
 
     def _new_overlay_group_from_selection(self) -> None:
+        """Implement the `_new_overlay_group_from_selection` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         members: List[FTIRDatasetKey] = []
         for i in range(self._overlay_selection_tree.topLevelItemCount()):
             item = self._overlay_selection_tree.topLevelItem(i)
@@ -612,6 +728,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _activate_selected_overlay_group(self) -> None:
+        """Implement the `_activate_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._overlay_groups_tree.selectedItems()
         if not items:
             return
@@ -625,6 +745,10 @@ class FTIRTab(QWidget):
             self._render_plot()
 
     def _rename_selected_overlay_group(self) -> None:
+        """Implement the `_rename_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._overlay_groups_tree.selectedItems()
         if not items:
             return
@@ -640,6 +764,10 @@ class FTIRTab(QWidget):
         self._refresh_overlay_group_list()
 
     def _duplicate_selected_overlay_group(self) -> None:
+        """Implement the `_duplicate_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._overlay_groups_tree.selectedItems()
         if not items:
             return
@@ -660,6 +788,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _delete_selected_overlay_group(self) -> None:
+        """Implement the `_delete_selected_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._overlay_groups_tree.selectedItems()
         if not items:
             return
@@ -674,18 +806,34 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _clear_active_overlay_group(self) -> None:
+        """Implement the `_clear_active_overlay_group` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._active_overlay_group_id = None
         self._refresh_overlay_group_list()
         self._refresh_overlay_members_list()
         self._render_plot()
 
     def _on_overlay_group_select(self) -> None:
+        """Implement the `_on_overlay_group_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._refresh_overlay_members_list()
 
     def _on_overlay_member_select(self) -> None:
+        """Implement the `_on_overlay_member_select` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         pass
 
     def _set_active_overlay_member_from_selected(self) -> None:
+        """Implement the `_set_active_overlay_member_from_selected` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         items = self._overlay_members_tree.selectedItems()
         if not items:
             return
@@ -701,6 +849,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _refresh_overlay_group_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_groups_tree.clear()
         for gid in self._overlay_order:
             g = self._overlay_groups.get(gid)
@@ -715,6 +867,10 @@ class FTIRTab(QWidget):
             self._overlay_groups_tree.addTopLevelItem(item)
 
     def _refresh_overlay_members_list(self) -> None:
+        """Refresh derived state or UI content.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._overlay_members_tree.clear()
         gid = self._active_overlay_group_id
         group = self._overlay_groups.get(gid) if gid else None
@@ -731,6 +887,10 @@ class FTIRTab(QWidget):
             self._overlay_members_tree.addTopLevelItem(item)
 
     def _get_dataset_by_key(self, key: FTIRDatasetKey) -> Optional[FTIRDataset]:
+        """Implement the `_get_dataset_by_key` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._workspaces.get(str(key[0]))
         if ws is None:
             return None
@@ -740,6 +900,10 @@ class FTIRTab(QWidget):
         return None
 
     def _overlay_colors_for_count(self, count: int) -> List[str]:
+        """Implement the `_overlay_colors_for_count` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if count <= 0:
             return []
         mode = str(self._overlay_color_mode or "Auto (Tableau)")
@@ -756,6 +920,10 @@ class FTIRTab(QWidget):
         return out
 
     def _render_plot(self) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ax.clear()
         self._clear_peak_artists()
         self._clear_bond_artists()
@@ -824,6 +992,10 @@ class FTIRTab(QWidget):
         self._canvas.draw_idle()
 
     def _save_plot_dialog(self) -> None:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save FTIR Plot",
@@ -839,14 +1011,26 @@ class FTIRTab(QWidget):
             self.dialogs.error("FTIR", f"Failed to save plot:\n\n{exc}")
 
     def _on_toggle_reverse(self, checked: bool) -> None:
+        """Implement the `_on_toggle_reverse` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._reverse_x = bool(checked)
         self._render_plot()
 
     def _on_toggle_peaks_all_overlay(self, checked: bool) -> None:
+        """Implement the `_on_toggle_peaks_all_overlay` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._show_peaks_all_overlay = bool(checked)
         self._render_plot()
 
     def _open_peaks_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         top_n, ok = QInputDialog.getInt(self, "Peaks", "Top N peaks", value=int(self._peaks_top_n), min=0, max=50)
         if not ok:
             return
@@ -879,6 +1063,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _clear_peak_artists(self) -> None:
+        """Implement the `_clear_peak_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for m in list(self._peak_markers):
             try:
                 m.remove()
@@ -901,6 +1089,10 @@ class FTIRTab(QWidget):
         self._peak_summary_text = None
 
     def _clear_bond_artists(self) -> None:
+        """Implement the `_clear_bond_artists` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for t in list(self._bond_texts):
             try:
                 t.remove()
@@ -916,6 +1108,10 @@ class FTIRTab(QWidget):
         self._bond_artist_to_info = {}
 
     def _ensure_peaks_for_dataset(self, ds: FTIRDataset) -> None:
+        """Implement the `_ensure_peaks_for_dataset` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             enabled = bool(ds.peak_settings.get("enabled", self._show_peaks))
         except Exception:
@@ -968,6 +1164,10 @@ class FTIRTab(QWidget):
         pickable: bool = True,
         max_peaks: int = 0,
     ) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._ensure_peaks_for_dataset(ds)
 
         peak_color = str(peak_color or "#d32f2f")
@@ -1077,6 +1277,10 @@ class FTIRTab(QWidget):
                 pass
 
     def _render_peaks(self, ds: FTIRDataset) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         key = None
         if ws is not None:
@@ -1084,6 +1288,10 @@ class FTIRTab(QWidget):
         self._render_peaks_for_dataset(ds, dataset_key=key, peak_color="#d32f2f", pickable=True)
 
     def _export_peaks(self) -> None:
+        """Export data in an external-friendly format.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None or not ws.datasets:
             self.dialogs.info("FTIR", "No datasets to export.")
@@ -1120,6 +1328,10 @@ class FTIRTab(QWidget):
             self.dialogs.error("FTIR", f"Failed to export peaks:\n\n{exc}")
 
     def _open_add_bond_label_dialog(self) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None or not ws.datasets:
             self.dialogs.info("FTIR", "No dataset selected.")
@@ -1185,6 +1397,10 @@ class FTIRTab(QWidget):
         self._bond_begin_placement(opts)
 
     def _render_bond_labels(self, ds: FTIRDataset) -> None:
+        """Render data into UI elements.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         for idx, ann in enumerate(list(getattr(ds, "bond_annotations", []) or [])):
             try:
                 txt = self._ax.text(
@@ -1207,6 +1423,10 @@ class FTIRTab(QWidget):
                 continue
 
     def _interp_y_at(self, ds: FTIRDataset, xval: float) -> float:
+        """Implement the `_interp_y_at` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             xp = np.asarray(ds.x_disp, dtype=float)
             yp = np.asarray(ds.y_disp, dtype=float)
@@ -1223,6 +1443,10 @@ class FTIRTab(QWidget):
         return 0.0
 
     def _bond_begin_placement(self, opts: Dict[str, object]) -> None:
+        """Implement the `_bond_begin_placement` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._bond_place_active = True
         self._bond_place_opts = dict(opts or {})
         try:
@@ -1231,6 +1455,10 @@ class FTIRTab(QWidget):
             pass
 
     def _bond_add_annotation(self, opts: Dict[str, object], *, x_cm1: float, y_value: float, xytext: Tuple[float, float]) -> None:
+        """Implement the `_bond_add_annotation` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ws = self._current_workspace()
         if ws is None:
             return
@@ -1255,6 +1483,10 @@ class FTIRTab(QWidget):
         ds.bond_annotations.append(ann)
 
     def _bond_autoplace(self, ds: FTIRDataset, opts: Dict[str, object]) -> None:
+        """Implement the `_bond_autoplace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         x_peak = None
         y_peak = None
         try:
@@ -1297,9 +1529,17 @@ class FTIRTab(QWidget):
         self._bond_add_annotation(opts, x_cm1=float(x_peak or 0.0), y_value=float(y_peak or 0.0), xytext=(float(x_peak or 0.0), float(y_peak or 0.0)))
 
     def _on_mpl_draw_event(self, _evt) -> None:
+        """Implement the `_on_mpl_draw_event` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return
 
     def _on_peak_pick_event(self, evt) -> None:
+        """Implement the `_on_peak_pick_event` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             artist = evt.artist
             if artist not in self._peak_artist_to_info:
@@ -1348,6 +1588,10 @@ class FTIRTab(QWidget):
         self._render_plot()
 
     def _on_peak_drag_press(self, evt) -> None:
+        """Implement the `_on_peak_drag_press` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._bond_place_active:
             try:
                 if evt is None or int(getattr(evt, "button", 0) or 0) != 1:
@@ -1435,6 +1679,10 @@ class FTIRTab(QWidget):
             self._drag_dy = 0.0
 
     def _on_peak_drag_motion(self, evt) -> None:
+        """Implement the `_on_peak_drag_motion` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if self._drag_bond_idx is not None and self._drag_bond_artist is not None:
             try:
                 if evt is None or getattr(evt, "inaxes", None) is None:
@@ -1513,6 +1761,10 @@ class FTIRTab(QWidget):
             pass
 
     def _on_peak_drag_release(self, _evt) -> None:
+        """Implement the `_on_peak_drag_release` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         self._drag_bond_key = None
         self._drag_bond_idx = None
         self._drag_bond_artist = None
@@ -1526,6 +1778,10 @@ class FTIRTab(QWidget):
         self._drag_dy = 0.0
 
     def _on_ftir_keypress(self, evt) -> None:
+        """Implement the `_on_ftir_keypress` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         key = str(getattr(evt, "key", "") or "").lower()
         if key == "escape" and self._bond_place_active:
             self._bond_place_active = False
@@ -1536,20 +1792,40 @@ class FTIRTab(QWidget):
                 pass
 
     def open_workspace(self) -> Optional[str]:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._load_workspace()
 
     def save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._save_workspace()
 
     def open_workspace_path(self, path: str) -> None:
+        """Open a file, view, or resource.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not path:
             return None
         self._load_workspace_path(str(path))
 
     def get_last_workspace_path(self) -> Optional[str]:
+        """Implement the `get_last_workspace_path` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         return self._last_workspace_path
 
     def _encode_workspace(self) -> Dict[str, object]:
+        """Implement the `_encode_workspace` behavior for this module.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         ftir_files: List[Dict[str, object]] = []
         seen: Dict[str, FTIRDataset] = {}
         for ws in self._workspaces.values():
@@ -1648,6 +1924,10 @@ class FTIRTab(QWidget):
         }
 
     def _save_workspace(self) -> Optional[str]:
+        """Save output/state to persistent storage.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         if not self._workspaces or not any(ws.datasets for ws in self._workspaces.values()):
             self.dialogs.info("FTIR", "No FTIR datasets to save.")
             return None
@@ -1671,6 +1951,10 @@ class FTIRTab(QWidget):
         return str(path)
 
     def _load_workspace(self) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Load FTIR Workspace",
@@ -1682,6 +1966,10 @@ class FTIRTab(QWidget):
         return self._load_workspace_path(str(path))
 
     def _load_workspace_path(self, path: str) -> Optional[str]:
+        """Load data required by this function.
+
+        Text-only documentation note: modify internal logic here to change behavior.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -1706,6 +1994,10 @@ class FTIRTab(QWidget):
         ui_state = ft.get("ui") if isinstance(ft.get("ui"), dict) else {}
 
         def _work(_h):
+            """Implement the `_work` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded: Dict[str, FTIRDataset] = {}
             missing: List[str] = []
             for row in ftir_files:
@@ -1775,6 +2067,10 @@ class FTIRTab(QWidget):
             return loaded, missing
 
         def _done(res) -> None:
+            """Implement the `_done` behavior for this module.
+
+            Text-only documentation note: modify internal logic here to change behavior.
+            """
             loaded, missing = res
             self._workspaces = {}
             self._workspace_order = []
